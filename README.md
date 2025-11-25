@@ -1,7 +1,7 @@
 # Project Name
 
 
-A reproducible scientific Python project built with [uv](https://github.com/astral-sh/uv).
+A repository to benchmark Alpha simplicial complex and persistence landscape computation as a function of data size and homology dimensions. The underlying goal is to find out how fast these things can be computed with good hardware.
 
 
 ## Quickstart (Windows/macOS/Linux)
@@ -20,3 +20,5 @@ uvx nox -s test # run tests
 uvx nox -s format # black
 uvx nox -s lint # ruff + mypy
 uvx nox -s cov # coverage
+
+# 3) 

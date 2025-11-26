@@ -13,6 +13,7 @@ dependencies = [
     "gudhi>=3.9.0",
     "typer>=0.12",
     "rich>=13.0",
+    "scikit-learn>=1.7.2",
 ]
 
 # Allows cli commands to be run as: uv run fast [cli function] [parameters]
@@ -27,4 +28,4 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 # Not packaging/building: treat as non-installable project
-package = false
+package = true

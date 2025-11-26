@@ -33,6 +33,3 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
-
-# outputs (likely remove later)
-outputs/

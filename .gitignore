@@ -1,55 +1,19 @@
-# Byte-compiled / cache
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-
-
-# Virtual envs and uv caches
+# venvs
 .venv/
+.venv-*/
+
+
+# uv
 .uv/
-uv.lock.bak
+uv.lock
 
 
-# IDE/editor
-.vscode/
-.idea/
-*.swp
-
-
-# Slurm related
-.slurm/
-*.sbatch
-
-
-# Data & artifacts
-/data/**/*.csv
-/data/**/*.tsv
-/data/**/*.parquet
-/data/**/*.feather
-/data/**/*.npy
-/data/**/*.npz
-/data/**/*.h5
-/data/**/*.zip
-/data/**/*.gz
-/data/**/*.xz
-/data/**/*.bz2
-/data/**/*.jsonl
-!data/raw/.gitkeep
-!data/interim/.gitkeep
-!data/processed/.gitkeep
-
-
-# Jupyter
-.ipynb_checkpoints/
-
-
-# Build outputs
-build/
-dist/
-*.egg-info/
-
-
-# OS files
+# OS/editor
 .DS_Store
 Thumbs.db
+.idea/
+.vscode/
+
+
+# outputs (optional to ignore)
+outputs/

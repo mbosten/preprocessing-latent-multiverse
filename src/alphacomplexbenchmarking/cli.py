@@ -1,23 +1,31 @@
 from pathlib import Path
+import json
 import typer
 from rich import print
 
-app = typer.Typer(help="Project CLI")
+
+from .features.simulate_data import generate_simulation_matrix
+from .complexes.alpha_complex_persistence import compute_alpha_complex_persistence
 
 
-@app.command()
-def hello(name: str = typer.Argument("world")):
-    """Say hello."""
-    print(f"[bold green]Hello, {name}![/bold green]")
+app = typer.Typer(help="Minimal CLI")
 
 
-@app.command()
-def process(config: Path = Path("configs/default.yaml")):
-    """Example command that would load config & run a pipeline."""
-    if not config.exists():
-        print(f"[red]Config not found:[/red] {config}")
-        raise typer.Exit(code=1)
-    print(f"Using config: {config}")
+@app.command("run-pipeline")
+def run_pipeline(
+    n_samples: int = 100,
+    n_dims: int = 3,
+    seed: int = 42,
+    dim: list[int] = typer.Option([0, 1, 2], "--dim"),
+    out_json: Path = Path("outputs/persistence.json")
+):
+    data = generate_simulation_matrix(n_samples, n_dims, seed)
+    pers = compute_alpha_complex_persistence(data, homology_dimensions=dim)
+
+
+    out_json.parent.mkdir(parents=True, exist_ok=True)
+    out_json.write_text(json.dumps({int(k): v.tolist() for k, v in pers.items()}, indent=2), encoding="utf-8")
+    print(f"[green]Wrote:[/green] {out_json}")
 
 
 if __name__ == "__main__":

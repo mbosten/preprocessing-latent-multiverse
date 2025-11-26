@@ -1,7 +1,11 @@
 # src/alphacomplexbenchmarking/cli.py
+import logging
 from pathlib import Path
 import typer
 from rich import print
+
+from alphacomplexbenchmarking.io.run_id import parse_run_id
+from alphacomplexbenchmarking.logging_config import setup_logging
 
 # For running the pipeline
 from alphacomplexbenchmarking.io.storage import (
@@ -9,7 +13,6 @@ from alphacomplexbenchmarking.io.storage import (
     compute_and_store_persistence_for_run,
     compute_and_store_landscapes_for_run,
 )
-from alphacomplexbenchmarking.io.run_id import parse_run_id
 
 # For self-check
 from alphacomplexbenchmarking.io.storage import (
@@ -18,7 +21,26 @@ from alphacomplexbenchmarking.io.storage import (
     compute_landscapes
 )
 
+
 app = typer.Typer(help="Simulation + TDA pipeline")
+
+
+@app.callback()
+def main(
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose (DEBUG) logging",
+    ),
+):
+    """
+    Global CLI options, executed before any subcommand.
+    """
+    level = logging.DEBUG if verbose else logging.INFO
+    setup_logging(log_dir=Path("logs"), level=level)
+    logger = logging.getLogger(__name__)
+    logger.debug("CLI started with verbose=%s", verbose)
 
 
 @app.command("run-pipeline")
@@ -34,6 +56,9 @@ def run_pipeline(
       - persistence   → data/interim/persistence/<run_id>.npz
       - landscapes    → data/interim/landscapes/<run_id>.npz
     """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Running pipeline with n_samples={n_samples}, n_dims={n_dims}, seed={seed}, dims={dim}")
+
     # 1) generate & store
     data, run_id, raw_path = generate_and_store(n_samples, n_dims, seed)
     print(f"[blue]Run ID:[/blue] {run_id}")
@@ -47,6 +72,7 @@ def run_pipeline(
     landscapes, land_path = compute_and_store_landscapes_for_run(per_dim, run_id, dim)
     print(f"[green]Landscapes stored at:[/green] {land_path}")
 
+    logger.info(f"Pipeline finished for run_id={run_id}")
     print("[bold green]Pipeline complete.[/bold green]")
 
 
@@ -56,6 +82,9 @@ def self_check():
     Run a small in-memory pipeline to check that the core steps still work.
     Prints step-by-step status; exits with code 0 on success, 1 on error.
     """
+    logger = logging.getLogger(__name__)
+    logger.info("Running self-check")
+
     ok = True
 
     # --- Step 1: simulation ---
@@ -151,6 +180,9 @@ def inspect_run(filename: str):
     Example:
       uv run fast inspect-run 00012300000050000320251126142015.npz
     """
+    logger = logging.getLogger(__name__)
+    logger.info("Inspecting run from filename=%s", filename)
+    
     info = parse_run_id(filename)
     print("[bold]Decoded run ID:[/bold]")
     for k, v in info.items():

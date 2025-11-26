@@ -29,6 +29,10 @@ Thumbs.db
 !/data/**/
 !/data/**/.gitkeep
 
+# Ignore logs
+logs/
+*.log
+
 # Build outputs
 build/
 dist/

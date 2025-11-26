@@ -12,7 +12,7 @@ def compute_alpha_complex_persistence(
 ) -> dict[int, np.ndarray]:
         alpha_complex = gd.AlphaComplex(points=data, precision="fast")
         st = alpha_complex.create_simplex_tree()
-
+        st.compute_persistence()
 
         per_dim: dict[int, np.ndarray] = {}
         for dim in homology_dimensions:

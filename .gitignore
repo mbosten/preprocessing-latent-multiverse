@@ -1,3 +1,9 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
 # venvs
 .venv/
 .venv-*/
@@ -6,6 +12,7 @@
 # uv
 .uv/
 uv.lock
+uv.lock.bak
 
 
 # OS/editor
@@ -13,7 +20,36 @@ uv.lock
 Thumbs.db
 .idea/
 .vscode/
+*.swp
 
 
-# outputs (optional to ignore)
+# Slurm related
+.slurm/
+*.sbatch
+
+# Data & artifacts
+/data/**/*.csv
+/data/**/*.tsv
+/data/**/*.parquet
+/data/**/*.feather
+/data/**/*.npy
+/data/**/*.npz
+/data/**/*.h5
+/data/**/*.zip
+/data/**/*.gz
+/data/**/*.xz
+/data/**/*.bz2
+/data/**/*.jsonl
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+
+
+# outputs (likely remove later)
 outputs/

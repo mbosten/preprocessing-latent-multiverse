@@ -25,8 +25,8 @@ Thumbs.db
 *.sbatch
 
 # Data & artifacts
-/data/*
-/data/**/*
+data/*
+data/**/*
 !data/**/.gitkeep
 
 # Build outputs

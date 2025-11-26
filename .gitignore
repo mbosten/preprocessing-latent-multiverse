@@ -8,12 +8,10 @@ __pycache__/
 .venv/
 .venv-*/
 
-
 # uv
 .uv/
 uv.lock
 uv.lock.bak
-
 
 # OS/editor
 .DS_Store
@@ -22,34 +20,19 @@ Thumbs.db
 .vscode/
 *.swp
 
-
 # Slurm related
 .slurm/
 *.sbatch
 
 # Data & artifacts
-/data/**/*.csv
-/data/**/*.tsv
-/data/**/*.parquet
-/data/**/*.feather
-/data/**/*.npy
-/data/**/*.npz
-/data/**/*.h5
-/data/**/*.zip
-/data/**/*.gz
-/data/**/*.xz
-/data/**/*.bz2
-/data/**/*.jsonl
-!data/raw/.gitkeep
-!data/interim/.gitkeep
-!data/processed/.gitkeep
-
+data/*
+data/**/*
+!data/**/.gitkeep
 
 # Build outputs
 build/
 dist/
 *.egg-info/
-
 
 # outputs (likely remove later)
 outputs/

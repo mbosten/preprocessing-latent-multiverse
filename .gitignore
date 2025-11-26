@@ -24,12 +24,12 @@ Thumbs.db
 .slurm/
 *.sbatch
 
-# Ignore all data artifacts
+# Data artifacts
 /data/**
 !/data/**/
 !/data/**/.gitkeep
 
-# Ignore logs
+# Logs
 logs/
 *.log
 

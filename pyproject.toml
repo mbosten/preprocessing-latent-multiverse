@@ -1,7 +1,7 @@
 [project]
-name = "PROJECT-NAME" # replace (hyphenated)
+name = "alpha-complex-benchmarking"
 version = "0.1.0"
-description = "A reproducible scientific Python project template using uv."
+description = "Running tests to benchmark alpha complex implementations and persistence computations."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
@@ -16,10 +16,11 @@ classifiers = [
 
 # Runtime dependencies
 dependencies = [
-"numpy>=1.26",
-"pandas>=2.1",
-"typer>=0.12", # CLI
-"rich>=13.7", # pretty printing
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "typer>=0.12", # CLI
+    "rich>=13.7", # pretty printing
+    "gudhi>=3.11.0",
 ]
 
 

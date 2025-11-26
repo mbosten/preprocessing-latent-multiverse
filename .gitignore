@@ -24,9 +24,9 @@ Thumbs.db
 .slurm/
 *.sbatch
 
-# Data & artifacts
+# Ignore all data artifacts
 data/*
-data/**/*
+data/**
 !data/**/.gitkeep
 
 # Build outputs

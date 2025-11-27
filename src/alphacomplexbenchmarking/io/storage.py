@@ -33,6 +33,10 @@ def ensure_parent_dir(path: Path) -> None:
 # ---------- low-level save/load helpers ----------
 
 # PATHS
+def get_raw_dataset_path(dataset_id: str, extension: str) -> Path:
+    return BASE_DATA_DIR / "raw" / f"{dataset_id}.{extension}"
+
+
 def raw_matrix_path(run_id: str) -> Path:
     return RAW_ROOT / f"{run_id}.npz"
 

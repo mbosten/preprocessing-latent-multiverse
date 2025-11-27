@@ -4,21 +4,43 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import pandas as pd  # or polars, etc.
+import pandas as pd
+import polars as pl
 
 from alphacomplexbenchmarking.pipeline.specs import RunSpec, Scaling, FeatureSubset, CatEncoding
-from alphacomplexbenchmarking.io.storage import get_preprocessed_path, ensure_parent_dir
+from alphacomplexbenchmarking.io.storage import get_raw_dataset_path, get_preprocessed_path, ensure_parent_dir
 
 logger = logging.getLogger(__name__)
 
+LABEL_COLUMN = "Label"
+TARGET_LABEL_VALUE = "BENIGN"
+MAX_ROWS_FOR_LABEL = 1000
 
 def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     """
-    Load the full raw dataset (17M x 53).
-    Replace this with your real loading (e.g. parquet).
+    Currently loads only a subset of benign traffic for debugging purposes.
+    Returns a pandas DataFrame to ensure further compatibility.
     """
-    # TODO: implement actual loading
-    raise NotImplementedError("load_raw_dataset must be implemented for your data.")
+    logger.info(
+        "Loading raw dataset from %s using Polars: %s == %r (limit=%d)",
+        dataset_id,
+        LABEL_COLUMN,
+        TARGET_LABEL_VALUE,
+        MAX_ROWS_FOR_LABEL,
+    )
+    path = get_raw_dataset_path(dataset_id, extension="csv")
+    lf = (
+        pl.scan_csv(path)
+        .filter(pl.col(LABEL_COLUMN) == TARGET_LABEL_VALUE)
+        .limit(MAX_ROWS_FOR_LABEL)
+    )
+
+    # Collect into an in-memory Polars DataFrame, then convert to pandas
+    df_polars = lf.collect()
+    df = df_polars.to_pandas()
+
+    logger.info("Loaded %d rows x %d columns after Polars filter+limit.", *df.shape)
+    return df
 
 
 def apply_feature_subset(df: pd.DataFrame, spec: RunSpec) -> pd.DataFrame:
@@ -49,7 +71,7 @@ def apply_scaling(df: pd.DataFrame, spec: RunSpec) -> pd.DataFrame:
 def apply_cat_encoding(df: pd.DataFrame, spec: RunSpec) -> pd.DataFrame:
     cat_cols = df.select_dtypes(exclude="number").columns
 
-    if spec.cat_encoding == CatEncoding.NONE or not cat_cols:
+    if cat_cols.empty:
         return df
 
     logger.debug(f"Applying {spec.cat_encoding.value} encoding to categorical columns: {list(cat_cols)}")
@@ -57,7 +79,7 @@ def apply_cat_encoding(df: pd.DataFrame, spec: RunSpec) -> pd.DataFrame:
     if spec.cat_encoding == CatEncoding.ONEHOT:
         return pd.get_dummies(df, columns=cat_cols, drop_first=False)
 
-    if spec.cat_encoding == CatEncoding.ORDINAL:
+    if spec.cat_encoding == CatEncoding.LABEL:
         from sklearn.preprocessing import OrdinalEncoder
 
         df_encoded = df.copy()

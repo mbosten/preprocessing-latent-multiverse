@@ -51,7 +51,7 @@ class RunSpec:
     tda_config: TdaConfig = TdaConfig()
 
 
-    dataset_id: str = "NF-ToN-IoT-v3"
+    dataset_id: str = "Merged35" # "NF-ToN-IoT-v3"
 
     def to_id_string(self) -> str:
         """

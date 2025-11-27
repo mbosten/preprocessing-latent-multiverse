@@ -8,7 +8,6 @@ from rich.theme import Theme
 from rich.console import Console
 from rich.style import Style
 
-# logger = logging.getLogger(__name__)
 
 custom_theme = Theme({
     "logging.level.info": Style(color="#00f0f0"),
@@ -47,7 +46,7 @@ def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> Non
     file_handler.setLevel(logging.DEBUG)
 
     fmt_shell = '%(message)s'
-    fmt_file = '%(levelname)s %(asctime)s [%(filename)s:%(funcName)s:%(lineno)s] %(message)s'
+    fmt_file = '%(levelname)s\t%(asctime)s [%(filename)s:%(funcName)s:%(lineno)s] %(message)s'
 
     shell_formatter = logging.Formatter(fmt_shell)
     file_formatter = logging.Formatter(fmt_file)
@@ -61,4 +60,5 @@ def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> Non
     root_logger.addHandler(file_handler)
 
     root_logger._acb_logging_configured = True
+    root_logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 🧪 NEW RUN STARTED 🧪 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     root_logger.debug(f"Logging configured. Log file: {log_file}")

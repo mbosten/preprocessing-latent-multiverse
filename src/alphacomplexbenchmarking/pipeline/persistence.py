@@ -1,4 +1,5 @@
 # src/alphacomplexbenchmarking/pipeline/persistence.py
+from __future__ import annotations
 import numpy as np
 import gudhi as gd
 import logging

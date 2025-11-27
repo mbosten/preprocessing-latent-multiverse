@@ -1,21 +1,21 @@
 # src/alphacomplexbenchmarking/cli.py
+from __future__ import annotations
 import logging
 from pathlib import Path
 import typer
 from rich import print
+from typing import Optional
 
 from alphacomplexbenchmarking.io.run_id import parse_run_id
 from alphacomplexbenchmarking.logging_config import setup_logging
+from alphacomplexbenchmarking.pipeline.specs import RunSpec, generate_default_specs
+from alphacomplexbenchmarking.pipeline.parallel import run_full_pipeline_for_spec, run_many_specs
 
-# For running the pipeline
+# For running the pipeline and self-checks
 from alphacomplexbenchmarking.io.storage import (
     generate_and_store,
     compute_and_store_persistence_for_run,
     compute_and_store_landscapes_for_run,
-)
-
-# For self-check
-from alphacomplexbenchmarking.io.storage import (
     generate_simulation_matrix,
     compute_alpha_complex_persistence,
     compute_landscapes
@@ -41,6 +41,59 @@ def main(
     setup_logging(log_dir=Path("logs"), level=level)
     logger = logging.getLogger(__name__)
     logger.debug("CLI started with verbose=%s", verbose)
+
+
+@app.command("run-spec")
+def run_spec(
+    index: int = typer.Argument(
+        ..., help="Index of spec in the default spec list (0-based)."
+    ),
+):
+    """
+    Run the full pipeline for a single RunSpec from the default grid.
+    """
+    specs = generate_default_specs()
+    if not (0 <= index < len(specs)):
+        raise typer.BadParameter(f"index must be in [0, {len(specs) - 1}]")
+    spec = specs[index]
+    typer.echo(f"Running spec[{index}] = {spec.to_id_string()}")
+    run_full_pipeline_for_spec(spec)
+
+@app.command("run-spec-batch")
+def run_spec_batch(
+    start: int = typer.Option(0, help="Start index (inclusive) in default spec list."),
+    end: Optional[int] = typer.Option(
+        None, help="End index (exclusive) in default spec list. If None, run to end."
+    ),
+    max_workers: Optional[int] = typer.Option(
+        None,
+        help="Max parallel workers for local run. Default uses number of CPUs.",
+    ),
+):
+    """
+    Run a batch of RunSpecs (potentially in parallel) from the default grid.
+    """
+    specs = generate_default_specs()
+    n = len(specs)
+    if end is None or end > n:
+        end = n
+    if start < 0 or start >= end:
+        raise typer.BadParameter(f"Invalid start/end: start={start}, end={end}, total={n}")
+
+    subset = specs[start:end]
+    typer.echo(f"Running specs[{start}:{end}] ({len(subset)} specs)")
+    completed = run_many_specs(subset, max_workers=max_workers)
+    typer.echo(f"Completed {len(completed)} specs.")
+
+
+@app.command("list-specs")
+def list_specs():
+    """
+    List all default RunSpecs with their indices.
+    """
+    specs = generate_default_specs()
+    for i, spec in enumerate(specs):
+        typer.echo(f"{i:3d}: {spec.to_id_string()}")
 
 
 @app.command("run-pipeline")

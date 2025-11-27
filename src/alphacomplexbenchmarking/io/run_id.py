@@ -1,4 +1,5 @@
 # src/alphacomplexbenchmarking/io/run_id.py
+from __future__ import annotations
 from datetime import datetime
 
 def make_run_id(seed: int, n_samples: int, n_dims: int, dt: datetime | None = None) -> str:

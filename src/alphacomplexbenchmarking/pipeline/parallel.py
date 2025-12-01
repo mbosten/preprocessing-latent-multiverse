@@ -27,7 +27,7 @@ def run_full_pipeline_for_universe(universe: Universe) -> str:
     """
     Full multiverse pipeline for a single Universe:
       1. Preprocess
-      2. Train AE (placeholder for now)
+      2. Train AE
       3. Compute embeddings + PCA + subsample
       4. Run TDA (alpha + landscapes)
       5. Compute summary metrics
@@ -41,7 +41,7 @@ def run_full_pipeline_for_universe(universe: Universe) -> str:
     # 1. Preprocess
     preprocess_variant(universe)
 
-    # 2. Train AE (placeholder)
+    # 2. Train AE
     train_autoencoder_for_universe(universe)
 
     # 3. Embeddings + PCA + subsample

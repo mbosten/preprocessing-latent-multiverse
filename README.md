@@ -43,10 +43,10 @@ project/
 │       └── pipeline/
 │           ├── universes.py        # Universe, TdaConfig, universe grid generation
 │           ├── preprocessing.py    # scaling, encoding, feature exclusion
-│           ├── autoencoder.py      # AE placeholder (to be implemented)
+│           ├── autoencoder.py      # Simple AE for embeddings
 │           ├── embeddings.py       # PCA, normalization, subsampling
-│           ├── persistence.py      # alpha complex TDA (existing)
-│           ├── landscapes.py       # landscape computation (existing)
+│           ├── persistence.py      # alpha complex TDA
+│           ├── landscapes.py       # landscape computation
 │           ├── tda.py              # TDA wrapper
 │           ├── metrics.py          # scalar TDA summaries
 │           ├── parallel.py         # run_full_pipeline_for_universe, run_many_universes

@@ -1,12 +1,23 @@
 # src/alphacomplexbenchmarking/config.py
-
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Dict, Any, List, Optional
 
+import pandas as pd
+import typer
 import yaml
+import os
+
+
+from alphacomplexbenchmarking.logging_config import setup_logging
+
+
+logger = logging.getLogger(__name__)
+
+app = typer.Typer()
 
 
 @dataclass
@@ -18,12 +29,35 @@ class DatasetConfig:
     label_column: Optional[str] = None
     label_classes: Optional[List[str]] = None
 
+    @property
+    def output_path(self) -> Path:
+        return Path("data") / "raw" / f"{self.dataset_id}_clean.csv"
+
+
+@app.callback()
+def main(
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose (DEBUG) logging",
+    ),
+):
+    """
+    Global CLI options, executed before any subcommand.
+    """
+    level = logging.DEBUG if verbose else logging.INFO
+    setup_logging(log_dir=Path("logs"), level=level)
+    logger = logging.getLogger(__name__)
+    logger.debug("CLI started with verbose=%s", verbose)
+
 
 def load_dataset_config(dataset_id: str) -> DatasetConfig:
     """
     Load dataset-specific config from config/datasets/{dataset_id}.yml
     """
     config_path = Path("config") / "datasets" / f"{dataset_id}.yml"
+
     if not config_path.exists():
         raise FileNotFoundError(
             f"Dataset config not found at {config_path}. "
@@ -42,3 +76,110 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
         label_classes=list(raw_cfg.get("label_classes", [])) or None,
     )
     return cfg
+
+
+# ----------------- Core cleaning logic ----------------- #
+
+def load_raw_source(cfg: DatasetConfig) -> pd.DataFrame:
+    path = cfg.raw_path
+
+    logger.info(f"[PREP] Loading raw source from {path}")
+
+    if not path.exists():
+        raise FileNotFoundError(f"Raw source file not found at {path}")
+
+    if path.suffix.lower() == ".csv":
+        df = pd.read_csv(path)
+    elif path.suffix.lower() == ".parquet":
+        df = pd.read_parquet(path)
+    else:
+        raise ValueError(f"Unsupported source_format: {path.suffix.lower()}")
+
+    logger.info(f"[PREP] Loaded raw data with shape {df.shape}")
+    return df
+
+
+def apply_drop_columns(df: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
+    cols_to_drop = [c for c in cfg.features_to_exclude if c in df.columns]
+    if cols_to_drop:
+        logger.info(f"[PREP] Dropping columns: {cols_to_drop}")
+        df = df.drop(columns=cols_to_drop)
+    return df
+
+
+def apply_dtypes(df: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
+    """
+    Convert columns listed in non_numerical_columns to pandas string dtype.
+    Leave all other columns unchanged, and log which columns actually changed dtype.
+    """
+    df_out = df.copy()
+
+    # Record original dtypes
+    original_dtypes = df_out.dtypes.to_dict()
+
+    changed_cols: list[str] = []
+    non_num_cols = cfg.non_numerical_columns
+
+    for col in non_num_cols:
+        if col not in df_out.columns:
+            logger.warning(
+                "[PREP] non-numerical column '%s' listed in config but not found in dataset.",
+                col,
+            )
+            continue
+
+        old_dtype = original_dtypes.get(col)
+        df_out[col] = df_out[col].astype("string")
+        new_dtype = df_out[col].dtype
+
+        if new_dtype != old_dtype:
+            changed_cols.append(f"{col}: {old_dtype} -> {new_dtype}")
+
+    if changed_cols:
+        logger.info(
+            "[PREP] Changed dtypes for %d non-numerical columns:\n    %s",
+            len(changed_cols),
+            "\n    ".join(changed_cols),
+        )
+    else:
+        logger.info("[PREP] No dtype changes were applied to non-numerical columns.")
+
+    return df_out
+
+
+
+def save_clean_dataset(df: pd.DataFrame, cfg: DatasetConfig) -> None:
+    out_path = cfg.output_path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"[PREP] Saving cleaned dataset to {out_path}")
+    df.to_parquet(out_path)
+    logger.info(f"[PREP] Saved cleaned dataset with shape {df.shape}")
+
+
+def prepare_dataset(dataset_id: str) -> None:
+    cfg = load_dataset_config(dataset_id)
+    logger.info(f"[PREP] Preparing dataset_id={cfg.dataset_id}")
+
+    df = load_raw_source(cfg)
+    df = apply_drop_columns(df, cfg)
+    df = apply_dtypes(df, cfg)
+
+    save_clean_dataset(df, cfg)
+
+
+# ----------------- Typer CLI ----------------- #
+
+@app.command()
+def initiate(
+    dataset_id: str = typer.Argument(..., help="Dataset id to prepare, e.g. base_v1"),
+):
+    """
+    One-time cleaning: read raw file, fix dtypes, save to data/raw/{dataset_id}.parquet.
+    """
+
+    prepare_dataset(dataset_id)
+
+
+if __name__ == "__main__":
+    app()

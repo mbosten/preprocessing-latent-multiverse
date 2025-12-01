@@ -17,11 +17,13 @@ dependencies = [
     "pandas>=2.3.3",
     "polars>=1.35.2",
     "pyarrow>=22.0.0",
+    "pyyaml>=6.0.3",
 ]
 
-# Allows cli commands to be run as: uv run fast [cli function] [parameters]
+# Allows cli commands to be run as: uv run acb [cli function] [parameters]
 [project.scripts]
-fast = "alphacomplexbenchmarking.cli:app"
+acb = "alphacomplexbenchmarking.cli:app"
+setup = "alphacomplexbenchmarking.config:app"
 
 
 [build-system]

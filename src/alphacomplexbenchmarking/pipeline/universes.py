@@ -44,6 +44,7 @@ class Universe:
     ae_dropout: float = 0.0377                # following Sičić et al. (2023)
     ae_regularization: float = 0.0019         # following Sičić et al. (2023)
 
+    # Will be overridden by PCA dims below.
     pca_dim: int = 3
 
     # TDA config
@@ -74,18 +75,21 @@ def generate_multiverse() -> List[Universe]:
     feature_subsets = [FeatureSubset.ALL, FeatureSubset.WITHOUT_CONFOUNDERS]
     cat_encodings = [CatEncoding.ONEHOT, CatEncoding.LABEL]
     seeds = [42, 420, 4200]
+    pca_dims = (2, 3, 4)
 
     universes: List[Universe] = []
     for sc in scalings:
         for fs in feature_subsets:
             for ce in cat_encodings:
                 for sd in seeds:
-                    universes.append(
-                        Universe(
-                            scaling=sc,
-                            feature_subset=fs,
-                            cat_encoding=ce,
-                            seed=sd,
+                    for pca_dim in pca_dims:
+                        universes.append(
+                            Universe(
+                                scaling=sc,
+                                feature_subset=fs,
+                                cat_encoding=ce,
+                                seed=sd,
+                                pca_dim=pca_dim,
+                            )
                         )
-                    )
     return universes

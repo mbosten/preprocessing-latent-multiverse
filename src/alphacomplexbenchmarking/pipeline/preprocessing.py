@@ -55,8 +55,6 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
 
 
 def apply_scaling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
-    if universe.scaling == Scaling.NONE: # Deprecated option and will be removed in future versions
-        return df
 
     from sklearn.preprocessing import StandardScaler, MinMaxScaler
 

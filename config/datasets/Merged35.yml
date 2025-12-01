@@ -9,8 +9,7 @@ features_to_exclude:
   - "Time_To_Live"
   - "ece_flag_number"
 
-label_column: 
-  - "Label"
+label_column: "Label"
 
 label_classes:
   - "BENIGN"

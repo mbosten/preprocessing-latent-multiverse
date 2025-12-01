@@ -31,7 +31,7 @@ class DatasetConfig:
 
     @property
     def output_path(self) -> Path:
-        return Path("data") / "raw" / f"{self.dataset_id}_clean.csv"
+        return Path("data") / "raw" / f"{self.dataset_id}_clean.parquet"
 
 
 @app.callback()

@@ -7,9 +7,11 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from scipy.spatial.distance import cdist
+import torch
 
+from alphacomplexbenchmarking.config import load_dataset_config, DatasetConfig
 from alphacomplexbenchmarking.pipeline.universes import Universe
-from alphacomplexbenchmarking.pipeline.autoencoder import load_autoencoder_for_variant
+from alphacomplexbenchmarking.pipeline.autoencoder import load_autoencoder_for_universe, _get_feature_matrix_for_ae
 from alphacomplexbenchmarking.io.storage import (
     get_preprocessed_path,
     get_embedding_path,
@@ -66,26 +68,30 @@ def compute_embeddings_and_subsample_for_tda(universe: Universe) -> Path:
 
     preprocessed_path = get_preprocessed_path(universe)
     df = pd.read_parquet(preprocessed_path)
-    X = df.to_numpy(dtype=float)
 
-    # Load AE model (once implemented)
-    logger.debug("[EMB] Loading autoencoder model (NotImplemented placeholder).")
-    # model = load_autoencoder_for_variant(universe)
-    # latent = model.encode(X)  # shape (N, latent_dim)
-    # For now: just pretend the preprocessed data IS the embedding:
-    latent = X
+    ds_cfg = load_dataset_config(universe.dataset_id)
+    X = _get_feature_matrix_for_ae(df, ds_cfg)
 
-    logger.debug(f"[EMB] Got latent representation with shape {latent.shape}")
+    # Load AE model
+    logger.debug("[EMB] Loading autoencoder model.")
+    model = load_autoencoder_for_universe(universe)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    model.eval()
 
-    # Normalize (z-score)
-    # latent_mean = latent.mean(axis=0, keepdims=True)
-    # latent_std = latent.std(axis=0, keepdims=True) + 1e-8
-    # latent_norm = (latent - latent_mean) / latent_std
-    normalized_X = normalize_space(X, diameter_iterations=1000, seed=42)
+    with torch.no_grad():
+         X_tensor = torch.from_numpy(X).to(device)
+         latent_tensor = model.encode(X_tensor)
+         latent = latent_tensor.cpu().numpy()
+    
+    logger.info(f"[EMB] Computed latent representation with shape {latent.shape}")
+
+
+    normalized_latent = normalize_space(latent, diameter_iterations=1000, seed=42)
 
     # PCA to low dimension
     pca = PCA(n_components=universe.pca_dim)
-    latent_pca = pca.fit_transform(normalized_X)
+    latent_pca = pca.fit_transform(normalized_latent)
     logger.debug(f"[EMB] PCA projection shape: {latent_pca.shape}")
 
     # Subsample for TDA

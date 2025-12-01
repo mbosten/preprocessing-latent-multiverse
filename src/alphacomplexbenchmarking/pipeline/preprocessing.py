@@ -8,7 +8,7 @@ import pandas as pd
 import polars as pl
 
 from alphacomplexbenchmarking.pipeline.universes import Universe, Scaling, FeatureSubset, CatEncoding
-from alphacomplexbenchmarking.io.storage import get_raw_dataset_path, get_preprocessed_path, ensure_parent_dir
+from alphacomplexbenchmarking.io.storage import get_clean_dataset_path, get_preprocessed_path, ensure_parent_dir
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +28,9 @@ def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
         TARGET_LABEL_VALUE,
         MAX_ROWS_FOR_LABEL,
     )
-    path = get_raw_dataset_path(dataset_id, extension="csv")
+    path = get_clean_dataset_path(dataset_id, extension="parquet")
     lf = (
-        pl.scan_csv(path)
+        pl.scan_parquet(path)
         .filter(pl.col(LABEL_COLUMN) == TARGET_LABEL_VALUE)
         .limit(MAX_ROWS_FOR_LABEL)
     )

@@ -37,6 +37,10 @@ def get_raw_dataset_path(dataset_id: str, extension: str) -> Path:
     return BASE_DATA_DIR / "raw" / f"{dataset_id}.{extension}"
 
 
+def get_clean_dataset_path(dataset_id: str, extension: str) -> Path:
+    return BASE_DATA_DIR / "raw" / f"{dataset_id}_clean.{extension}"
+
+
 def raw_matrix_path(run_id: str) -> Path:
     return RAW_ROOT / f"{run_id}.npz"
 

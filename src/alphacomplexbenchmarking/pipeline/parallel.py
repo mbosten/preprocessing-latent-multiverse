@@ -7,7 +7,7 @@ import numpy as np
 
 from alphacomplexbenchmarking.pipeline.universes import Universe
 from alphacomplexbenchmarking.pipeline.preprocessing import preprocess_variant
-from alphacomplexbenchmarking.pipeline.autoencoder import train_autoencoder_for_variant
+from alphacomplexbenchmarking.pipeline.autoencoder import train_autoencoder_for_universe
 from alphacomplexbenchmarking.pipeline.embeddings import compute_embeddings_and_subsample_for_tda
 from alphacomplexbenchmarking.pipeline.tda import run_tda_on_points
 from alphacomplexbenchmarking.pipeline.metrics import compute_metrics_from_tda
@@ -42,7 +42,7 @@ def run_full_pipeline_for_universe(universe: Universe) -> str:
     preprocess_variant(universe)
 
     # 2. Train AE (placeholder)
-    train_autoencoder_for_variant(universe)
+    train_autoencoder_for_universe(universe)
 
     # 3. Embeddings + PCA + subsample
     emb_path = compute_embeddings_and_subsample_for_tda(universe)

@@ -7,31 +7,31 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
-from alphacomplexbenchmarking.pipeline.specs import RunSpec
+from alphacomplexbenchmarking.pipeline.universes import Universe
 from alphacomplexbenchmarking.io.storage import get_preprocessed_path, get_ae_model_path
 
 logger = logging.getLogger(__name__)
 
 
-def train_autoencoder_for_variant(spec: RunSpec) -> Path:
+def train_autoencoder_for_variant(universe: Universe) -> Path:
     """
-    Train an autoencoder on the preprocessed data for this spec.
+    Train an autoencoder on the preprocessed data for this universe.
     For now, this is a placeholder you should replace with your
     actual PyTorch / TF training code.
 
     Returns path to saved model.
     """
-    logger.info(f"[AE] Training autoencoder for spec={spec.to_id_string()}")
+    logger.info(f"[AE] Training autoencoder for universe={universe.to_id_string()}")
 
     # Load preprocessed data (you'll likely use a DataLoader instead).
-    preprocessed_path = get_preprocessed_path(spec)
+    preprocessed_path = get_preprocessed_path(universe)
     df = pd.read_parquet(preprocessed_path)
 
     # TODO: implement actual AE model and training.
     # For now, just log and pretend we did.
     logger.warning("[AE] train_autoencoder_for_variant is a placeholder. Implement me!")
 
-    model_path = get_ae_model_path(spec)
+    model_path = get_ae_model_path(universe)
     model_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Dummy save so path exists (remove once you save a real model)
@@ -41,9 +41,9 @@ def train_autoencoder_for_variant(spec: RunSpec) -> Path:
     return model_path
 
 
-def load_autoencoder_for_variant(spec: RunSpec):
+def load_autoencoder_for_variant(universe: Universe):
     """
-    Load the trained autoencoder model for this spec.
+    Load the trained autoencoder model for this universe.
     Implement this with your model library of choice.
     """
     # TODO: implement real model loading

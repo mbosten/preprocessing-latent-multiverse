@@ -8,8 +8,8 @@ from typing import Optional
 
 from alphacomplexbenchmarking.io.run_id import parse_run_id
 from alphacomplexbenchmarking.logging_config import setup_logging
-from alphacomplexbenchmarking.pipeline.specs import RunSpec, generate_default_specs
-from alphacomplexbenchmarking.pipeline.parallel import run_full_pipeline_for_spec, run_many_specs
+from alphacomplexbenchmarking.pipeline.universes import Universe, generate_multiverse
+from alphacomplexbenchmarking.pipeline.parallel import run_full_pipeline_for_universe, run_many_universes
 
 # For running the pipeline and self-checks
 from alphacomplexbenchmarking.io.storage import (
@@ -43,28 +43,28 @@ def main(
     logger.debug("CLI started with verbose=%s", verbose)
 
 
-@app.command("run-spec")
-def run_spec(
+@app.command("run-universe")
+def run_universe(
     index: int = typer.Argument(
-        ..., help="Index of spec in the default spec list (0-based)."
+        ..., help="Index of universe in the default universe list (0-based)."
     ),
 ):
     """
-    Run the full pipeline for a single RunSpec (universe) from the default grid.
+    Run the full pipeline for a single Universe from the default grid.
     """
-    specs = generate_default_specs()
-    if not (0 <= index < len(specs)):
-        raise typer.BadParameter(f"index must be in [0, {len(specs) - 1}]")
-    spec = specs[index]
-    typer.echo(f"Running spec[{index}] = {spec.to_id_string()}")
-    run_full_pipeline_for_spec(spec)
+    universes = generate_multiverse()
+    if not (0 <= index < len(universes)):
+        raise typer.BadParameter(f"index must be in [0, {len(universes) - 1}]")
+    universe = universes[index]
+    typer.echo(f"Running universe[{index}] = {universe.to_id_string()}")
+    run_full_pipeline_for_universe(universe)
 
 
-@app.command("run-spec-batch")
-def run_spec_batch(
-    start: int = typer.Option(0, help="Start index (inclusive) in default spec list."),
+@app.command("run-universe-batch")
+def run_universe_batch(
+    start: int = typer.Option(0, help="Start index (inclusive) in default universe list."),
     end: Optional[int] = typer.Option(
-        None, help="End index (exclusive) in default spec list. If None, run to end."
+        None, help="End index (exclusive) in default universe list. If None, run to end."
     ),
     max_workers: Optional[int] = typer.Option(
         None,
@@ -72,29 +72,29 @@ def run_spec_batch(
     ),
 ):
     """
-    Run a batch of RunSpecs (potentially in parallel) from the default grid.
+    Run a batch of Universes (potentially in parallel) from the default grid.
     """
-    specs = generate_default_specs()
-    n = len(specs)
+    universes = generate_multiverse()
+    n = len(universes)
     if end is None or end > n:
         end = n
     if start < 0 or start >= end:
         raise typer.BadParameter(f"Invalid start/end: start={start}, end={end}, total={n}")
 
-    subset = specs[start:end]
-    typer.echo(f"Running specs[{start}:{end}] ({len(subset)} specs)")
-    completed = run_many_specs(subset, max_workers=max_workers)
-    typer.echo(f"Completed {len(completed)} specs.")
+    subset = universes[start:end]
+    typer.echo(f"Running Universes[{start}:{end}] ({len(subset)} universes)")
+    completed = run_many_universes(subset, max_workers=max_workers)
+    typer.echo(f"Completed {len(completed)} universes.")
 
 
-@app.command("list-specs")
-def list_specs():
+@app.command("list-universes")
+def list_universes():
     """
-    List all default RunSpecs with their indices.
+    List all default Universes with their indices.
     """
-    specs = generate_default_specs()
-    for i, spec in enumerate(specs):
-        typer.echo(f"{i:3d}: {spec.to_id_string()}")
+    universes = generate_multiverse()
+    for i, universe in enumerate(universes):
+        typer.echo(f"{i:3d}: {universe.to_id_string()}")
 
 
 @app.command("run-pipeline")

@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/pipeline/specs.py
+# src/alphacomplexbenchmarking/pipeline/universes.py
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
@@ -26,7 +26,7 @@ class TdaConfig:
 
 
 @dataclass(frozen=True)
-class RunSpec:
+class Universe:
     """
     One 'universe' in the multiverse: preprocessing + AE + TDA params.
     Holds all parameters needed to run the full pipeline for one configuration, including fixed-value parameters.
@@ -67,7 +67,7 @@ class RunSpec:
         )
 
 
-def generate_default_specs() -> List[RunSpec]:
+def generate_multiverse() -> List[Universe]:
     """
     Generate the multiverses
     """
@@ -76,17 +76,17 @@ def generate_default_specs() -> List[RunSpec]:
     cat_encodings = [CatEncoding.ONEHOT, CatEncoding.LABEL]
     seeds = [42, 420, 4200]
 
-    specs: List[RunSpec] = []
+    universes: List[Universe] = []
     for sc in scalings:
         for fs in feature_subsets:
             for ce in cat_encodings:
                 for sd in seeds:
-                    specs.append(
-                        RunSpec(
+                    universes.append(
+                        Universe(
                             scaling=sc,
                             feature_subset=fs,
                             cat_encoding=ce,
                             seed=sd,
                         )
                     )
-    return specs
+    return universes

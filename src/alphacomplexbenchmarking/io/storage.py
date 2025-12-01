@@ -10,7 +10,7 @@ from .run_id import make_run_id
 from alphacomplexbenchmarking.pipeline.sim import generate_simulation_matrix
 from alphacomplexbenchmarking.pipeline.persistence import compute_alpha_complex_persistence
 from alphacomplexbenchmarking.pipeline.landscapes import compute_landscapes
-from alphacomplexbenchmarking.pipeline.specs import RunSpec
+from alphacomplexbenchmarking.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
@@ -49,27 +49,27 @@ def landscapes_path(run_id: str) -> Path:
     return INTERIM_ROOT / "landscapes" / f"{run_id}.npz"
 
 
-def get_preprocessed_path(spec: RunSpec) -> Path:
-    return BASE_DATA_DIR / "processed" / f"{spec.to_id_string()}_preprocessed.parquet"
+def get_preprocessed_path(universe: Universe) -> Path:
+    return BASE_DATA_DIR / "processed" / f"{universe.to_id_string()}_preprocessed.parquet"
 
 
-def get_ae_model_path(spec: RunSpec) -> Path:
-    return BASE_DATA_DIR / "interim" / "autoencoder" / f"{spec.to_id_string()}_ae.pt"
+def get_ae_model_path(universe: Universe) -> Path:
+    return BASE_DATA_DIR / "interim" / "autoencoder" / f"{universe.to_id_string()}_ae.pt"
 
 
-def get_embedding_path(spec: RunSpec) -> Path:
+def get_embedding_path(universe: Universe) -> Path:
     """
     Path for the PCA-projected embedding used for TDA.
     """
-    return BASE_DATA_DIR / "interim" / "embeddings" / f"{spec.to_id_string()}_pca.npy"
+    return BASE_DATA_DIR / "interim" / "embeddings" / f"{universe.to_id_string()}_pca.npy"
 
 
-def get_tda_result_path(spec: RunSpec) -> Path:
-    return BASE_DATA_DIR / "interim" / "persistence" / f"{spec.to_id_string()}_tda.npz"
+def get_tda_result_path(universe: Universe) -> Path:
+    return BASE_DATA_DIR / "interim" / "persistence" / f"{universe.to_id_string()}_tda.npz"
 
 
-def get_metrics_path(spec: RunSpec) -> Path:
-    return BASE_DATA_DIR / "processed" / "metrics" / f"{spec.to_id_string()}_metrics.json"
+def get_metrics_path(universe: Universe) -> Path:
+    return BASE_DATA_DIR / "processed" / "metrics" / f"{universe.to_id_string()}_metrics.json"
 
 
 # SAVE 'N LOAD

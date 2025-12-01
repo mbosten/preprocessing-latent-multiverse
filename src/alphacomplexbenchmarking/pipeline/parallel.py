@@ -5,7 +5,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Iterable, List
 import numpy as np
 
-from alphacomplexbenchmarking.pipeline.specs import RunSpec
+from alphacomplexbenchmarking.pipeline.universes import Universe
 from alphacomplexbenchmarking.pipeline.preprocessing import preprocess_variant
 from alphacomplexbenchmarking.pipeline.autoencoder import train_autoencoder_for_variant
 from alphacomplexbenchmarking.pipeline.embeddings import compute_embeddings_and_subsample_for_tda
@@ -23,9 +23,9 @@ from alphacomplexbenchmarking.io.storage import (
 logger = logging.getLogger(__name__)
 
 
-def run_full_pipeline_for_spec(spec: RunSpec) -> str:
+def run_full_pipeline_for_universe(universe: Universe) -> str:
     """
-    Full multiverse pipeline for a single RunSpec (universe):
+    Full multiverse pipeline for a single Universe:
       1. Preprocess
       2. Train AE (placeholder for now)
       3. Compute embeddings + PCA + subsample
@@ -33,26 +33,26 @@ def run_full_pipeline_for_spec(spec: RunSpec) -> str:
       5. Compute summary metrics
       6. Save results
 
-    Returns the spec id string for logging.
+    Returns the universe id string for logging.
     """
-    spec_id = spec.to_id_string()
-    logger.info(f"[PIPE] Starting full pipeline for spec={spec_id}")
+    universe_id = universe.to_id_string()
+    logger.info(f"[PIPE] Starting full pipeline for universe={universe_id}")
 
     # 1. Preprocess
-    preprocess_variant(spec)
+    preprocess_variant(universe)
 
     # 2. Train AE (placeholder)
-    train_autoencoder_for_variant(spec)
+    train_autoencoder_for_variant(universe)
 
     # 3. Embeddings + PCA + subsample
-    emb_path = compute_embeddings_and_subsample_for_tda(spec)
+    emb_path = compute_embeddings_and_subsample_for_tda(universe)
 
     # 4. TDA
     points = load_numpy_array(emb_path)
-    tda_result = run_tda_on_points(points, spec.tda_config)
+    tda_result = run_tda_on_points(points, universe.tda_config)
 
     # Save TDA arrays
-    tda_path = get_tda_result_path(spec)
+    tda_path = get_tda_result_path(universe)
     
     # Flatten dicts for npz; we can encode keys like "pers_dim_0", "land_dim_0", etc.
     tda_arrays = {}
@@ -68,52 +68,52 @@ def run_full_pipeline_for_spec(spec: RunSpec) -> str:
     metrics = compute_metrics_from_tda(tda_result)
 
     metrics_payload = {
-        "spec_id": spec_id,
+        "universe_id": universe_id,
         "total_persistence_per_dim": metrics.total_persistence_per_dim,
         "landscape_l2_per_dim": metrics.landscape_l2_per_dim,
     }
-    metrics_path = get_metrics_path(spec)
+    metrics_path = get_metrics_path(universe)
     save_json(metrics_path, metrics_payload)
     logger.info(f"[PIPE] Saved metrics to {metrics_path}")
 
-    logger.info(f"[PIPE] Finished full pipeline for spec={spec_id}")
-    return spec_id
+    logger.info(f"[PIPE] Finished full pipeline for universe={universe_id}")
+    return universe_id
 
 
-def _worker_run_full_pipeline(spec: RunSpec) -> str:
+def _worker_run_full_pipeline(universe: Universe) -> str:
     """
     Worker function for ProcessPoolExecutor.
     """
-    return run_full_pipeline_for_spec(spec)
+    return run_full_pipeline_for_universe(universe)
 
 
-def run_many_specs(specs: Iterable[RunSpec], max_workers: int | None = None) -> List[str]:
+def run_many_universes(universes: Iterable[Universe], max_workers: int | None = None) -> List[str]:
     """
-    Run many RunSpecs in parallel using process-based parallelism.
-    Returns the list of spec ids in order of completion.
+    Run many Universes in parallel using process-based parallelism.
+    Returns the list of universe ids in order of completion.
     """
-    specs = list(specs)
+    universes = list(universes)
     logger.info(
-        f"[PIPE] Submitting {len(specs)} specs to ProcessPoolExecutor "
+        f"[PIPE] Submitting {len(universes)} universes to ProcessPoolExecutor "
         f"(max_workers={max_workers})"
     )
 
     completed: List[str] = []
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        future_to_spec = {
-            executor.submit(_worker_run_full_pipeline, spec): spec
-            for spec in specs
+        future_to_universe = {
+            executor.submit(_worker_run_full_pipeline, universe): universe
+            for universe in universes
         }
 
-        for future in as_completed(future_to_spec):
-            spec = future_to_spec[future]
+        for future in as_completed(future_to_universe):
+            universe = future_to_universe[future]
             try:
-                spec_id = future.result()
+                universe_id = future.result()
             except Exception:
-                logger.exception("[PIPE] Run failed for spec=%s", spec.to_id_string())
+                logger.exception("[PIPE] Run failed for universe=%s", universe.to_id_string())
             else:
-                logger.info("[PIPE] Run finished successfully for spec=%s", spec_id)
-                completed.append(spec_id)
+                logger.info("[PIPE] Run finished successfully for universe=%s", universe_id)
+                completed.append(universe_id)
 
     return completed

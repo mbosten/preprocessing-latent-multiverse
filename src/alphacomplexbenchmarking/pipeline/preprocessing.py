@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import polars as pl
 
-from alphacomplexbenchmarking.pipeline.specs import RunSpec, Scaling, FeatureSubset, CatEncoding
+from alphacomplexbenchmarking.pipeline.universes import Universe, Scaling, FeatureSubset, CatEncoding
 from alphacomplexbenchmarking.io.storage import get_raw_dataset_path, get_preprocessed_path, ensure_parent_dir
 
 logger = logging.getLogger(__name__)
@@ -44,8 +44,8 @@ def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     return df
 
 
-def apply_feature_subset(df: pd.DataFrame, spec: RunSpec) -> pd.DataFrame:
-    if spec.feature_subset == FeatureSubset.ALL:
+def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
+    if universe.feature_subset == FeatureSubset.ALL:
         return df
 
     # Example: drop a hard-coded subset; adjust to your use case.
@@ -54,33 +54,33 @@ def apply_feature_subset(df: pd.DataFrame, spec: RunSpec) -> pd.DataFrame:
     return df.drop(columns=[c for c in special_features if c in df.columns])
 
 
-def apply_scaling(df: pd.DataFrame, spec: RunSpec) -> pd.DataFrame:
-    if spec.scaling == Scaling.NONE:
+def apply_scaling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
+    if universe.scaling == Scaling.NONE:
         return df
 
     from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
     numeric_cols = df.select_dtypes(include="number").columns
-    scaler_cls = StandardScaler if spec.scaling == Scaling.ZSCORE else MinMaxScaler
+    scaler_cls = StandardScaler if universe.scaling == Scaling.ZSCORE else MinMaxScaler
     scaler = scaler_cls()
-    logger.debug(f"Applying {spec.scaling.value} scaling to {len(numeric_cols)} numeric columns.")
+    logger.debug(f"Applying {universe.scaling.value} scaling to {len(numeric_cols)} numeric columns.")
     df_scaled = df.copy()
     df_scaled[numeric_cols] = scaler.fit_transform(df[numeric_cols])
     return df_scaled
 
 
-def apply_cat_encoding(df: pd.DataFrame, spec: RunSpec) -> pd.DataFrame:
+def apply_cat_encoding(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     cat_cols = df.select_dtypes(exclude="number").columns
 
     if cat_cols.empty:
         return df
 
-    logger.debug(f"Applying {spec.cat_encoding.value} encoding to categorical columns: {list(cat_cols)}")
+    logger.debug(f"Applying {universe.cat_encoding.value} encoding to categorical columns: {list(cat_cols)}")
 
-    if spec.cat_encoding == CatEncoding.ONEHOT:
+    if universe.cat_encoding == CatEncoding.ONEHOT:
         return pd.get_dummies(df, columns=cat_cols, drop_first=False)
 
-    if spec.cat_encoding == CatEncoding.LABEL:
+    if universe.cat_encoding == CatEncoding.LABEL:
         from sklearn.preprocessing import OrdinalEncoder
 
         df_encoded = df.copy()
@@ -88,21 +88,21 @@ def apply_cat_encoding(df: pd.DataFrame, spec: RunSpec) -> pd.DataFrame:
         df_encoded[cat_cols] = enc.fit_transform(df[cat_cols])
         return df_encoded
 
-    raise ValueError(f"Unknown cat_encoding: {spec.cat_encoding}")
+    raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
 
 
-def preprocess_variant(spec: RunSpec) -> Path:
+def preprocess_variant(universe: Universe) -> Path:
     """
-    End-to-end preprocessing for one RunSpec.
+    End-to-end preprocessing for one Universe.
     Returns path to preprocessed dataset.
     """
-    logger.info(f"Preprocessing dataset for spec={spec.to_id_string()}")
-    df = load_raw_dataset(spec.dataset_id)
-    df = apply_feature_subset(df, spec)
-    df = apply_scaling(df, spec)
-    df = apply_cat_encoding(df, spec)
+    logger.info(f"Preprocessing dataset for universe={universe.to_id_string()}")
+    df = load_raw_dataset(universe.dataset_id)
+    df = apply_feature_subset(df, universe)
+    df = apply_scaling(df, universe)
+    df = apply_cat_encoding(df, universe)
 
-    path = get_preprocessed_path(spec)
+    path = get_preprocessed_path(universe)
     ensure_parent_dir(path)
     # Parquet is better for big datasets
     df.to_parquet(path)

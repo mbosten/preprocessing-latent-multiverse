@@ -7,7 +7,7 @@ from typing import Dict, Optional
 
 import numpy as np
 
-from alphacomplexbenchmarking.pipeline.specs import TdaConfig
+from alphacomplexbenchmarking.pipeline.universes import TdaConfig
 from alphacomplexbenchmarking.pipeline.persistence import compute_alpha_complex_persistence
 from alphacomplexbenchmarking.pipeline.landscapes import compute_landscapes
 

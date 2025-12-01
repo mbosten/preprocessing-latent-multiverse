@@ -50,7 +50,7 @@ def run_spec(
     ),
 ):
     """
-    Run the full pipeline for a single RunSpec from the default grid.
+    Run the full pipeline for a single RunSpec (universe) from the default grid.
     """
     specs = generate_default_specs()
     if not (0 <= index < len(specs)):
@@ -58,6 +58,7 @@ def run_spec(
     spec = specs[index]
     typer.echo(f"Running spec[{index}] = {spec.to_id_string()}")
     run_full_pipeline_for_spec(spec)
+
 
 @app.command("run-spec-batch")
 def run_spec_batch(

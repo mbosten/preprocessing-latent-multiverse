@@ -40,6 +40,7 @@ def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     df = df_polars.to_pandas()
 
     logger.info("Loaded %d rows x %d columns after Polars filter+limit.", *df.shape)
+    logger.debug(f"Column dtypes: {dict(df.dtypes)}")
     return df
 
 

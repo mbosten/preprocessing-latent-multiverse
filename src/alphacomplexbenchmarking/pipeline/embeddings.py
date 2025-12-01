@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
+from scipy.spatial.distance import cdist
 
 from alphacomplexbenchmarking.pipeline.specs import RunSpec
 from alphacomplexbenchmarking.pipeline.autoencoder import load_autoencoder_for_variant
@@ -17,6 +17,37 @@ from alphacomplexbenchmarking.io.storage import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_space(
+        X,
+        diameter_iterations=1000,
+        seed=42,
+    ):
+        """
+        Normalize a space based on an approximate diameter.
+
+        Parameters:
+        - X : np.ndarray
+            The input space to be normalized.
+        - diameter_iterations : int, optional
+            The number of iterations to approximate the space diameter. Default is 1000.
+        - seed : int, optional
+            Seed for the random number generator. Default is 42.
+
+        Returns:
+        - np.ndarray
+            The normalized space based on approximate diameter.
+        """
+        rng = np.random.default_rng(seed)
+        subset = [rng.choice(len(X))]
+        for _ in range(diameter_iterations - 1):
+            distances = cdist([X[subset[-1]]], X).ravel()
+            new_point = np.argmax(distances)
+            subset.append(new_point)
+        pairwise_distances = cdist(X[subset], X[subset])
+        diameter = np.max(pairwise_distances)
+        return X / diameter
 
 
 def compute_embeddings_and_subsample_for_tda(spec: RunSpec) -> Path:
@@ -47,13 +78,14 @@ def compute_embeddings_and_subsample_for_tda(spec: RunSpec) -> Path:
     logger.debug(f"[EMB] Got latent representation with shape {latent.shape}")
 
     # Normalize (z-score)
-    latent_mean = latent.mean(axis=0, keepdims=True)
-    latent_std = latent.std(axis=0, keepdims=True) + 1e-8
-    latent_norm = (latent - latent_mean) / latent_std
+    # latent_mean = latent.mean(axis=0, keepdims=True)
+    # latent_std = latent.std(axis=0, keepdims=True) + 1e-8
+    # latent_norm = (latent - latent_mean) / latent_std
+    normalized_X = normalize_space(X, diameter_iterations=1000, seed=42)
 
     # PCA to low dimension
     pca = PCA(n_components=spec.pca_dim)
-    latent_pca = pca.fit_transform(latent_norm)
+    latent_pca = pca.fit_transform(normalized_X)
     logger.debug(f"[EMB] PCA projection shape: {latent_pca.shape}")
 
     # Subsample for TDA

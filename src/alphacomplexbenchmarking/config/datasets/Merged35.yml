@@ -1,0 +1,49 @@
+daaset_id: Merged35
+
+raw_path: "data/raw/Merged35.csv"
+
+non_numerical_columns:
+  - "Protocol Type"
+
+features_to_exclude:
+  - "Time_To_Live"
+  - "ece_flag_number"
+
+label_column: 
+  - "Label"
+
+label_classes:
+  - "BENIGN"
+  - "DDOS-ICMP_FLOOD"
+  - "DDOS-UDP_FLOOD"
+  - "DDOS-TCP_FLOOD"
+  - "DDOS-PSHACK_FLOOD"
+  - "DDOS-SYN_FLOOD"
+  - "DDOS-RSTFINFLOOD"
+  - "DDOS-SYNONYMOUSIP_FLOOD"
+  - "DOS-UDP_FLOOD"
+  - "RECON-PINGSWEEP"
+  - "DDOS-UDP_FRAGMENTATION"
+  - "DDOS-ACK_FRAGMENTATION"
+  - "DNS_SPOOFING"
+  - "RECON-HOSTDISCOVERY"
+  - "RECON-OSSCAN"
+  - "RECON-PORTSCAN"
+  - "DOS-HTTP_FLOOD"
+  - "VULNERABILITYSCAN"
+  - "DOS-TCP_FLOOD"
+  - "DOS-SYN_FLOOD"
+  - "MIRAI-GREETH_FLOOD"
+  - "MIRAI-UDPPLAIN"
+  - "MIRAI-GREIP_FLOOD"
+  - "DDOS-ICMP_FRAGMENTATION"
+  - "MITM-ARPSPOOFING"
+  - "UPLOADING_ATTACK"
+  - "DDOS-HTTP_FLOOD"
+  - "DDOS-SLOWLORIS"
+  - "DICTIONARYBRUTEFORCE"
+  - "BROWSERHIJACKING"
+  - "COMMANDINJECTION"
+  - "SQLINJECTION"
+  - "XSS"
+  - "BACKDOOR_MALWARE"

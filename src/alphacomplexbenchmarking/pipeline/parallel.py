@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def run_full_pipeline_for_spec(spec: RunSpec) -> str:
     """
-    Full multiverse pipeline for a single RunSpec:
+    Full multiverse pipeline for a single RunSpec (universe):
       1. Preprocess
       2. Train AE (placeholder for now)
       3. Compute embeddings + PCA + subsample
@@ -53,6 +53,7 @@ def run_full_pipeline_for_spec(spec: RunSpec) -> str:
 
     # Save TDA arrays
     tda_path = get_tda_result_path(spec)
+    
     # Flatten dicts for npz; we can encode keys like "pers_dim_0", "land_dim_0", etc.
     tda_arrays = {}
     for dim, arr in tda_result.persistence_per_dim.items():

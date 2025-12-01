@@ -5,7 +5,6 @@ from enum import Enum
 from typing import Iterable, List, Tuple
 
 class Scaling(str, Enum):
-    NONE = "none"
     ZSCORE = "zscore"
     MINMAX = "minmax"
 
@@ -71,7 +70,7 @@ def generate_multiverse() -> List[Universe]:
     """
     Generate the multiverses
     """
-    scalings = [Scaling.NONE, Scaling.ZSCORE, Scaling.MINMAX]
+    scalings = [Scaling.ZSCORE, Scaling.MINMAX]
     feature_subsets = [FeatureSubset.ALL, FeatureSubset.WITHOUT_CONFOUNDERS]
     cat_encodings = [CatEncoding.ONEHOT, CatEncoding.LABEL]
     seeds = [42, 420, 4200]

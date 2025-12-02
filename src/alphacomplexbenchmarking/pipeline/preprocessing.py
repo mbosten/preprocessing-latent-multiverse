@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 LABEL_COLUMN = "Label"
 TARGET_LABEL_VALUE = "BENIGN"
-MAX_ROWS_FOR_LABEL = 1000
+MAX_ROWS_FOR_LABEL = 10000
 
 def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     """
@@ -49,7 +49,7 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
         return df
 
     # Example: drop a hard-coded subset; adjust to your use case.
-    special_features = ["feat_a", "feat_b"]  # TODO: real names
+    special_features = ["IPV4_SRC_ADDR", "IPV4_DST_ADDR", "L4_SRC_PORT", "L4_DST_PORT"]  # These are NF-ToN-IoT-v3 specific
     logger.debug(f"Dropping special features: {special_features}")
     return df.drop(columns=[c for c in special_features if c in df.columns])
 

@@ -1,0 +1,24 @@
+daaset_id: NF-ToN-IoT-v3
+
+raw_path: "data/raw/NF-ToN-IoT-v3.csv"
+
+non_numerical_columns:
+  - "IPV4_SRC_ADDR"
+  - "IPV4_DST_ADDR"
+
+features_to_exclude:
+  - "Label"
+
+label_column: "Attack"
+
+label_classes:
+  - "Benign"
+  - "scanning"
+  - "xss"
+  - "ddos"
+  - "password"
+  - "dos"
+  - "injection"
+  - "backdoor"
+  - "mitm"
+  - "ransomware"

@@ -19,6 +19,7 @@ dependencies = [
     "polars>=1.35.2",
     "pyarrow>=22.0.0",
     "pyyaml>=6.0.3",
+    "fastai>=2.8.5",
 ]
 
 # Allows cli commands to be run as: uv run acb [cli function] [parameters]

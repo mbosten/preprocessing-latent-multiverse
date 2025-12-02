@@ -7,6 +7,8 @@ from typing import Iterable, List, Tuple
 class Scaling(str, Enum):
     ZSCORE = "zscore"
     MINMAX = "minmax"
+    ROBUST = "robust"
+    QUANTILE = "quantile"
 
 class FeatureSubset(str, Enum):
     ALL = "all"

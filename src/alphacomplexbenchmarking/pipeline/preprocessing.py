@@ -56,10 +56,20 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
 
 def apply_scaling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
 
-    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler, QuantileTransformer
 
     numeric_cols = df.select_dtypes(include="number").columns
-    scaler_cls = StandardScaler if universe.scaling == Scaling.ZSCORE else MinMaxScaler
+    if universe.scaling == Scaling.ZSCORE:
+        scaler_cls = StandardScaler
+    elif universe.scaling == Scaling.MINMAX:
+        scaler_cls = MinMaxScaler
+    elif universe.scaling == Scaling.ROBUST:
+        scaler_cls = RobustScaler
+    elif universe.scaling == Scaling.QUANTILE:
+        scaler_cls = QuantileTransformer(output_distribution="normal")
+    else:
+        raise ValueError(f"Unknown scaling: {universe.scaling}")
+    
     scaler = scaler_cls()
     logger.debug(f"Applying {universe.scaling.value} scaling to {len(numeric_cols)} numeric columns.")
     df_scaled = df.copy()

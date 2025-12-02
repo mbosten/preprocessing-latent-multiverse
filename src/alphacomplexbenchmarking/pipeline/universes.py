@@ -2,7 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Tuple, Optional
 
 class Scaling(str, Enum):
     ZSCORE = "zscore"
@@ -17,6 +17,11 @@ class FeatureSubset(str, Enum):
 class CatEncoding(str, Enum):
     ONEHOT = "one_hot"
     LABEL = "label"
+
+class Duplicates(str, Enum):
+    KEEP = "keep"
+    DROP = "drop"
+
 
 @dataclass(frozen=True)
 class TdaConfig:
@@ -35,7 +40,8 @@ class Universe:
     # Preprocessing choices
     scaling: Scaling
     feature_subset: FeatureSubset
-    cat_encoding: CatEncoding
+    cat_encoding: Optional[CatEncoding]
+    duplicates: Duplicates
     seed: int
 
     # AE / embedding
@@ -59,11 +65,13 @@ class Universe:
         """
         Short string encoding for filenames/logs.
         """
+        ce_val = self.cat_encoding.value if self.cat_encoding is not None else "none"
         return (
             f"ds-{self.dataset_id}"
             f"_sc-{self.scaling.value}"
             f"_fs-{self.feature_subset.value}"
-            f"_ce-{self.cat_encoding.value}"
+            f"_ce-{ce_val}"
+            f"_dup-{self.duplicates.value}"
             f"_sd-{self.seed}"
             f"_pca-{self.pca_dim}"
         )
@@ -73,25 +81,34 @@ def generate_multiverse() -> List[Universe]:
     """
     Generate the multiverses
     """
-    scalings = [Scaling.ZSCORE, Scaling.MINMAX]
+    scalings = [Scaling.ZSCORE, Scaling.MINMAX, Scaling.ROBUST, Scaling.QUANTILE]
     feature_subsets = [FeatureSubset.ALL, FeatureSubset.WITHOUT_CONFOUNDERS]
     cat_encodings = [CatEncoding.ONEHOT, CatEncoding.LABEL]
+    duplicates = [Duplicates.KEEP, Duplicates.DROP]
     seeds = [42, 420, 4200]
     pca_dims = (2, 3, 4)
 
     universes: List[Universe] = []
     for sc in scalings:
         for fs in feature_subsets:
-            for ce in cat_encodings:
-                for sd in seeds:
-                    for pca_dim in pca_dims:
-                        universes.append(
-                            Universe(
-                                scaling=sc,
-                                feature_subset=fs,
-                                cat_encoding=ce,
-                                seed=sd,
-                                pca_dim=pca_dim,
+            # Without confounders there are no categorical features
+            if fs == FeatureSubset.WITHOUT_CONFOUNDERS:
+                relevant_cat_encodings = [None]
+            else:
+                relevant_cat_encodings = list(cat_encodings)
+
+            for ce in relevant_cat_encodings:
+                for dup in duplicates:
+                    for sd in seeds:
+                        for pca_dim in pca_dims:
+                            universes.append(
+                                Universe(
+                                    scaling=sc,
+                                    feature_subset=fs,
+                                    cat_encoding=ce,
+                                    duplicates=dup,
+                                    seed=sd,
+                                    pca_dim=pca_dim,
+                                )
                             )
-                        )
     return universes

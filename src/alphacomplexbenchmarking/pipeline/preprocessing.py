@@ -80,7 +80,7 @@ def apply_scaling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
 def apply_cat_encoding(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     cat_cols = df.select_dtypes(exclude="number").columns
 
-    if cat_cols.empty:
+    if cat_cols.empty or universe.cat_encoding is None:
         return df
 
     logger.debug(f"Applying {universe.cat_encoding.value} encoding to categorical columns: {list(cat_cols)}")

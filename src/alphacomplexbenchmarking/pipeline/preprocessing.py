@@ -13,8 +13,8 @@ from alphacomplexbenchmarking.io.storage import get_clean_dataset_path, get_prep
 logger = logging.getLogger(__name__)
 
 LABEL_COLUMN = "Label"
-TARGET_LABEL_VALUE = "BENIGN"
-MAX_ROWS_FOR_LABEL = 10000
+TARGET_LABEL_VALUE = "DDOS-ICMP_FLOOD"
+MAX_ROWS_FOR_LABEL = 50000
 
 def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     """

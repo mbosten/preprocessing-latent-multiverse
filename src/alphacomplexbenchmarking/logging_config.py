@@ -26,6 +26,12 @@ def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> Non
     if getattr(root_logger, "_acb_logging_configured", False):
         return
 
+    # Set PIL logging to WARNING to reduce noise in the debug logs
+    logging.getLogger('PIL').setLevel(logging.WARNING)
+
+    # Drop font_manager debug logs to similarly reduce noise
+    logging.getLogger('matplotlib.font_manager').disabled = True
+
     # Remove any existing handlers associated with the root logger (important for notebook use)
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)

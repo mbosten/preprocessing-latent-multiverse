@@ -19,12 +19,14 @@ dependencies = [
     "polars>=1.35.2",
     "pyarrow>=22.0.0",
     "pyyaml>=6.0.3",
+    "matplotlib>=3.10.7",
 ]
 
 # Allows cli commands to be run as: uv run acb [cli function] [parameters]
 [project.scripts]
 acb = "alphacomplexbenchmarking.cli:app"
 setup = "alphacomplexbenchmarking.config:app"
+exp = "alphacomplexbenchmarking.experiments.parameter_sensitivity:app"
 
 [build-system]
 requires = ["hatchling>=1.18"]

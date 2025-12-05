@@ -21,6 +21,7 @@ from alphacomplexbenchmarking.config import load_dataset_config, DatasetConfig
 from alphacomplexbenchmarking.io.storage import (
     get_preprocessed_path,
     ensure_parent_dir,
+    get_latent_cache_path,
 )
 from alphacomplexbenchmarking.pipeline.autoencoder import (
     train_autoencoder_for_universe,
@@ -33,6 +34,8 @@ from alphacomplexbenchmarking.pipeline.persistence import (
 )
 from alphacomplexbenchmarking.pipeline.landscapes import compute_landscapes
 from alphacomplexbenchmarking.visualization import (
+    _plot_distance_curve,
+    _plot_landscape_overlay,
     _plot_persistence_diagram,
     _plot_multiple_persistence_diagrams,
     _plot_multiple_barcodes,
@@ -62,13 +65,39 @@ def main(
 
 # ----------------- Helpers: embeddings + TDA ----------------- #
 
-def _get_latent_embeddings_for_universe(universe: Universe) -> np.ndarray:
+def _get_latent_embeddings_for_universe(
+    universe: Universe,
+    retrain_if_missing: bool = False,
+) -> np.ndarray:
     """
-    Load preprocessed data for this universe, ensure AE is trained, then
-    compute latent embeddings (no PCA yet).
+    Load latent embeddings for this universe.
+
+    Strategy:
+    - If a cached latent file exists, load it.
+    - Else:
+        - Optionally train AE (if retrain_if_missing=True).
+        - Load preprocessed data.
+        - Encode with AE.
+        - Save latent to cache.
     """
-    # Ensure AE is trained (no-op if already done, depending on your implementation)
-    train_autoencoder_for_universe(universe)
+
+    cache_path = get_latent_cache_path(universe)
+
+    if cache_path.exists():
+        logger.info("[EXP] Loading cached latent embeddings from %s", cache_path)
+        return np.load(cache_path)
+
+    logger.info("[EXP] No cached latent found for universe %s.", universe)
+
+    # Optionally ensure AE is trained
+    if retrain_if_missing:
+        logger.info("[EXP] Training AE for universe %s (retrain_if_missing=True).", universe)
+        train_autoencoder_for_universe(universe)
+    else:
+        logger.info(
+            "[EXP] Assuming AE for universe %s is already trained; not retraining.",
+            universe,
+        )
 
     # Load preprocessed data (same as in embeddings.py)
     ds_cfg: DatasetConfig = load_dataset_config(universe.dataset_id)
@@ -93,6 +122,8 @@ def _get_latent_embeddings_for_universe(universe: Universe) -> np.ndarray:
         latent = latent_tensor.cpu().numpy()
 
     logger.info("[EXP] Latent representation shape: %s", latent.shape)
+    np.save(cache_path, latent)
+    logger.info("[EXP] Saved latent embeddings cache to %s", cache_path)
     return latent
 
 
@@ -215,7 +246,7 @@ def subsample_sweep(
     logger.info("[EXP] Using universe: %s", universe)
 
     # 2. Get latent embeddings from AE
-    latent = _get_latent_embeddings_for_universe(universe)
+    latent = _get_latent_embeddings_for_universe(universe, retrain_if_missing=True)
 
     # 3. Optionally limit number of rows (for toy experiments)
     if latent.shape[0] > max_rows:
@@ -248,6 +279,55 @@ def subsample_sweep(
         diagrams_per_m[m] = per_dim
         landscapes_per_m[m] = lsc
 
+        # --- Per-m plots: single PD, single barcode, single landscape ---
+
+        intervals = per_dim.get(homology_dim)
+
+        # Single persistence diagram
+        _plot_persistence_diagram(
+            intervals=intervals,
+            title=(
+                f"Persistence diagram (H={homology_dim})\n"
+                f"Universe {universe_index}, PCA={pca_dim}, m={m}"
+            ),
+            save_path=output_dir
+            / f"pd_univ{universe_index}_pca{pca_dim}_H{homology_dim}_m{m}.png",
+        )
+
+        # Single barcode plot (reuse multi-barcode helper with one entry)
+        _plot_multiple_barcodes(
+            diagrams={m: intervals},
+            title=(
+                f"Barcodes (H={homology_dim})\n"
+                f"Universe {universe_index}, PCA={pca_dim}, m={m}"
+            ),
+            save_path=output_dir
+            / f"barcodes_univ{universe_index}_pca{pca_dim}_H{homology_dim}_m{m}.png",
+            label_prefix="m=",
+            max_bars_per_group=100,
+        )
+
+        # Single landscape plot for this m
+        ls = lsc.get(homology_dim)
+        if ls is not None:
+            y = ls.reshape(-1)
+            x = np.linspace(0, 1, y.shape[0])
+            plt.figure()
+            plt.plot(x, y)
+            plt.xlabel("Landscape sample index (normalized)")
+            plt.ylabel("Landscape value")
+            plt.title(
+                f"Landscape (H={homology_dim})\n"
+                f"Universe {universe_index}, PCA={pca_dim}, m={m}"
+            )
+            fig_path_single_ls = (
+                output_dir
+                / f"landscape_univ{universe_index}_pca{pca_dim}_H{homology_dim}_m{m}.png"
+            )
+            plt.savefig(fig_path_single_ls, bbox_inches="tight")
+            plt.close()
+            logger.info("[EXP] Saved single landscape plot to %s", fig_path_single_ls)
+
     # 7. Compute distances vs largest subsample
     output_dir.mkdir(parents=True, exist_ok=True)
     base_m = max(subsample_list)
@@ -264,37 +344,34 @@ def subsample_sweep(
     np.save(output_dir / f"distances_univ{universe_index}_pca{pca_dim}_H{homology_dim}.npy", np.array(distances))
 
     # 9. Plot distance curve
-    plt.figure()
-    plt.plot(subsample_list, distances, marker="o")
-    plt.xlabel("Subsample size m")
-    plt.ylabel(f"L2 distance vs m={base_m}")
-    plt.title(f"Landscape stability vs subsample size\nUniverse {universe_index}, PCA={pca_dim}, H={homology_dim}")
-    plt.grid(True)
     fig_path = output_dir / f"distance_curve_univ{universe_index}_pca{pca_dim}_H{homology_dim}.png"
-    plt.savefig(fig_path, bbox_inches="tight")
-    plt.close()
-    logger.info("[EXP] Saved distance curve to %s", fig_path)
-
+    _plot_distance_curve(
+        x_values=subsample_list,
+        distances=distances,
+        xlabel="Subsample size m",
+        ylabel=f"L2 distance vs m={base_m}",
+        title=(
+            f"Landscape stability vs subsample size\n"
+            f"Universe {universe_index}, PCA={pca_dim}, H={homology_dim}"),
+        save_path=fig_path,)
+    
     # 10. Plot a few landscapes overlaid (for visual intuition)
-    #     We'll pick the smallest, a mid, and the largest subsample
     chosen_ms = sorted({subsample_list[0], subsample_list[len(subsample_list)//2], subsample_list[-1]})
-    # Landscapes overlay
-    plt.figure()
+
+    landscapes_for_plot_m: Dict[int, np.ndarray | None] = {}
     for m in chosen_ms:
-        ls = landscapes_per_m[m].get(homology_dim)
-        if ls is None:
-            continue
-        y = ls.reshape(-1)
-        x = np.linspace(0, 1, y.shape[0])
-        plt.plot(x, y, label=f"m={m}")
-    plt.xlabel("Landscape sample index (normalized)")
-    plt.ylabel("Landscape value")
-    plt.title(f"Selected landscapes vs subsample size\nUniverse {universe_index}, PCA={pca_dim}, H={homology_dim}")
-    plt.legend()
+        landscapes_for_plot_m[m] = landscapes_per_m[m].get(homology_dim)
+
     fig_path = output_dir / f"landscapes_univ{universe_index}_pca{pca_dim}_H{homology_dim}.png"
-    plt.savefig(fig_path, bbox_inches="tight")
-    plt.close()
-    logger.info("[EXP] Saved landscape overlay to %s", fig_path)
+    _plot_landscape_overlay(
+        landscapes=landscapes_for_plot_m,
+        title=(
+            f"Selected landscapes vs subsample size\n"
+            f"Universe {universe_index}, PCA={pca_dim}, H={homology_dim}"
+        ),
+        save_path=fig_path,
+        label_prefix="m=",
+    )
 
     # 11. Plot persistence diagrams for the same chosen subsample sizes
     diagrams_for_plot: Dict[int, np.ndarray | None] = {}
@@ -358,10 +435,13 @@ def pca_sweep(
     logger.info("[EXP] Using universe: %s", universe)
 
     # 1. Get latent embeddings
-    latent = _get_latent_embeddings_for_universe(universe)
+    latent = _get_latent_embeddings_for_universe(universe, retrain_if_missing=True)
     if latent.shape[0] > max_rows:
         latent = latent[:max_rows]
         logger.info("[EXP] Truncated latent to first %d rows for experiment.", max_rows)
+
+    logger.info("[EXP] Latent descriptives: min=%.4f, max=%.4f, mean=%.4f, std=%.4f",
+                np.min(latent), np.max(latent), np.mean(latent), np.std(latent))
 
     # 2. Parse PCA dims
     pca_dim_list = [int(x) for x in pca_dims.split(",") if x.strip()]
@@ -387,6 +467,53 @@ def pca_sweep(
         diagrams_per_d[d] = per_dim
         landscapes_per_d[d] = lsc
 
+        # 3a. --- Per-dimension plots (single PD, single barcode, single landscape) ---
+
+        # persistence diagram for this d
+        intervals = per_dim.get(homology_dim)
+        _plot_persistence_diagram(
+            intervals=intervals,
+            title=(
+                f"Persistence diagram (H={homology_dim})\n"
+                f"Universe {universe_index}, m={subsample_size}, d={d}"
+            ),
+            save_path=output_dir / f"pd_univ{universe_index}_H{homology_dim}_m{subsample_size}_d{d}.png",
+        )
+
+        # barcode plot for this d
+        # reuse multiple-barcode helper with a single entry dict
+        _plot_multiple_barcodes(
+            diagrams={d: intervals},
+            title=(
+                f"Barcodes (H={homology_dim})\n"
+                f"Universe {universe_index}, m={subsample_size}, d={d}"
+            ),
+            save_path=output_dir / f"barcodes_univ{universe_index}_H{homology_dim}_m{subsample_size}_d{d}.png",
+            label_prefix="d=",
+            max_bars_per_group=100,
+        )
+
+        # landscape plot for this d
+        ls = lsc.get(homology_dim)
+        if ls is not None:
+            y = ls.reshape(-1)
+            x = np.linspace(0, 1, y.shape[0])
+            plt.figure()
+            plt.plot(x, y)
+            plt.xlabel("Landscape sample index (normalized)")
+            plt.ylabel("Landscape value")
+            plt.title(
+                f"Landscape (H={homology_dim})\n"
+                f"Universe {universe_index}, m={subsample_size}, d={d}"
+            )
+            fig_path_single_ls = (
+                output_dir
+                / f"landscape_univ{universe_index}_H{homology_dim}_m{subsample_size}_d{d}.png"
+            )
+            plt.savefig(fig_path_single_ls, bbox_inches="tight")
+            plt.close()
+            logger.info("[EXP] Saved single landscape plot to %s", fig_path_single_ls)
+
     # 4. Distances vs largest PCA dim
     output_dir.mkdir(parents=True, exist_ok=True)
     base_d = max(pca_dim_list)
@@ -402,35 +529,32 @@ def pca_sweep(
     np.save(output_dir / f"distances_univ{universe_index}_m{subsample_size}_H{homology_dim}.npy", np.array(distances))
 
     # 5. Plot distance curve
-    plt.figure()
-    plt.plot(pca_dim_list, distances, marker="o")
-    plt.xlabel("PCA dimension d")
-    plt.ylabel(f"L2 distance vs d={base_d}")
-    plt.title(f"Landscape stability vs PCA dim\nUniverse {universe_index}, m={subsample_size}, H={homology_dim}")
-    plt.grid(True)
     fig_path = output_dir / f"distance_curve_univ{universe_index}_m{subsample_size}_H{homology_dim}.png"
-    plt.savefig(fig_path, bbox_inches="tight")
-    plt.close()
-    logger.info("[EXP] Saved PCA distance curve to %s", fig_path)
+    _plot_distance_curve(
+    x_values=pca_dim_list,
+    distances=distances,
+    xlabel="PCA dimension d",
+    ylabel=f"L2 distance vs d={base_d}",
+    title=(
+        f"Landscape stability vs PCA dim\n"
+        f"Universe {universe_index}, m={subsample_size}, H={homology_dim}"),
+    save_path=fig_path,)
 
+    
     # 6. Plot selected landscapes overlaid
     chosen_ds = sorted({pca_dim_list[0], pca_dim_list[len(pca_dim_list)//2], pca_dim_list[-1]})
-    plt.figure()
+    landscapes_for_plot: Dict[int, np.ndarray | None] = {}
     for d in chosen_ds:
-        ls = landscapes_per_d[d].get(homology_dim)
-        if ls is None:
-            continue
-        y = ls.reshape(-1)
-        x = np.linspace(0, 1, y.shape[0])
-        plt.plot(x, y, label=f"d={d}")
-    plt.xlabel("Landscape sample index (normalized)")
-    plt.ylabel("Landscape value")
-    plt.title(f"Selected landscapes vs PCA dim\nUniverse {universe_index}, m={subsample_size}, H={homology_dim}")
-    plt.legend()
+        landscapes_for_plot[d] = landscapes_per_d[d].get(homology_dim)
+
     fig_path = output_dir / f"landscapes_univ{universe_index}_m{subsample_size}_H{homology_dim}.png"
-    plt.savefig(fig_path, bbox_inches="tight")
-    plt.close()
-    logger.info("[EXP] Saved PCA landscape overlay to %s", fig_path)
+    _plot_landscape_overlay(
+        landscapes=landscapes_for_plot,
+        title=(
+            f"Selected landscapes vs PCA dim\n"
+            f"Universe {universe_index}, m={subsample_size}, H={homology_dim}"),
+        save_path=fig_path,
+        label_prefix="d=",)
 
     # 7. Plot persistence diagrams for the same chosen PCA dims
     #    as a single combined figure, color-coded by d

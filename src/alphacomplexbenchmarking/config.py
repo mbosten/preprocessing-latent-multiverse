@@ -185,6 +185,79 @@ def df_shrink(df, skip=[], obj2cat=True, int2uint=False):
     return df.astype(dt)
 
 
+def apply_remove_infinite(df: pd.DataFrame) -> pd.DataFrame:
+
+    df_out = df.copy()
+
+    # Work only on numeric columns
+    num_cols = df_out.select_dtypes(include=[np.number]).columns
+    if not len(num_cols):
+        logger.info("[PREP] No numeric columns found; skipping infinity check.")
+        return df_out
+
+    # Build mask of inf/-inf
+    inf_mask = np.isinf(df_out[num_cols])
+    total_inf = int(inf_mask.values.sum())
+
+    if total_inf == 0:
+        logger.info("[PREP] No +/- infinity values found in numeric columns.")
+        return df_out
+
+    # Log per-column counts
+    col_counts = inf_mask.sum()
+    detailed_counts = ", ".join(f"{col}: {int(cnt)}" for col, cnt in col_counts.items() if cnt > 0)
+
+    logger.info(
+        "[PREP] Found %d +/- infinity values in numeric columns. Breakdown: %s",
+        total_inf,
+        detailed_counts,
+    )
+
+    # Replace infinities with NaN, only in numeric cols
+    df_out[num_cols] = df_out[num_cols].replace([np.inf, -np.inf], np.nan)
+
+    return df_out
+
+def apply_remove_nans(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Remove rows containing NaN values.
+    Logs total NaN count and per-column NaN counts before removal.
+    """
+    df_out = df.copy()
+
+    # Count NaNs per column
+    nan_counts = df_out.isna().sum()
+    total_nans = int(nan_counts.sum())
+
+    if total_nans == 0:
+        logger.info("[PREP] No NaN values found in dataset.")
+        return df_out
+
+    # Build detailed log string
+    detailed_counts = ", ".join(
+        f"{col}: {int(cnt)}" for col, cnt in nan_counts.items() if cnt > 0
+    )
+
+    logger.info(
+        "[PREP] Found %d NaN values across %d columns. Breakdown: %s",
+        total_nans,
+        (nan_counts > 0).sum(),
+        detailed_counts,
+    )
+
+    # Drop rows with any NaN
+    before = df_out.shape[0]
+    df_out = df_out.dropna()
+    after = df_out.shape[0]
+
+    logger.info(
+        "[PREP] Dropped %d rows containing NaN values. New shape: %s",
+        before - after,
+        df_out.shape,
+    )
+
+    return df_out
+
 def save_clean_dataset(df: pd.DataFrame, cfg: DatasetConfig) -> None:
     out_path = cfg.output_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -201,13 +274,15 @@ def prepare_dataset(dataset_id: str) -> None:
     df = load_raw_source(cfg)
     df = apply_drop_columns(df, cfg)
     df = apply_dtypes(df, cfg)
+    df = apply_remove_infinite(df)
+    df = apply_remove_nans(df)
     df = df_shrink(df, obj2cat=False, int2uint=False)
 
     save_clean_dataset(df, cfg)
 
 
 # ----------------- Typer CLI ----------------- #
-
+# uv run setup initiate Merged35
 @app.command()
 def initiate(
     dataset_id: str = typer.Argument(..., help="Dataset id to prepare, e.g. base_v1"),

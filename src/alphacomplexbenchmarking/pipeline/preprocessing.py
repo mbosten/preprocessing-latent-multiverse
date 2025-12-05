@@ -13,8 +13,8 @@ from alphacomplexbenchmarking.io.storage import get_clean_dataset_path, get_prep
 logger = logging.getLogger(__name__)
 
 LABEL_COLUMN = "Label"
-TARGET_LABEL_VALUE = "DDOS-ICMP_FLOOD"
-MAX_ROWS_FOR_LABEL = 50000
+TARGET_LABEL_VALUE = "BENIGN"
+# MAX_ROWS_FOR_LABEL = 50000 # subsampling here has an inpact on shape (50k vs unlimited)
 
 def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     """
@@ -22,17 +22,17 @@ def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     Returns a pandas DataFrame to ensure further compatibility.
     """
     logger.info(
-        "Loading raw dataset from %s using Polars: %s == %r (limit=%d)",
+        "Loading raw dataset from %s using Polars: %s == %r",
         dataset_id,
         LABEL_COLUMN,
         TARGET_LABEL_VALUE,
-        MAX_ROWS_FOR_LABEL,
+        # MAX_ROWS_FOR_LABEL,
     )
     path = get_clean_dataset_path(dataset_id, extension="parquet")
     lf = (
         pl.scan_parquet(path)
         .filter(pl.col(LABEL_COLUMN) == TARGET_LABEL_VALUE)
-        .limit(MAX_ROWS_FOR_LABEL)
+        # .limit(MAX_ROWS_FOR_LABEL)
     )
 
     # Collect into an in-memory Polars DataFrame, then convert to pandas
@@ -48,8 +48,12 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     if universe.feature_subset == FeatureSubset.ALL:
         return df
 
-    # Example: drop a hard-coded subset; adjust to your use case.
-    special_features = ["IPV4_SRC_ADDR", "IPV4_DST_ADDR", "L4_SRC_PORT", "L4_DST_PORT"]  # These are NF-ToN-IoT-v3 specific
+    if universe.to_id_string().startswith("ds-NF-ToN-IoT-v3"):
+        special_features = ["IPV4_SRC_ADDR", "IPV4_DST_ADDR", "L4_SRC_PORT", "L4_DST_PORT"]  # These are NF-ToN-IoT-v3 specific
+    elif universe.to_id_string().startswith("ds-Merged"):
+        special_features = ["Protocol Type"]
+    else:
+        raise ValueError(f"Unknown universe for feature subseting: {universe.to_id_string()}")
     logger.debug(f"Dropping special features: {special_features}")
     return df.drop(columns=[c for c in special_features if c in df.columns])
 
@@ -73,7 +77,11 @@ def apply_scaling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     scaler = scaler_cls()
     logger.debug(f"Applying {universe.scaling.value} scaling to {len(numeric_cols)} numeric columns.")
     df_scaled = df.copy()
-    df_scaled[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    try:
+        df_scaled[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    except ValueError as e:
+        logger.error(f"Error during scaling: {e}")
+        raise e
     return df_scaled
 
 

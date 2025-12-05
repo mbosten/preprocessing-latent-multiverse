@@ -18,8 +18,11 @@ logger = logging.getLogger(__name__)
 RAW_ROOT = Path("data/raw")
 INTERIM_ROOT = Path("data/interim")
 
-# new vars
+# Data base directory
 BASE_DATA_DIR = Path("data")
+
+# Experiment directories
+EXPERIMENTS_ROOT = BASE_DATA_DIR / "experiments"
 
 
 def ensure_dir(path: Path) -> Path:
@@ -74,6 +77,10 @@ def get_tda_result_path(universe: Universe) -> Path:
 
 def get_metrics_path(universe: Universe) -> Path:
     return BASE_DATA_DIR / "processed" / "metrics" / f"{universe.to_id_string()}_metrics.json"
+
+def get_latent_cache_path(universe: Universe) -> Path:
+    root = ensure_dir(EXPERIMENTS_ROOT / "latent")
+    return root / f"{universe.to_id_string()}_latent.npy"
 
 
 # SAVE 'N LOAD

@@ -5,9 +5,71 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.cm import get_cmap
-from typing import Dict
+from typing import Dict, Sequence
 
 logger = logging.getLogger(__name__)
+
+def _plot_distance_curve(
+    x_values: Sequence[float],
+    distances: Sequence[float],
+    xlabel: str,
+    ylabel: str,
+    title: str,
+    save_path: Path,
+) -> None:
+    """
+    Plot a simple distance curve: y vs x with markers.
+    Used for both subsample-size sweeps and PCA-dimension sweeps.
+    """
+    plt.figure()
+    plt.plot(x_values, distances, marker="o")
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(save_path, bbox_inches="tight")
+    plt.close()
+    logger.info("[EXP] Saved distance curve to %s", save_path)
+
+
+def _plot_landscape_overlay(
+    landscapes: Dict[int, np.ndarray | None],
+    title: str,
+    save_path: Path,
+    label_prefix: str = "",
+) -> None:
+    """
+    Plot multiple landscapes overlaid in a single figure.
+
+    landscapes: dict key -> landscape array, e.g. (num_landscapes, resolution)
+                or already flattened. If None, that key is skipped.
+    Keys are typically subsample sizes (m) or PCA dims (d).
+    """
+    # Filter out None
+    filtered = {k: v for k, v in landscapes.items() if v is not None}
+    if not filtered:
+        logger.warning("[EXP] No landscapes to plot for overlay: %s", title)
+        return
+
+    plt.figure()
+
+    for k in sorted(filtered.keys()):
+        ls = filtered[k]
+        # Flatten to 1D for a simple overlay
+        y = ls.reshape(-1)
+        x = np.linspace(0, 1, y.shape[0])
+        label = f"{label_prefix}{k}" if label_prefix else str(k)
+        plt.plot(x, y, label=label)
+
+    plt.xlabel("Landscape sample index (normalized)")
+    plt.ylabel("Landscape value")
+    plt.title(title)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(save_path, bbox_inches="tight")
+    plt.close()
+    logger.info("[EXP] Saved landscape overlay to %s", save_path)
 
 def _plot_persistence_diagram(
     intervals: np.ndarray | None,
@@ -73,7 +135,7 @@ def _plot_multiple_persistence_diagrams(
         all_vals.extend(births.tolist())
         all_vals.extend(deaths.tolist())
         label = f"{label_prefix}{k}"
-        plt.scatter(births, deaths, s=8, alpha=0.7, color=colors[k], label=label)
+        plt.scatter(births, deaths, s=8, marker="o", alpha=0.85, color=colors[k], label=label)
 
     mn = min(all_vals)
     mx = max(all_vals)

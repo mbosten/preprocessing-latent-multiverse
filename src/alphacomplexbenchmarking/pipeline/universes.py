@@ -45,8 +45,8 @@ class Universe:
     seed: int
 
     # AE / embedding
-    ae_latent_dim: int = 12
-    ae_hidden_dims: Tuple[int, ...] = (26, )
+    ae_latent_dim: int = 25
+    ae_hidden_dims: Tuple[int, ...] = (44, 39)
     ae_epochs: int = 10
     ae_batch_size: int = 256                  # following Sičić et al. (2023)
     ae_dropout: float = 0.0377                # following Sičić et al. (2023)

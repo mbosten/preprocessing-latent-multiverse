@@ -6,10 +6,6 @@ import logging
 import json
 from typing import Any, Dict
 
-from .run_id import make_run_id
-from alphacomplexbenchmarking.pipeline.sim import generate_simulation_matrix
-from alphacomplexbenchmarking.pipeline.persistence import compute_alpha_complex_persistence
-from alphacomplexbenchmarking.pipeline.landscapes import compute_landscapes
 from alphacomplexbenchmarking.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
@@ -158,54 +154,3 @@ def load_json(path: Path) -> Dict[str, Any]:
     logger.debug(f"Loading JSON from {path}")
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
-
-
-# ---------- convenience pipeline wrappers with storage ----------
-def generate_and_store(
-    n_samples: int,
-    n_dims: int,
-    seed: int,
-) -> tuple[np.ndarray, str, Path]:
-    """
-    1) generate matrix
-    2) build run_id
-    3) save to data/raw/<run_id>.npz
-    Returns (data, run_id, path).
-    """
-    data = generate_simulation_matrix(n_samples, n_dims, seed)
-    run_id = make_run_id(seed, n_samples, n_dims)
-    path = save_matrix(data, run_id)
-    return data, run_id, path
-
-def compute_and_store_persistence_for_run(
-    data: np.ndarray,
-    run_id: str,
-    homology_dimensions: list[int],
-) -> tuple[dict[int, np.ndarray], Path]:
-    """
-    1) compute persistence from in-memory data
-    2) save to data/interim/persistence/<run_id>.npz
-    """
-    per_dim = compute_alpha_complex_persistence(data, homology_dimensions)
-    path = save_persistence(per_dim, run_id)
-    return per_dim, path
-
-def compute_and_store_landscapes_for_run(
-    persistence_per_dimension: dict[int, np.ndarray],
-    run_id: str,
-    homology_dimensions: list[int],
-    num_landscapes: int = 5,
-    resolution: int = 1000,
-) -> tuple[dict[int, np.ndarray | None], Path]:
-    """
-    1) compute landscapes
-    2) save to data/interim/landscapes/<run_id>.npz
-    """
-    landscapes = compute_landscapes(
-        persistence_per_dimension,
-        num_landscapes=num_landscapes,
-        resolution=resolution,
-        homology_dimensions=homology_dimensions,
-    )
-    path = save_landscapes(landscapes, run_id)
-    return landscapes, path

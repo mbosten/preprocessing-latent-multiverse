@@ -91,6 +91,15 @@ def load_matrix(run_id: str) -> np.ndarray:
     path = raw_matrix_path(run_id)
     return np.load(path)["data"]
 
+def load_latent_from_cache(universe: Universe) -> np.ndarray:
+    cache_path = get_latent_cache_path(universe)
+    if not cache_path.exists():
+        raise FileNotFoundError(
+            f"No latent cache found for {universe}. Expected at {cache_path}. "
+            "Run the embedding preparation command first."
+        )
+    logger.info("[Embedding] Loading latent from %s for %s", cache_path, universe)
+    return np.load(cache_path)
 
 def save_persistence(per_dim: dict[int, np.ndarray], run_id: str) -> Path:
     out_dir = ensure_dir(INTERIM_ROOT / "persistence")

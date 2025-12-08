@@ -7,8 +7,6 @@ from typing import Dict, Optional
 
 import numpy as np
 
-from alphacomplexbenchmarking.pipeline.tda import TdaResult
-
 
 @dataclass
 class MetricsResult:
@@ -33,14 +31,16 @@ def compute_total_persistence(intervals: np.ndarray) -> float:
     return float(lengths.sum())
 
 
-def compute_metrics_from_tda(tda: TdaResult) -> MetricsResult:
+def compute_metrics_from_tda(
+        persistence_per_dimension: Dict[int, np.ndarray],
+        landscapes_per_dimension: Dict[int, Optional[np.ndarray]]):
     total_persistence_per_dim: Dict[int, float] = {}
     landscape_l2_per_dim: Dict[int, float] = {}
 
-    for dim, intervals in tda.persistence_per_dim.items():
+    for dim, intervals in persistence_per_dimension.items():
         total_persistence_per_dim[dim] = compute_total_persistence(intervals)
 
-    for dim, landscapes in tda.landscapes_per_dim.items():
+    for dim, landscapes in landscapes_per_dimension.items():
         if landscapes is None:
             landscape_l2_per_dim[dim] = 0.0
         else:

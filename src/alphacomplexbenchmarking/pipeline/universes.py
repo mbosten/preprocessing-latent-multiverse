@@ -1,12 +1,15 @@
 # src/alphacomplexbenchmarking/pipeline/universes.py
 from __future__ import annotations
+
+import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable, List, Tuple, Optional
-import logging
+from typing import List, Optional, Tuple
+
 import typer
 
 logger = logging.getLogger(__name__)
+
 
 class Scaling(str, Enum):
     ZSCORE = "zscore"
@@ -14,13 +17,16 @@ class Scaling(str, Enum):
     ROBUST = "robust"
     QUANTILE = "quantile"
 
+
 class FeatureSubset(str, Enum):
     ALL = "all"
     WITHOUT_CONFOUNDERS = "without_confounders"
 
+
 class CatEncoding(str, Enum):
     ONEHOT = "one_hot"
     LABEL = "label"
+
 
 class Duplicates(str, Enum):
     KEEP = "keep"
@@ -41,6 +47,7 @@ class Universe:
     One 'universe' in the multiverse: preprocessing + AE + TDA params.
     Holds all parameters needed to run the full pipeline for one configuration, including fixed-value parameters.
     """
+
     # Preprocessing choices
     scaling: Scaling
     feature_subset: FeatureSubset
@@ -52,9 +59,9 @@ class Universe:
     ae_latent_dim: int = 25
     ae_hidden_dims: Tuple[int, ...] = (44, 39)
     ae_epochs: int = 10
-    ae_batch_size: int = 256                  # following Sičić et al. (2023)
-    ae_dropout: float = 0.0377                # following Sičić et al. (2023)
-    ae_regularization: float = 0.0019         # following Sičić et al. (2023)
+    ae_batch_size: int = 256  # following Sičić et al. (2023)
+    ae_dropout: float = 0.0377  # following Sičić et al. (2023)
+    ae_regularization: float = 0.0019  # following Sičić et al. (2023)
 
     # Will be overridden by PCA dims below.
     pca_dim: int = 3
@@ -62,8 +69,7 @@ class Universe:
     # TDA config
     tda_config: TdaConfig = TdaConfig()
 
-
-    dataset_id: str = "Merged35" # "NF-ToN-IoT-v3"
+    dataset_id: str = "Merged35"  # "NF-ToN-IoT-v3"
 
     def to_id_string(self) -> str:
         """
@@ -79,7 +85,6 @@ class Universe:
             f"_sd-{self.seed}"
             f"_pca-{self.pca_dim}"
         )
-
 
 
 def generate_multiverse() -> List[Universe]:
@@ -117,6 +122,7 @@ def generate_multiverse() -> List[Universe]:
                                 )
                             )
     return universes
+
 
 def get_universe(index: int) -> Universe:
     """

@@ -1,22 +1,28 @@
 # src/alphacomplexbenchmarking/cli.py
 from __future__ import annotations
+
 import logging
 from pathlib import Path
-import typer
-from rich import print
 from typing import Optional
+
+import typer
 from typing_extensions import Annotated
 
-
 from alphacomplexbenchmarking.logging_config import setup_logging
-from alphacomplexbenchmarking.pipeline.preprocessing import preprocess_variant
-from alphacomplexbenchmarking.pipeline.universes import Universe, generate_multiverse, get_universe
-from alphacomplexbenchmarking.pipeline.parallel import run_full_pipeline_for_universe, run_many_universes
 from alphacomplexbenchmarking.pipeline.create_embeddings import get_or_compute_latent
 from alphacomplexbenchmarking.pipeline.create_tda import run_tda_for_universe
-
+from alphacomplexbenchmarking.pipeline.parallel import (
+    run_full_pipeline_for_universe,
+    run_many_universes,
+)
+from alphacomplexbenchmarking.pipeline.preprocessing import preprocess_variant
+from alphacomplexbenchmarking.pipeline.universes import (
+    generate_multiverse,
+    get_universe,
+)
 
 app = typer.Typer(help="Simulation + TDA pipeline")
+
 
 # ----------- Global CLI options and commands ----------- #
 @app.callback()
@@ -36,6 +42,7 @@ def main(
     logger = logging.getLogger(__name__)
     logger.debug("CLI started with verbose=%s", verbose)
 
+
 # ----------- Create preprocessing multiverse ----------- #
 @app.command("prepare-preprocessing")
 def prepare_preprocessing(
@@ -50,11 +57,12 @@ def prepare_preprocessing(
         u = get_universe(universe_index)
         preprocess_variant(u)
 
+
 # ----------- Train AEs and create embeddings ----------- #
 @app.command("prepare-embeddings")
 def prepare_embeddings(
     universe_index: Annotated[int | None, typer.Option()] = None,
-    force_recompute: Annotated[bool, typer.Option()] = False
+    force_recompute: Annotated[bool, typer.Option()] = False,
 ):
     if universe_index is None:
         universes = generate_multiverse()
@@ -80,7 +88,7 @@ def prepare_tda(
         u = get_universe(universe_index)
 
         complexes, landscapes, metrics = run_tda_for_universe(u)
-        
+
 
 # Will be removed in the future in favor of "prepare-embeddings" and "prepare-tda"
 @app.command("run-universe")
@@ -99,12 +107,16 @@ def run_universe(
     typer.echo(f"Running universe[{index}] = {universe.to_id_string()}")
     run_full_pipeline_for_universe(universe)
 
+
 # Will be removed in the future in favor of "prepare-embeddings" and "prepare-tda"
 @app.command("run-universe-batch")
 def run_universe_batch(
-    start: int = typer.Option(0, help="Start index (inclusive) in default universe list."),
+    start: int = typer.Option(
+        0, help="Start index (inclusive) in default universe list."
+    ),
     end: Optional[int] = typer.Option(
-        None, help="End index (exclusive) in default universe list. If None, run to end."
+        None,
+        help="End index (exclusive) in default universe list. If None, run to end.",
     ),
     max_workers: Optional[int] = typer.Option(
         None,
@@ -119,7 +131,9 @@ def run_universe_batch(
     if end is None or end > n:
         end = n
     if start < 0 or start >= end:
-        raise typer.BadParameter(f"Invalid start/end: start={start}, end={end}, total={n}")
+        raise typer.BadParameter(
+            f"Invalid start/end: start={start}, end={end}, total={n}"
+        )
 
     subset = universes[start:end]
     typer.echo(f"Running Universes[{start}:{end}] ({len(subset)} universes)")
@@ -135,7 +149,6 @@ def list_universes():
     universes = generate_multiverse()
     for i, universe in enumerate(universes):
         typer.echo(f"{i:3d}: {universe.to_id_string()}")
-
 
 
 if __name__ == "__main__":

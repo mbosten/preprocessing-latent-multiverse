@@ -51,7 +51,7 @@ project/
 │           ├── metrics.py          # scalar TDA summaries
 │           ├── parallel.py         # run_full_pipeline_for_universe, run_many_universes
 │           └── sim.py              # Deprecated functionality
-│        
+│
 │
 └── README.md
 ```
@@ -90,7 +90,7 @@ One `Universe` determines:
 - AE architecture (fixed)
 - TDA configuration (fixed)
 
-`generate_multiverse()` subsequently specifies all possible universes. 
+`generate_multiverse()` subsequently specifies all possible universes.
 
 ## 3. Pipeline Stages
 For each `Universe`, the pipeline executes:
@@ -167,7 +167,7 @@ Cluster execution (SLURM job arrays) is straightforward. For a multiverse of siz
 #SBATCH --array=0-53
 uv run acb run-universe $SLURM_ARRAY_TASK_ID
 ```
-This isolates each universe to one job. 
+This isolates each universe to one job.
 
 
 ## 6. Logging

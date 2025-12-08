@@ -7,14 +7,24 @@ from pathlib import Path
 import pandas as pd
 import polars as pl
 
-from alphacomplexbenchmarking.pipeline.universes import Universe, Scaling, FeatureSubset, CatEncoding
-from alphacomplexbenchmarking.io.storage import get_clean_dataset_path, get_preprocessed_path, ensure_parent_dir
+from alphacomplexbenchmarking.io.storage import (
+    ensure_parent_dir,
+    get_clean_dataset_path,
+    get_preprocessed_path,
+)
+from alphacomplexbenchmarking.pipeline.universes import (
+    CatEncoding,
+    FeatureSubset,
+    Scaling,
+    Universe,
+)
 
 logger = logging.getLogger(__name__)
 
 LABEL_COLUMN = "Label"
 TARGET_LABEL_VALUE = "BENIGN"
 # MAX_ROWS_FOR_LABEL = 50000 # subsampling here has an inpact on shape (50k vs unlimited)
+
 
 def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     """
@@ -30,8 +40,7 @@ def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     )
     path = get_clean_dataset_path(dataset_id, extension="parquet")
     lf = (
-        pl.scan_parquet(path)
-        .filter(pl.col(LABEL_COLUMN) == TARGET_LABEL_VALUE)
+        pl.scan_parquet(path).filter(pl.col(LABEL_COLUMN) == TARGET_LABEL_VALUE)
         # .limit(MAX_ROWS_FOR_LABEL)
     )
 
@@ -49,18 +58,30 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
         return df
 
     if universe.to_id_string().startswith("ds-NF-ToN-IoT-v3"):
-        special_features = ["IPV4_SRC_ADDR", "IPV4_DST_ADDR", "L4_SRC_PORT", "L4_DST_PORT"]  # These are NF-ToN-IoT-v3 specific
+        special_features = [
+            "IPV4_SRC_ADDR",
+            "IPV4_DST_ADDR",
+            "L4_SRC_PORT",
+            "L4_DST_PORT",
+        ]  # These are NF-ToN-IoT-v3 specific
     elif universe.to_id_string().startswith("ds-Merged"):
         special_features = ["Protocol Type"]
     else:
-        raise ValueError(f"Unknown universe for feature subseting: {universe.to_id_string()}")
+        raise ValueError(
+            f"Unknown universe for feature subseting: {universe.to_id_string()}"
+        )
     logger.debug(f"Dropping special features: {special_features}")
     return df.drop(columns=[c for c in special_features if c in df.columns])
 
 
 def apply_scaling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
 
-    from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler, QuantileTransformer
+    from sklearn.preprocessing import (
+        MinMaxScaler,
+        QuantileTransformer,
+        RobustScaler,
+        StandardScaler,
+    )
 
     numeric_cols = df.select_dtypes(include="number").columns
     if universe.scaling == Scaling.ZSCORE:
@@ -73,9 +94,11 @@ def apply_scaling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
         scaler_cls = QuantileTransformer(output_distribution="normal")
     else:
         raise ValueError(f"Unknown scaling: {universe.scaling}")
-    
+
     # scaler = scaler_cls()
-    logger.debug(f"Applying {universe.scaling.value} scaling to {len(numeric_cols)} numeric columns.")
+    logger.debug(
+        f"Applying {universe.scaling.value} scaling to {len(numeric_cols)} numeric columns."
+    )
     df_scaled = df.copy()
     try:
         df_scaled[numeric_cols] = scaler_cls.fit_transform(df[numeric_cols])
@@ -91,7 +114,9 @@ def apply_cat_encoding(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     if cat_cols.empty or universe.cat_encoding is None:
         return df
 
-    logger.debug(f"Applying {universe.cat_encoding.value} encoding to categorical columns: {list(cat_cols)}")
+    logger.debug(
+        f"Applying {universe.cat_encoding.value} encoding to categorical columns: {list(cat_cols)}"
+    )
 
     if universe.cat_encoding == CatEncoding.ONEHOT:
         return pd.get_dummies(df, columns=cat_cols, drop_first=False)

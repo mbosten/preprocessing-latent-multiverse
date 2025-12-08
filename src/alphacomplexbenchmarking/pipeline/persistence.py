@@ -1,8 +1,10 @@
 # src/alphacomplexbenchmarking/pipeline/persistence.py
 from __future__ import annotations
-import numpy as np
-import gudhi as gd
+
 import logging
+
+import gudhi as gd
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,9 @@ def build_alpha_complex_simplex_tree(points: np.ndarray) -> gd.SimplexTree:
     return simplex_tree
 
 
-def compute_alpha_complex_persistence(data: np.ndarray, homology_dimensions: list[int] = [0, 1, 2]):
+def compute_alpha_complex_persistence(
+    data: np.ndarray, homology_dimensions: list[int] = [0, 1, 2]
+):
     """
     Compute persistence from alpha complex and return per-dimension persistence intervals.
     """

@@ -2,15 +2,18 @@
 from __future__ import annotations
 
 import logging
+from typing import Dict, List
+
 import numpy as np
 import torch
-import pandas as pd
-from typing import List, Dict
 
-from alphacomplexbenchmarking.pipeline.universes import Universe
-from alphacomplexbenchmarking.pipeline.autoencoder import train_autoencoder_for_universe, load_autoencoder_for_universe, get_feature_matrix_from_universe
 from alphacomplexbenchmarking.io.storage import get_latent_cache_path
-
+from alphacomplexbenchmarking.pipeline.autoencoder import (
+    get_feature_matrix_from_universe,
+    load_autoencoder_for_universe,
+    train_autoencoder_for_universe,
+)
+from alphacomplexbenchmarking.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +34,11 @@ def get_or_compute_latent(
     cache_path = get_latent_cache_path(universe)
 
     if cache_path.exists() and not force_recompute:
-        logger.info("[Embedding] Loading cached latent from %s for %s", cache_path, universe.to_id_string())
+        logger.info(
+            "[Embedding] Loading cached latent from %s for %s",
+            cache_path,
+            universe.to_id_string(),
+        )
         return np.load(cache_path)
 
     # 1. Optionally (re)train AE

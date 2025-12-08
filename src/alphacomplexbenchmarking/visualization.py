@@ -1,13 +1,16 @@
 # src/alphacomplexbenchmarking/visualization.py
 from __future__ import annotations
+
 import logging
 from pathlib import Path
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.cm import get_cmap
 from typing import Dict, Sequence
 
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.cm import get_cmap
+
 logger = logging.getLogger(__name__)
+
 
 def _plot_distance_curve(
     x_values: Sequence[float],
@@ -71,6 +74,7 @@ def _plot_landscape_overlay(
     plt.close()
     logger.info("[EXP] Saved landscape overlay to %s", save_path)
 
+
 def _plot_persistence_diagram(
     intervals: np.ndarray | None,
     title: str,
@@ -99,6 +103,7 @@ def _plot_persistence_diagram(
     plt.savefig(save_path, bbox_inches="tight")
     plt.close()
     logger.info("[EXP] Saved persistence diagram to %s", save_path)
+
 
 def _plot_multiple_persistence_diagrams(
     diagrams: Dict[int, np.ndarray | None],
@@ -135,7 +140,9 @@ def _plot_multiple_persistence_diagrams(
         all_vals.extend(births.tolist())
         all_vals.extend(deaths.tolist())
         label = f"{label_prefix}{k}"
-        plt.scatter(births, deaths, s=8, marker="o", alpha=0.85, color=colors[k], label=label)
+        plt.scatter(
+            births, deaths, s=8, marker="o", alpha=0.85, color=colors[k], label=label
+        )
 
     mn = min(all_vals)
     mx = max(all_vals)
@@ -150,6 +157,7 @@ def _plot_multiple_persistence_diagrams(
     plt.savefig(save_path, bbox_inches="tight")
     plt.close()
     logger.info("[EXP] Saved combined persistence diagram to %s", save_path)
+
 
 def _plot_multiple_barcodes(
     diagrams: Dict[int, np.ndarray | None],
@@ -168,10 +176,7 @@ def _plot_multiple_barcodes(
                         (for visualization sanity).
     """
     # Filter out empty/None diagrams
-    filtered = {
-        k: v for k, v in diagrams.items()
-        if v is not None and len(v) > 0
-    }
+    filtered = {k: v for k, v in diagrams.items() if v is not None and len(v) > 0}
     if not filtered:
         logger.warning("[EXP] No intervals to plot for multiple barcodes: %s", title)
         return
@@ -221,7 +226,9 @@ def _plot_multiple_barcodes(
     ax.set_xlabel("Filtration value")
     ax.set_ylabel("Interval index (stacked by group)")
     ax.set_title(title)
-    ax.legend(legend_handles, legend_labels, title=label_prefix.rstrip(), fontsize="small")
+    ax.legend(
+        legend_handles, legend_labels, title=label_prefix.rstrip(), fontsize="small"
+    )
     plt.tight_layout()
     plt.savefig(save_path, bbox_inches="tight")
     plt.close()

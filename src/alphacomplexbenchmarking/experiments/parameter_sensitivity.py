@@ -3,50 +3,43 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from dataclasses import dataclass
+from typing import Dict, List, Tuple
+
 import gudhi as gd
-from typing import List, Dict, Tuple
+import matplotlib.pyplot as plt
+import numpy as np
+import typer
+from sklearn.decomposition import PCA
 from typing_extensions import Annotated
 
-import numpy as np
-import pandas as pd 
-import matplotlib.pyplot as plt
-from matplotlib.cm import get_cmap
-from sklearn.decomposition import PCA
-import torch
-
+from alphacomplexbenchmarking.io.storage import get_latent_cache_path
 from alphacomplexbenchmarking.logging_config import setup_logging
-
-# Adjust these imports to your actual module names:
-from alphacomplexbenchmarking.pipeline.universes import Universe, get_universe
-from alphacomplexbenchmarking.config import load_dataset_config, DatasetConfig
-from alphacomplexbenchmarking.io.storage import (
-    get_preprocessed_path,
-    ensure_parent_dir,
-    get_latent_cache_path,
+from alphacomplexbenchmarking.pipeline.autoencoder import train_autoencoder_for_universe
+from alphacomplexbenchmarking.pipeline.embeddings import (
+    compute_embeddings_for_universe,
+    from_latent_to_point_cloud,
+    normalize_space,
 )
-from alphacomplexbenchmarking.pipeline.autoencoder import (
-    train_autoencoder_for_universe,
-    load_autoencoder_for_universe,
-    _get_feature_matrix_for_ae,
-)
-from alphacomplexbenchmarking.pipeline.embeddings import from_latent_to_point_cloud, normalize_space, compute_embeddings_for_universe
+from alphacomplexbenchmarking.pipeline.landscapes import compute_landscapes
 from alphacomplexbenchmarking.pipeline.persistence import (
     build_alpha_complex_simplex_tree,
     compute_alpha_complex_persistence,
 )
-from alphacomplexbenchmarking.pipeline.landscapes import compute_landscapes
+
+# Adjust these imports to your actual module names:
+from alphacomplexbenchmarking.pipeline.universes import Universe, get_universe
 from alphacomplexbenchmarking.visualization import (
     _plot_distance_curve,
     _plot_landscape_overlay,
-    _plot_persistence_diagram,
-    _plot_multiple_persistence_diagrams,
     _plot_multiple_barcodes,
+    _plot_multiple_persistence_diagrams,
+    _plot_persistence_diagram,
 )
-import typer
 
 logger = logging.getLogger(__name__)
-app = typer.Typer(help="Parameter experiments to justify metholodical choices in the multiverse analysis.")
+app = typer.Typer(
+    help="Parameter experiments to justify metholodical choices in the multiverse analysis."
+)
 
 
 @app.callback()
@@ -66,9 +59,13 @@ def main(
     logger = logging.getLogger(__name__)
     logger.debug("CLI started with verbose=%s", verbose)
 
+
 # ----------------- Helpers: embeddings + TDA ----------------- #
 
-def _get_latent_embeddings_for_universe(universe: Universe, retrain_if_missing: bool = True):
+
+def _get_latent_embeddings_for_universe(
+    universe: Universe, retrain_if_missing: bool = True
+):
     """
     Load latent embeddings for this universe if cached, otherwise retrain AE (if allowed) and compute latent embeddings.
     """
@@ -83,7 +80,9 @@ def _get_latent_embeddings_for_universe(universe: Universe, retrain_if_missing: 
 
     # Optionally ensure AE is trained
     if retrain_if_missing:
-        logger.info("[EXP] Training AE for universe %s (retrain_if_missing=True).", universe)
+        logger.info(
+            "[EXP] Training AE for universe %s (retrain_if_missing=True).", universe
+        )
         train_autoencoder_for_universe(universe)
     else:
         logger.info(
@@ -92,7 +91,6 @@ def _get_latent_embeddings_for_universe(universe: Universe, retrain_if_missing: 
         )
 
     latent = compute_embeddings_for_universe(universe)
-
 
     logger.info("[EXP] Latent representation shape: %s", latent.shape)
     np.save(cache_path, latent)
@@ -107,8 +105,6 @@ def _pca_project(latent: np.ndarray, pca_dim: int, seed: int) -> np.ndarray:
     # diameter normalization
     latent_norm = normalize_space(latent, diameter_iterations=1000, seed=42)
 
-    rng = np.random.default_rng(seed)
-    # PCA itself is deterministic, rng only for potential later use.
     pca = PCA(n_components=pca_dim, random_state=seed)
     projected = pca.fit_transform(latent_norm)
     logger.info("[EXP] PCA projection to dim=%d → shape=%s", pca_dim, projected.shape)
@@ -179,6 +175,7 @@ def _l2_distance(a: np.ndarray | None, b: np.ndarray | None) -> float:
         return float("nan")
     return float(np.linalg.norm(a - b))
 
+
 # ----------------- Experiment: Simple PD Visualization ----------------- #
 # example:
 @app.command("simple-pd")
@@ -198,7 +195,6 @@ def simple_pd(
     # 2. Get embedding space for universe
     latent = _get_latent_embeddings_for_universe(universe, retrain_if_missing=True)
 
-
     # 3. Prepare point cloud for TDA (subsample, normalize, PCA)
     points_for_tda = from_latent_to_point_cloud(
         latent,
@@ -210,32 +206,50 @@ def simple_pd(
 
     # 4. Build alpha simplex tree
     st = build_alpha_complex_simplex_tree(points_for_tda)
-    result_str = 'Alpha complex is of dimension ' + repr(st.dimension()) + ' - ' + repr(st.num_simplices()) + ' simplices - ' + repr(st.num_vertices()) + ' vertices.'
+    result_str = (
+        "Alpha complex is of dimension "
+        + repr(st.dimension())
+        + " - "
+        + repr(st.num_simplices())
+        + " simplices - "
+        + repr(st.num_vertices())
+        + " vertices."
+    )
     logger.info("[PD] " + result_str)
-    
-    
-    logger.info(f"[PD] Computed persistence with {len(st.persistence_pairs())} intervals")
+
+    logger.info(
+        f"[PD] Computed persistence with {len(st.persistence_pairs())} intervals"
+    )
     logger.info(f"[PD] Betti numbers: {st.betti_numbers()}")
 
     # 5. Compute persistence
     diag = st.persistence(min_persistence=-1.0)
-    
+
     # 6. Plot persistence diagram
     ax = gd.plot_persistence_diagram(diag)
     fig = ax.figure
-    fig_path = output_dir / f"persistence_diagram_univ{universe_index}_pca{pca_dim}_m{tda_sample_size}.png"
+    fig_path = (
+        output_dir
+        / f"persistence_diagram_univ{universe_index}_pca{pca_dim}_m{tda_sample_size}.png"
+    )
     fig.savefig(fig_path, bbox_inches="tight")
     plt.show()
 
-    ax = gd.plot_persistence_barcode(diag, max_intervals = 50)
+    ax = gd.plot_persistence_barcode(diag, max_intervals=50)
     fig = ax.figure
-    fig_path = output_dir / f"persistence_barcode_univ{universe_index}_pca{pca_dim}_m{tda_sample_size}.png"
+    fig_path = (
+        output_dir
+        / f"persistence_barcode_univ{universe_index}_pca{pca_dim}_m{tda_sample_size}.png"
+    )
     fig.savefig(fig_path, bbox_inches="tight")
     plt.show()
 
     ax = gd.plot_persistence_density(diag)
     fig = ax.figure
-    fig_path = output_dir / f"persistence_density_univ{universe_index}_pca{pca_dim}_m{tda_sample_size}.png"
+    fig_path = (
+        output_dir
+        / f"persistence_density_univ{universe_index}_pca{pca_dim}_m{tda_sample_size}.png"
+    )
     fig.savefig(fig_path, bbox_inches="tight")
     plt.show()
 
@@ -245,7 +259,9 @@ def simple_pd_grid(
     universe_index: Annotated[int, typer.Argument()] = 1,
     pca_dims: Annotated[str, typer.Option()] = "2,3,4",
     tda_sample_sizes: Annotated[str, typer.Option()] = "500,1000,2000",
-    output_dir: Annotated[Path, typer.Option()] = Path("data/experiments/simple_pd_grid"),
+    output_dir: Annotated[Path, typer.Option()] = Path(
+        "data/experiments/simple_pd_grid"
+    ),
     show: Annotated[bool, typer.Option()] = False,
 ):
     """
@@ -330,17 +346,24 @@ def simple_pd_grid(
     else:
         plt.close(fig)
 
+
 # ----------------- Experiment: Subsample size sweep ----------------- #
 # example: uv run exp subsample-sweep 0 --max-rows 50000 --subsample-sizes "500,1000,2000,5000,10000" --homology-dim 1 --pca-dim 3 --num-landscapes 5 --resolution 500 --output-dir data/experiments/subsampling
 @app.command("subsample-sweep")
 def subsample_sweep(
-    universe_index: int = typer.Argument(..., help="Index into generate_multiverse() to pick a universe."),
-    max_rows: int = typer.Option(50_000, help="Max rows to consider from preprocessed dataset."),
+    universe_index: int = typer.Argument(
+        ..., help="Index into generate_multiverse() to pick a universe."
+    ),
+    max_rows: int = typer.Option(
+        50_000, help="Max rows to consider from preprocessed dataset."
+    ),
     subsample_sizes: str = typer.Option(
         "500,1000,2000,5000,10000",
         help="Comma-separated list of subsample sizes to test.",
     ),
-    homology_dim: int = typer.Option(1, help="Homology dimension to analyze (e.g. 0,1,2)."),
+    homology_dim: int = typer.Option(
+        1, help="Homology dimension to analyze (e.g. 0,1,2)."
+    ),
     pca_dim: int = typer.Option(3, help="PCA dimension to use for this sweep."),
     num_landscapes: int = typer.Option(5, help="Number of landscapes."),
     resolution: int = typer.Option(500, help="Landscape resolution."),
@@ -366,7 +389,6 @@ def subsample_sweep(
 
     # 1. Pick universe
     universe = get_universe(universe_index)
-
 
     # 2. Get latent embeddings from AE
     latent = _get_latent_embeddings_for_universe(universe, retrain_if_missing=True)
@@ -465,10 +487,16 @@ def subsample_sweep(
         logger.info("[EXP] m=%d, distance vs m=%d: %s", m, base_m, d)
 
     # 8. Save distances and a few example landscapes
-    np.save(output_dir / f"distances_univ{universe_index}_pca{pca_dim}_H{homology_dim}.npy", np.array(distances))
+    np.save(
+        output_dir / f"distances_univ{universe_index}_pca{pca_dim}_H{homology_dim}.npy",
+        np.array(distances),
+    )
 
     # 9. Plot distance curve
-    fig_path = output_dir / f"distance_curve_univ{universe_index}_pca{pca_dim}_H{homology_dim}.png"
+    fig_path = (
+        output_dir
+        / f"distance_curve_univ{universe_index}_pca{pca_dim}_H{homology_dim}.png"
+    )
     _plot_distance_curve(
         x_values=subsample_list,
         distances=distances,
@@ -476,17 +504,27 @@ def subsample_sweep(
         ylabel=f"L2 distance vs m={base_m}",
         title=(
             f"Landscape stability vs subsample size\n"
-            f"Universe {universe_index}, PCA={pca_dim}, H={homology_dim}"),
-        save_path=fig_path,)
-    
+            f"Universe {universe_index}, PCA={pca_dim}, H={homology_dim}"
+        ),
+        save_path=fig_path,
+    )
+
     # 10. Plot a few landscapes overlaid (for visual intuition)
-    chosen_ms = sorted({subsample_list[0], subsample_list[len(subsample_list)//2], subsample_list[-1]})
+    chosen_ms = sorted(
+        {
+            subsample_list[0],
+            subsample_list[len(subsample_list) // 2],
+            subsample_list[-1],
+        }
+    )
 
     landscapes_for_plot_m: Dict[int, np.ndarray | None] = {}
     for m in chosen_ms:
         landscapes_for_plot_m[m] = landscapes_per_m[m].get(homology_dim)
 
-    fig_path = output_dir / f"landscapes_univ{universe_index}_pca{pca_dim}_H{homology_dim}.png"
+    fig_path = (
+        output_dir / f"landscapes_univ{universe_index}_pca{pca_dim}_H{homology_dim}.png"
+    )
     _plot_landscape_overlay(
         landscapes=landscapes_for_plot_m,
         title=(
@@ -507,13 +545,15 @@ def subsample_sweep(
         diagrams=diagrams_for_plot,
         homology_dim=homology_dim,
         title=f"Persistence diagrams (H={homology_dim})\nUniverse {universe_index}, PCA={pca_dim}, varying m",
-        save_path=output_dir / f"pd_combined_univ{universe_index}_pca{pca_dim}_H{homology_dim}.png",
+        save_path=output_dir
+        / f"pd_combined_univ{universe_index}_pca{pca_dim}_H{homology_dim}.png",
         label_prefix="m=",
     )
     _plot_multiple_barcodes(
         diagrams=diagrams_for_plot,
         title=f"Barcodes (H={homology_dim})\nUniverse {universe_index}, PCA={pca_dim}, varying m",
-        save_path=output_dir / f"barcodes_univ{universe_index}_pca{pca_dim}_H{homology_dim}.png",
+        save_path=output_dir
+        / f"barcodes_univ{universe_index}_pca{pca_dim}_H{homology_dim}.png",
         label_prefix="m=",
         max_bars_per_group=100,  # adjust if you want more/less
     )
@@ -523,14 +563,22 @@ def subsample_sweep(
 # example: uv run exp pca-sweep 0 --max-rows 50000 --pca-dims "2,3,4" --homology-dim 1 --subsample-size 10000 --num-landscapes 5 --resolution 500 --output-dir data/experiments/pca
 @app.command("pca-sweep")
 def pca_sweep(
-    universe_index: int = typer.Argument(..., help="Index into generate_multiverse() to pick a universe."),
-    max_rows: int = typer.Option(50_000, help="Max rows to consider from preprocessed dataset."),
+    universe_index: int = typer.Argument(
+        ..., help="Index into generate_multiverse() to pick a universe."
+    ),
+    max_rows: int = typer.Option(
+        50_000, help="Max rows to consider from preprocessed dataset."
+    ),
     pca_dims: str = typer.Option(
         "2,3,4,6,8",
         help="Comma-separated list of PCA dims to test.",
     ),
-    homology_dim: int = typer.Option(1, help="Homology dimension to analyze (e.g. 0,1,2)."),
-    subsample_size: int = typer.Option(10_000, help="Subsample size m for all PCA dims."),
+    homology_dim: int = typer.Option(
+        1, help="Homology dimension to analyze (e.g. 0,1,2)."
+    ),
+    subsample_size: int = typer.Option(
+        10_000, help="Subsample size m for all PCA dims."
+    ),
     num_landscapes: int = typer.Option(5, help="Number of landscapes."),
     resolution: int = typer.Option(500, help="Landscape resolution."),
     output_dir: Path = typer.Option(
@@ -552,10 +600,8 @@ def pca_sweep(
     setup_logging(log_dir=Path("logs"), level=level)
     logger.info("[EXP] Running pca_sweep for universe_index=%d", universe_index)
 
-
     # 1. Pick universe
     universe = get_universe(universe_index)
-
 
     # 1. Get latent embeddings
     latent = _get_latent_embeddings_for_universe(universe, retrain_if_missing=True)
@@ -563,8 +609,13 @@ def pca_sweep(
         latent = latent[:max_rows]
         logger.info("[EXP] Truncated latent to first %d rows for experiment.", max_rows)
 
-    logger.info("[EXP] Latent descriptives: min=%.4f, max=%.4f, mean=%.4f, std=%.4f",
-                np.min(latent), np.max(latent), np.mean(latent), np.std(latent))
+    logger.info(
+        "[EXP] Latent descriptives: min=%.4f, max=%.4f, mean=%.4f, std=%.4f",
+        np.min(latent),
+        np.max(latent),
+        np.mean(latent),
+        np.std(latent),
+    )
 
     # 2. Parse PCA dims
     pca_dim_list = [int(x) for x in pca_dims.split(",") if x.strip()]
@@ -578,7 +629,9 @@ def pca_sweep(
     # 3. For each PCA dim, project, subsample, compute persistence & landscapes
     for d in pca_dim_list:
         pts_full = _pca_project(latent, pca_dim=d, seed=universe.seed + d)
-        pts = _subsample_points(pts_full, subsample_size, seed=universe.seed + d + subsample_size)
+        pts = _subsample_points(
+            pts_full, subsample_size, seed=universe.seed + d + subsample_size
+        )
         logger.info("[EXP] Computing persistence & landscapes for PCA dim d=%d", d)
 
         per_dim, lsc = _compute_persistence_and_landscapes_for_points(
@@ -600,7 +653,8 @@ def pca_sweep(
                 f"Persistence diagram (H={homology_dim})\n"
                 f"Universe {universe_index}, m={subsample_size}, d={d}"
             ),
-            save_path=output_dir / f"pd_univ{universe_index}_H{homology_dim}_m{subsample_size}_d{d}.png",
+            save_path=output_dir
+            / f"pd_univ{universe_index}_H{homology_dim}_m{subsample_size}_d{d}.png",
         )
 
         # barcode plot for this d
@@ -611,7 +665,8 @@ def pca_sweep(
                 f"Barcodes (H={homology_dim})\n"
                 f"Universe {universe_index}, m={subsample_size}, d={d}"
             ),
-            save_path=output_dir / f"barcodes_univ{universe_index}_H{homology_dim}_m{subsample_size}_d{d}.png",
+            save_path=output_dir
+            / f"barcodes_univ{universe_index}_H{homology_dim}_m{subsample_size}_d{d}.png",
             label_prefix="d=",
             max_bars_per_group=100,
         )
@@ -649,35 +704,50 @@ def pca_sweep(
         distances.append(dval)
         logger.info("[EXP] d=%d, distance vs d=%d: %s", d, base_d, dval)
 
-    np.save(output_dir / f"distances_univ{universe_index}_m{subsample_size}_H{homology_dim}.npy", np.array(distances))
+    np.save(
+        output_dir
+        / f"distances_univ{universe_index}_m{subsample_size}_H{homology_dim}.npy",
+        np.array(distances),
+    )
 
     # 5. Plot distance curve
-    fig_path = output_dir / f"distance_curve_univ{universe_index}_m{subsample_size}_H{homology_dim}.png"
+    fig_path = (
+        output_dir
+        / f"distance_curve_univ{universe_index}_m{subsample_size}_H{homology_dim}.png"
+    )
     _plot_distance_curve(
-    x_values=pca_dim_list,
-    distances=distances,
-    xlabel="PCA dimension d",
-    ylabel=f"L2 distance vs d={base_d}",
-    title=(
-        f"Landscape stability vs PCA dim\n"
-        f"Universe {universe_index}, m={subsample_size}, H={homology_dim}"),
-    save_path=fig_path,)
+        x_values=pca_dim_list,
+        distances=distances,
+        xlabel="PCA dimension d",
+        ylabel=f"L2 distance vs d={base_d}",
+        title=(
+            f"Landscape stability vs PCA dim\n"
+            f"Universe {universe_index}, m={subsample_size}, H={homology_dim}"
+        ),
+        save_path=fig_path,
+    )
 
-    
     # 6. Plot selected landscapes overlaid
-    chosen_ds = sorted({pca_dim_list[0], pca_dim_list[len(pca_dim_list)//2], pca_dim_list[-1]})
+    chosen_ds = sorted(
+        {pca_dim_list[0], pca_dim_list[len(pca_dim_list) // 2], pca_dim_list[-1]}
+    )
     landscapes_for_plot: Dict[int, np.ndarray | None] = {}
     for d in chosen_ds:
         landscapes_for_plot[d] = landscapes_per_d[d].get(homology_dim)
 
-    fig_path = output_dir / f"landscapes_univ{universe_index}_m{subsample_size}_H{homology_dim}.png"
+    fig_path = (
+        output_dir
+        / f"landscapes_univ{universe_index}_m{subsample_size}_H{homology_dim}.png"
+    )
     _plot_landscape_overlay(
         landscapes=landscapes_for_plot,
         title=(
             f"Selected landscapes vs PCA dim\n"
-            f"Universe {universe_index}, m={subsample_size}, H={homology_dim}"),
+            f"Universe {universe_index}, m={subsample_size}, H={homology_dim}"
+        ),
         save_path=fig_path,
-        label_prefix="d=",)
+        label_prefix="d=",
+    )
 
     # 7. Plot persistence diagrams for the same chosen PCA dims
     #    as a single combined figure, color-coded by d
@@ -690,7 +760,8 @@ def pca_sweep(
         diagrams=diagrams_for_plot_d,
         homology_dim=homology_dim,
         title=f"Persistence diagrams (H={homology_dim})\nUniverse {universe_index}, m={subsample_size}, varying PCA dim",
-        save_path=output_dir / f"pd_combined_univ{universe_index}_H{homology_dim}_m{subsample_size}.png",
+        save_path=output_dir
+        / f"pd_combined_univ{universe_index}_H{homology_dim}_m{subsample_size}.png",
         label_prefix="d=",
     )
 
@@ -703,10 +774,12 @@ def pca_sweep(
     _plot_multiple_barcodes(
         diagrams=barcodes_for_plot_d,
         title=f"Barcodes (H={homology_dim})\nUniverse {universe_index}, m={subsample_size}, varying PCA dim",
-        save_path=output_dir / f"barcodes_univ{universe_index}_H{homology_dim}_m{subsample_size}.png",
+        save_path=output_dir
+        / f"barcodes_univ{universe_index}_H{homology_dim}_m{subsample_size}.png",
         label_prefix="d=",
         max_bars_per_group=100,
     )
+
 
 if __name__ == "__main__":
     app()

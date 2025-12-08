@@ -1,23 +1,26 @@
 # src/alphacomplexbenchmarking/logging_config.py
 from __future__ import annotations
+
 import logging
 from pathlib import Path
 
-from rich.logging import RichHandler
-from rich.theme import Theme
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.style import Style
+from rich.theme import Theme
 
-
-custom_theme = Theme({
-    "logging.level.info": Style(color="#00f0f0"),
-    "logging.level.debug": Style(color="#32ff32"),
-    "logging.level.warning": Style(color="#feff32"),
-    "logging.level.error": Style(color="#ff3232", bold=True),
-    "logging.level.critical": Style(color="#ff3232", bold=True, reverse=True)
-})
+custom_theme = Theme(
+    {
+        "logging.level.info": Style(color="#00f0f0"),
+        "logging.level.debug": Style(color="#32ff32"),
+        "logging.level.warning": Style(color="#feff32"),
+        "logging.level.error": Style(color="#ff3232", bold=True),
+        "logging.level.critical": Style(color="#ff3232", bold=True, reverse=True),
+    }
+)
 
 console = Console(theme=custom_theme)
+
 
 def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> None:
     root_logger = logging.getLogger()
@@ -27,10 +30,10 @@ def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> Non
         return
 
     # Set PIL logging to WARNING to reduce noise in the debug logs
-    logging.getLogger('PIL').setLevel(logging.WARNING)
+    logging.getLogger("PIL").setLevel(logging.WARNING)
 
     # Drop font_manager debug logs to similarly reduce noise
-    logging.getLogger('matplotlib.font_manager').disabled = True
+    logging.getLogger("matplotlib.font_manager").disabled = True
 
     # Necessarily filter on otherwise annoying matplotlib loggers
     logging.getLogger("matplotlib.texmanager").setLevel(logging.ERROR)
@@ -47,16 +50,16 @@ def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> Non
 
     # for logging to console
     shell_handler = RichHandler(
-        level=level, 
-        rich_tracebacks=True, 
-        console=console, 
-        markup=True) 
-    
-    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        level=level, rich_tracebacks=True, console=console, markup=True
+    )
+
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
 
-    fmt_shell = '%(message)s'
-    fmt_file = '%(levelname)s\t%(asctime)s [%(filename)s:%(funcName)s:%(lineno)s] %(message)s'
+    fmt_shell = "%(message)s"
+    fmt_file = (
+        "%(levelname)s\t%(asctime)s [%(filename)s:%(funcName)s:%(lineno)s] %(message)s"
+    )
 
     shell_formatter = logging.Formatter(fmt_shell)
     file_formatter = logging.Formatter(fmt_file)
@@ -70,5 +73,7 @@ def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> Non
     root_logger.addHandler(file_handler)
 
     root_logger._acb_logging_configured = True
-    root_logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 🧪 NEW RUN STARTED 🧪 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    root_logger.debug(
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 🧪 NEW RUN STARTED 🧪 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    )
     root_logger.debug(f"Logging configured. Log file: {log_file}")

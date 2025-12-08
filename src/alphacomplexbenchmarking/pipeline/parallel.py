@@ -1,22 +1,25 @@
 # src/alphacomplexbenchmarking/pipeline/parallel.py
 from __future__ import annotations
+
 import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Iterable, List
 
-from alphacomplexbenchmarking.pipeline.universes import Universe
-from alphacomplexbenchmarking.pipeline.preprocessing import preprocess_variant
-from alphacomplexbenchmarking.pipeline.autoencoder import train_autoencoder_for_universe
-from alphacomplexbenchmarking.pipeline.embeddings import compute_embeddings_and_subsample_for_tda
-from alphacomplexbenchmarking.pipeline.tda import run_tda_on_points
-from alphacomplexbenchmarking.pipeline.metrics import compute_metrics_from_tda
 from alphacomplexbenchmarking.io.storage import (
-    load_numpy_array,
-    get_tda_result_path,
     get_metrics_path,
-    save_tda_npz,
+    get_tda_result_path,
+    load_numpy_array,
     save_json,
+    save_tda_npz,
 )
+from alphacomplexbenchmarking.pipeline.autoencoder import train_autoencoder_for_universe
+from alphacomplexbenchmarking.pipeline.embeddings import (
+    compute_embeddings_and_subsample_for_tda,
+)
+from alphacomplexbenchmarking.pipeline.metrics import compute_metrics_from_tda
+from alphacomplexbenchmarking.pipeline.preprocessing import preprocess_variant
+from alphacomplexbenchmarking.pipeline.tda import run_tda_on_points
+from alphacomplexbenchmarking.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +54,7 @@ def run_full_pipeline_for_universe(universe: Universe) -> str:
 
     # Save TDA arrays
     tda_path = get_tda_result_path(universe)
-    
+
     # Flatten dicts for npz; we can encode keys like "pers_dim_0", "land_dim_0", etc.
     tda_arrays = {}
     for dim, arr in tda_result.persistence_per_dim.items():
@@ -85,7 +88,9 @@ def _worker_run_full_pipeline(universe: Universe) -> str:
     return run_full_pipeline_for_universe(universe)
 
 
-def run_many_universes(universes: Iterable[Universe], max_workers: int | None = None) -> List[str]:
+def run_many_universes(
+    universes: Iterable[Universe], max_workers: int | None = None
+) -> List[str]:
     """
     Run many Universes in parallel using process-based parallelism.
     Returns the list of universe ids in order of completion.
@@ -109,9 +114,13 @@ def run_many_universes(universes: Iterable[Universe], max_workers: int | None = 
             try:
                 universe_id = future.result()
             except Exception:
-                logger.exception("[PIPE] Run failed for universe=%s", universe.to_id_string())
+                logger.exception(
+                    "[PIPE] Run failed for universe=%s", universe.to_id_string()
+                )
             else:
-                logger.info("[PIPE] Run finished successfully for universe=%s", universe_id)
+                logger.info(
+                    "[PIPE] Run finished successfully for universe=%s", universe_id
+                )
                 completed.append(universe_id)
 
     return completed

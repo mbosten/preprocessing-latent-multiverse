@@ -4,17 +4,14 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import typer
 import yaml
-import os
-
 
 from alphacomplexbenchmarking.logging_config import setup_logging
-
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +77,7 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
 
 
 # ----------------- Core cleaning logic ----------------- #
+
 
 def load_raw_source(cfg: DatasetConfig) -> pd.DataFrame:
     path = cfg.raw_path
@@ -153,28 +151,50 @@ def df_shrink_dtypes(df, skip=[], obj2cat=True, int2uint=False):
     "Return any possible smaller data types for DataFrame columns. Allows `object`->`category`, `int`->`uint`, and exclusion."
 
     # 1: Build column filter and typemap
-    excl_types, skip = {'category','datetime64[ns]','bool'}, set(skip)
+    excl_types, skip = {"category", "datetime64[ns]", "bool"}, set(skip)
 
-    typemap = {'int'   : [(np.dtype(x), np.iinfo(x).min, np.iinfo(x).max) for x in (np.int8, np.int16, np.int32, np.int64)],
-               'uint'  : [(np.dtype(x), np.iinfo(x).min, np.iinfo(x).max) for x in (np.uint8, np.uint16, np.uint32, np.uint64)],
-               'float' : [(np.dtype(x), np.finfo(x).min, np.finfo(x).max) for x in (np.float32, np.float64, np.longdouble)]
-              }
-    if obj2cat: typemap['object'] = 'category'  # User wants to categorify dtype('Object'), which may not always save space
-    else:       excl_types.add('object')
+    typemap = {
+        "int": [
+            (np.dtype(x), np.iinfo(x).min, np.iinfo(x).max)
+            for x in (np.int8, np.int16, np.int32, np.int64)
+        ],
+        "uint": [
+            (np.dtype(x), np.iinfo(x).min, np.iinfo(x).max)
+            for x in (np.uint8, np.uint16, np.uint32, np.uint64)
+        ],
+        "float": [
+            (np.dtype(x), np.finfo(x).min, np.finfo(x).max)
+            for x in (np.float32, np.float64, np.longdouble)
+        ],
+    }
+    if obj2cat:
+        typemap["object"] = (
+            "category"  # User wants to categorify dtype('Object'), which may not always save space
+        )
+    else:
+        excl_types.add("object")
 
     new_dtypes = {}
-    exclude = lambda dt: dt[1].name not in excl_types and dt[0] not in skip
 
-    for c, old_t in filter(exclude, df.dtypes.items()):
-        t = next((v for k,v in typemap.items() if old_t.name.startswith(k)), None)
+    def _exclude_dtype(dt):
+        return dt[1].name not in excl_types and dt[0] not in skip
 
-        if isinstance(t, list): # Find the smallest type that fits
-            if int2uint and t==typemap['int'] and df[c].min() >= 0: t=typemap['uint']
-            new_t = next((r[0] for r in t if r[1]<=df[c].min() and r[2]>=df[c].max()), None)
-            if new_t and new_t == old_t: new_t = None
-        else: new_t = t if isinstance(t, str) else None
+    for c, old_t in filter(_exclude_dtype, df.dtypes.items()):
+        t = next((v for k, v in typemap.items() if old_t.name.startswith(k)), None)
 
-        if new_t: new_dtypes[c] = new_t
+        if isinstance(t, list):  # Find the smallest type that fits
+            if int2uint and t == typemap["int"] and df[c].min() >= 0:
+                t = typemap["uint"]
+            new_t = next(
+                (r[0] for r in t if r[1] <= df[c].min() and r[2] >= df[c].max()), None
+            )
+            if new_t and new_t == old_t:
+                new_t = None
+        else:
+            new_t = t if isinstance(t, str) else None
+
+        if new_t:
+            new_dtypes[c] = new_t
     return new_dtypes
 
 
@@ -205,7 +225,9 @@ def apply_remove_infinite(df: pd.DataFrame) -> pd.DataFrame:
 
     # Log per-column counts
     col_counts = inf_mask.sum()
-    detailed_counts = ", ".join(f"{col}: {int(cnt)}" for col, cnt in col_counts.items() if cnt > 0)
+    detailed_counts = ", ".join(
+        f"{col}: {int(cnt)}" for col, cnt in col_counts.items() if cnt > 0
+    )
 
     logger.info(
         "[PREP] Found %d +/- infinity values in numeric columns. Breakdown: %s",
@@ -217,6 +239,7 @@ def apply_remove_infinite(df: pd.DataFrame) -> pd.DataFrame:
     df_out[num_cols] = df_out[num_cols].replace([np.inf, -np.inf], np.nan)
 
     return df_out
+
 
 def apply_remove_nans(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -257,6 +280,7 @@ def apply_remove_nans(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return df_out
+
 
 def save_clean_dataset(df: pd.DataFrame, cfg: DatasetConfig) -> None:
     out_path = cfg.output_path

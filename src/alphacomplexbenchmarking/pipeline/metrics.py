@@ -14,6 +14,7 @@ class MetricsResult:
     Simple scalar summaries of TDA, per homology dimension.
     Extend this as needed.
     """
+
     total_persistence_per_dim: Dict[int, float]
     landscape_l2_per_dim: Dict[int, float]
 
@@ -32,8 +33,9 @@ def compute_total_persistence(intervals: np.ndarray) -> float:
 
 
 def compute_metrics_from_tda(
-        persistence_per_dimension: Dict[int, np.ndarray],
-        landscapes_per_dimension: Dict[int, Optional[np.ndarray]]):
+    persistence_per_dimension: Dict[int, np.ndarray],
+    landscapes_per_dimension: Dict[int, Optional[np.ndarray]],
+):
     total_persistence_per_dim: Dict[int, float] = {}
     landscape_l2_per_dim: Dict[int, float] = {}
 
@@ -54,33 +56,34 @@ def compute_metrics_from_tda(
 
 
 # Integrate PRESTO scores
-from typing import Union
 def compute_presto_scores(landscapeX, landscapeY, score_type: str = "aggregate"):
-        
-        prestos = _compute_landscape_norm(
-            _subtract_landscapes(landscapeX, landscapeY),
-            score_type=score_type,
-        )
-        return prestos
+
+    prestos = _compute_landscape_norm(
+        _subtract_landscapes(landscapeX, landscapeY),
+        score_type=score_type,
+    )
+    return prestos
+
 
 def _compute_landscape_norm(
-        landscape: Dict[int, np.array],
-        score_type: str = "aggregate",
-    ) -> Union[Dict[int, float], float]:
-        norms = {k: np.linalg.norm(v) for k, v in landscape.items()}
-        if score_type == "aggregate":
-            return sum(norms.values())
-        elif score_type == "average":
-            return sum(norms.values()) / len(norms.values())
-        elif score_type == "separate":
-            return norms
-        else:
-            raise NotImplementedError(score_type)
-        
+    landscape: Dict[int, np.array],
+    score_type: str = "aggregate",
+) -> Dict[int, float] | float:
+    norms = {k: np.linalg.norm(v) for k, v in landscape.items()}
+    if score_type == "aggregate":
+        return sum(norms.values())
+    elif score_type == "average":
+        return sum(norms.values()) / len(norms.values())
+    elif score_type == "separate":
+        return norms
+    else:
+        raise NotImplementedError(score_type)
+
+
 def _subtract_landscapes(
-        landscapeX: Dict[int, np.array], landscapeY: Dict[int, np.array]
-    ) -> Dict[int, np.array]:
-        res = dict()
-        for i in landscapeX.keys():
-            res[i] = landscapeX[i] - landscapeY[i]
-        return res
+    landscapeX: Dict[int, np.array], landscapeY: Dict[int, np.array]
+) -> Dict[int, np.array]:
+    res = dict()
+    for i in landscapeX.keys():
+        res[i] = landscapeX[i] - landscapeY[i]
+    return res

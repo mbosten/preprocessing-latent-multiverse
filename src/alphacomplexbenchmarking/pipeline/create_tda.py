@@ -3,14 +3,15 @@ from __future__ import annotations
 
 import logging
 
-
-from alphacomplexbenchmarking.pipeline.universes import Universe
+from alphacomplexbenchmarking.io.storage import save_metrics_from_tda_output
 from alphacomplexbenchmarking.pipeline.create_embeddings import get_or_compute_latent
 from alphacomplexbenchmarking.pipeline.embeddings import from_latent_to_point_cloud
-from alphacomplexbenchmarking.pipeline.persistence import compute_alpha_complex_persistence
 from alphacomplexbenchmarking.pipeline.landscapes import compute_landscapes
 from alphacomplexbenchmarking.pipeline.metrics import compute_metrics_from_tda
-from alphacomplexbenchmarking.io.storage import save_metrics_from_tda_output
+from alphacomplexbenchmarking.pipeline.persistence import (
+    compute_alpha_complex_persistence,
+)
+from alphacomplexbenchmarking.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,14 @@ def run_tda_for_universe(universe: Universe):
     resolution = tda_cfg.resolution
 
     # 1. Latent
-    latent = get_or_compute_latent(universe, retrain_if_missing=True, force_recompute=False)
-    logger.info("[TDA] Loaded latent for %s with shape %s", universe.to_id_string(), latent.shape)
-
+    latent = get_or_compute_latent(
+        universe, retrain_if_missing=True, force_recompute=False
+    )
+    logger.info(
+        "[TDA] Loaded latent for %s with shape %s",
+        universe.to_id_string(),
+        latent.shape,
+    )
 
     points_for_tda = from_latent_to_point_cloud(
         X=latent,
@@ -56,10 +62,8 @@ def run_tda_for_universe(universe: Universe):
 
     # 4. Metrics
     metrics = compute_metrics_from_tda(
-        persistence_per_dimension=per_dim,
-        landscapes_per_dimension=landscapes
+        persistence_per_dimension=per_dim, landscapes_per_dimension=landscapes
     )
-
 
     # 5. Save
     save_metrics_from_tda_output(

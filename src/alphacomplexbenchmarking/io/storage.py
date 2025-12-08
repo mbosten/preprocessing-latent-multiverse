@@ -1,11 +1,13 @@
 # src/alphacomplexbenchmarking/io/storage.py
 from __future__ import annotations
-from pathlib import Path
-import numpy as np
-import logging
+
 import json
-from typing import Any, Dict
+import logging
 from dataclasses import asdict
+from pathlib import Path
+from typing import Any, Dict
+
+import numpy as np
 
 from alphacomplexbenchmarking.pipeline.universes import Universe
 
@@ -30,7 +32,9 @@ def ensure_dir(path: Path) -> Path:
 def ensure_parent_dir(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
+
 # ---------- low-level save/load helpers ----------
+
 
 # PATHS
 def get_raw_dataset_path(dataset_id: str, extension: str) -> Path:
@@ -54,26 +58,40 @@ def landscapes_path(run_id: str) -> Path:
 
 
 def get_preprocessed_path(universe: Universe) -> Path:
-    return BASE_DATA_DIR / "processed" / f"{universe.to_id_string()}_preprocessed.parquet"
+    return (
+        BASE_DATA_DIR / "processed" / f"{universe.to_id_string()}_preprocessed.parquet"
+    )
 
 
 def get_ae_model_path(universe: Universe) -> Path:
-    return BASE_DATA_DIR / "interim" / "autoencoder" / f"{universe.to_id_string()}_ae.pt"
+    return (
+        BASE_DATA_DIR / "interim" / "autoencoder" / f"{universe.to_id_string()}_ae.pt"
+    )
 
 
 def get_embedding_path(universe: Universe) -> Path:
     """
     Path for the PCA-projected embedding used for TDA.
     """
-    return BASE_DATA_DIR / "interim" / "embeddings" / f"{universe.to_id_string()}_pca.npy"
+    return (
+        BASE_DATA_DIR / "interim" / "embeddings" / f"{universe.to_id_string()}_pca.npy"
+    )
 
 
 def get_tda_result_path(universe: Universe) -> Path:
-    return BASE_DATA_DIR / "interim" / "persistence" / f"{universe.to_id_string()}_tda.npz"
+    return (
+        BASE_DATA_DIR / "interim" / "persistence" / f"{universe.to_id_string()}_tda.npz"
+    )
 
 
 def get_metrics_path(universe: Universe) -> Path:
-    return BASE_DATA_DIR / "processed" / "metrics" / f"{universe.to_id_string()}_metrics.json"
+    return (
+        BASE_DATA_DIR
+        / "processed"
+        / "metrics"
+        / f"{universe.to_id_string()}_metrics.json"
+    )
+
 
 def get_latent_cache_path(universe: Universe) -> Path:
     root = ensure_dir(EXPERIMENTS_ROOT / "latent")
@@ -92,6 +110,7 @@ def load_matrix(run_id: str) -> np.ndarray:
     path = raw_matrix_path(run_id)
     return np.load(path)["data"]
 
+
 def load_latent_from_cache(universe: Universe) -> np.ndarray:
     cache_path = get_latent_cache_path(universe)
     if not cache_path.exists():
@@ -101,6 +120,7 @@ def load_latent_from_cache(universe: Universe) -> np.ndarray:
         )
     logger.info("[Embedding] Loading latent from %s for %s", cache_path, universe)
     return np.load(cache_path)
+
 
 def save_persistence(per_dim: dict[int, np.ndarray], run_id: str) -> Path:
     out_dir = ensure_dir(INTERIM_ROOT / "persistence")
@@ -129,7 +149,13 @@ def save_landscapes(landscapes: dict[int, np.ndarray | None], run_id: str) -> Pa
     )
     return path
 
-def save_metrics_from_tda_output(universe: Universe, per_dim: dict[int, np.ndarray], landscapes: dict[int, np.ndarray | None], metrics: dict[str, float]):
+
+def save_metrics_from_tda_output(
+    universe: Universe,
+    per_dim: dict[int, np.ndarray],
+    landscapes: dict[int, np.ndarray | None],
+    metrics: dict[str, float],
+):
     tda_path = get_tda_result_path(universe)
     arrays_for_npz = {}
     for d, arr in per_dim.items():
@@ -143,7 +169,10 @@ def save_metrics_from_tda_output(universe: Universe, per_dim: dict[int, np.ndarr
     metrics_path = get_metrics_path(universe)
     metrics_dict = asdict(metrics)
     save_json(metrics_path, metrics_dict)
-    logger.info("[TDA] Saved TDA results to %s and metrics to %s", tda_path, metrics_path)
+    logger.info(
+        "[TDA] Saved TDA results to %s and metrics to %s", tda_path, metrics_path
+    )
+
 
 def save_numpy_array(path: Path, array: np.ndarray) -> None:
     ensure_parent_dir(path)

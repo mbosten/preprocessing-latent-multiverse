@@ -3,37 +3,41 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import PCA
-from scipy.spatial.distance import cdist
 import torch
+from scipy.spatial.distance import cdist
+from sklearn.decomposition import PCA
 
-from alphacomplexbenchmarking.config import load_dataset_config, DatasetConfig
-from alphacomplexbenchmarking.pipeline.universes import Universe
-from alphacomplexbenchmarking.pipeline.autoencoder import load_autoencoder_for_universe, _get_feature_matrix_for_ae
+from alphacomplexbenchmarking.config import load_dataset_config
 from alphacomplexbenchmarking.io.storage import (
-    get_preprocessed_path,
     get_embedding_path,
+    get_preprocessed_path,
     save_numpy_array,
 )
+from alphacomplexbenchmarking.pipeline.autoencoder import (
+    _get_feature_matrix_for_ae,
+    load_autoencoder_for_universe,
+)
+from alphacomplexbenchmarking.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
 
 def normalize_space(X, diameter_iterations=1000, seed=42):
-        """
-        Normalize a space based on an approximate diameter.
-        """
-        rng = np.random.default_rng(seed)
-        subset = [rng.choice(len(X))]
-        for _ in range(diameter_iterations - 1):
-            distances = cdist([X[subset[-1]]], X).ravel()
-            new_point = np.argmax(distances)
-            subset.append(new_point)
-        pairwise_distances = cdist(X[subset], X[subset])
-        diameter = np.max(pairwise_distances)
-        return X / diameter
+    """
+    Normalize a space based on an approximate diameter.
+    """
+    rng = np.random.default_rng(seed)
+    subset = [rng.choice(len(X))]
+    for _ in range(diameter_iterations - 1):
+        distances = cdist([X[subset[-1]]], X).ravel()
+        new_point = np.argmax(distances)
+        subset.append(new_point)
+    pairwise_distances = cdist(X[subset], X[subset])
+    diameter = np.max(pairwise_distances)
+    return X / diameter
 
 
 def project_PCA(normalized_latent_space: np.ndarray, n_components: int):
@@ -51,19 +55,21 @@ def downsample_latent(X: np.ndarray, target_size: int, seed: int):
     downsampled = X[indices]
     logger.info(f"[EMB] Downsampled latent shape: {downsampled.shape}")
     return downsampled
-     
 
-def from_latent_to_point_cloud(X: np.ndarray, pca_dim: int, target_size: int, seed: int, normalize: bool = True):
+
+def from_latent_to_point_cloud(
+    X: np.ndarray, pca_dim: int, target_size: int, seed: int, normalize: bool = True
+):
     if normalize:
         X = normalize_space(X, diameter_iterations=1000, seed=42)
-    
+
     X_pca = project_PCA(X, n_components=pca_dim)
-    
+
     if target_size < X_pca.shape[0]:
         X_pca_sample = downsample_latent(X_pca, target_size=target_size, seed=seed)
     else:
         X_pca_sample = X_pca
-    
+
     return X_pca_sample
 
 
@@ -84,13 +90,14 @@ def compute_embeddings_for_universe(universe: Universe):
     model.eval()
 
     with torch.no_grad():
-         X_tensor = torch.from_numpy(X).to(device)
-         latent_tensor = model.encode(X_tensor)
-         latent = latent_tensor.cpu().numpy()
-    
+        X_tensor = torch.from_numpy(X).to(device)
+        latent_tensor = model.encode(X_tensor)
+        latent = latent_tensor.cpu().numpy()
+
     logger.info(f"[EMB] Computed latent representation with shape {latent.shape}")
 
     return latent
+
 
 def compute_embeddings_and_subsample_for_tda(universe: Universe) -> Path:
     """

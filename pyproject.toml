@@ -20,6 +20,7 @@ dependencies = [
     "pyarrow>=22.0.0",
     "pyyaml>=6.0.3",
     "matplotlib>=3.10.7",
+    "pre-commit>=4.5.0",
 ]
 
 # Allows cli commands to be run as: uv run acb [cli function] [parameters]
@@ -51,4 +52,3 @@ explicit = true
 name = "pytorch-cu126"
 url = "https://download.pytorch.org/whl/cu126"
 explicit = true
-

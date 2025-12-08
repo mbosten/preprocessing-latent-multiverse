@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/io/storage.py
+# src/preprolamu/io/storage.py
 from __future__ import annotations
 
 import json
@@ -9,7 +9,7 @@ from typing import Any, Dict
 
 import numpy as np
 
-from alphacomplexbenchmarking.pipeline.universes import Universe
+from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 

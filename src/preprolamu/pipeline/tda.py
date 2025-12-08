@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/pipeline/tda.py
+# src/preprolamu/pipeline/tda.py
 from __future__ import annotations
 
 import logging
@@ -7,11 +7,9 @@ from typing import Dict, Optional
 
 import numpy as np
 
-from alphacomplexbenchmarking.pipeline.landscapes import compute_landscapes
-from alphacomplexbenchmarking.pipeline.persistence import (
-    compute_alpha_complex_persistence,
-)
-from alphacomplexbenchmarking.pipeline.universes import TdaConfig
+from preprolamu.pipeline.landscapes import compute_landscapes
+from preprolamu.pipeline.persistence import compute_alpha_complex_persistence
+from preprolamu.pipeline.universes import TdaConfig
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/pipeline/universes.py
+# src/preprolamu/pipeline/universes.py
 from __future__ import annotations
 
 import logging

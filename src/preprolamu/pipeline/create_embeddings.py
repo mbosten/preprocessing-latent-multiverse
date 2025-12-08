@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/pipeline/create_embeddings.py
+# src/preprolamu/pipeline/create_embeddings.py
 from __future__ import annotations
 
 import logging
@@ -7,13 +7,13 @@ from typing import Dict, List
 import numpy as np
 import torch
 
-from alphacomplexbenchmarking.io.storage import get_latent_cache_path
-from alphacomplexbenchmarking.pipeline.autoencoder import (
+from preprolamu.io.storage import get_latent_cache_path
+from preprolamu.pipeline.autoencoder import (
     get_feature_matrix_from_universe,
     load_autoencoder_for_universe,
     train_autoencoder_for_universe,
 )
-from alphacomplexbenchmarking.pipeline.universes import Universe
+from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 

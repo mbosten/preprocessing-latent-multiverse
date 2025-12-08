@@ -1,17 +1,15 @@
-# src/alphacomplexbenchmarking/pipeline/create_tda.py
+# src/preprolamu/pipeline/create_tda.py
 from __future__ import annotations
 
 import logging
 
-from alphacomplexbenchmarking.io.storage import save_metrics_from_tda_output
-from alphacomplexbenchmarking.pipeline.create_embeddings import get_or_compute_latent
-from alphacomplexbenchmarking.pipeline.embeddings import from_latent_to_point_cloud
-from alphacomplexbenchmarking.pipeline.landscapes import compute_landscapes
-from alphacomplexbenchmarking.pipeline.metrics import compute_metrics_from_tda
-from alphacomplexbenchmarking.pipeline.persistence import (
-    compute_alpha_complex_persistence,
-)
-from alphacomplexbenchmarking.pipeline.universes import Universe
+from preprolamu.io.storage import save_metrics_from_tda_output
+from preprolamu.pipeline.create_embeddings import get_or_compute_latent
+from preprolamu.pipeline.embeddings import from_latent_to_point_cloud
+from preprolamu.pipeline.landscapes import compute_landscapes
+from preprolamu.pipeline.metrics import compute_metrics_from_tda
+from preprolamu.pipeline.persistence import compute_alpha_complex_persistence
+from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 

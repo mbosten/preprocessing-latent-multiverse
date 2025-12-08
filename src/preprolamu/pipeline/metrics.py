@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/pipeline/metrics.py
+# src/preprolamu/pipeline/metrics.py
 
 from __future__ import annotations
 

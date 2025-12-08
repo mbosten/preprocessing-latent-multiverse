@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/cli.py
+# src/preprolamu/cli.py
 from __future__ import annotations
 
 import logging
@@ -8,18 +8,15 @@ from typing import Optional
 import typer
 from typing_extensions import Annotated
 
-from alphacomplexbenchmarking.logging_config import setup_logging
-from alphacomplexbenchmarking.pipeline.create_embeddings import get_or_compute_latent
-from alphacomplexbenchmarking.pipeline.create_tda import run_tda_for_universe
-from alphacomplexbenchmarking.pipeline.parallel import (
+from preprolamu.logging_config import setup_logging
+from preprolamu.pipeline.create_embeddings import get_or_compute_latent
+from preprolamu.pipeline.create_tda import run_tda_for_universe
+from preprolamu.pipeline.parallel import (
     run_full_pipeline_for_universe,
     run_many_universes,
 )
-from alphacomplexbenchmarking.pipeline.preprocessing import preprocess_variant
-from alphacomplexbenchmarking.pipeline.universes import (
-    generate_multiverse,
-    get_universe,
-)
+from preprolamu.pipeline.preprocessing import preprocess_variant
+from preprolamu.pipeline.universes import generate_multiverse, get_universe
 
 app = typer.Typer(help="Simulation + TDA pipeline")
 

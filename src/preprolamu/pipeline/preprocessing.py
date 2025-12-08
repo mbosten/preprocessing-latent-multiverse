@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/pipeline/preprocessing.py
+# src/preprolamu/pipeline/preprocessing.py
 from __future__ import annotations
 
 import logging
@@ -7,17 +7,12 @@ from pathlib import Path
 import pandas as pd
 import polars as pl
 
-from alphacomplexbenchmarking.io.storage import (
+from preprolamu.io.storage import (
     ensure_parent_dir,
     get_clean_dataset_path,
     get_preprocessed_path,
 )
-from alphacomplexbenchmarking.pipeline.universes import (
-    CatEncoding,
-    FeatureSubset,
-    Scaling,
-    Universe,
-)
+from preprolamu.pipeline.universes import CatEncoding, FeatureSubset, Scaling, Universe
 
 logger = logging.getLogger(__name__)
 

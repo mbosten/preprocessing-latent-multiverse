@@ -1,7 +1,7 @@
 [project]
-name = "alphacomplexbenchmarking"
+name = "preprolamu"
 version = "0.1.0"
-description = "Running tests to benchmark alpha complex implementations and persistence computations."
+description = "Quantify embedding space variability using persistent homology and multiverse analysis"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
@@ -25,9 +25,9 @@ dependencies = [
 
 # Allows cli commands to be run as: uv run acb [cli function] [parameters]
 [project.scripts]
-acb = "alphacomplexbenchmarking.cli:app"
-setup = "alphacomplexbenchmarking.config:app"
-exp = "alphacomplexbenchmarking.experiments.parameter_sensitivity:app"
+acb = "preprolamu.cli:app"
+setup = "preprolamu.config:app"
+exp = "preprolamu.experiments.parameter_sensitivity:app"
 
 [build-system]
 requires = ["hatchling>=1.18"]

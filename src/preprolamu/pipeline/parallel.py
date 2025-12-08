@@ -1,25 +1,23 @@
-# src/alphacomplexbenchmarking/pipeline/parallel.py
+# src/preprolamu/pipeline/parallel.py
 from __future__ import annotations
 
 import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Iterable, List
 
-from alphacomplexbenchmarking.io.storage import (
+from preprolamu.io.storage import (
     get_metrics_path,
     get_tda_result_path,
     load_numpy_array,
     save_json,
     save_tda_npz,
 )
-from alphacomplexbenchmarking.pipeline.autoencoder import train_autoencoder_for_universe
-from alphacomplexbenchmarking.pipeline.embeddings import (
-    compute_embeddings_and_subsample_for_tda,
-)
-from alphacomplexbenchmarking.pipeline.metrics import compute_metrics_from_tda
-from alphacomplexbenchmarking.pipeline.preprocessing import preprocess_variant
-from alphacomplexbenchmarking.pipeline.tda import run_tda_on_points
-from alphacomplexbenchmarking.pipeline.universes import Universe
+from preprolamu.pipeline.autoencoder import train_autoencoder_for_universe
+from preprolamu.pipeline.embeddings import compute_embeddings_and_subsample_for_tda
+from preprolamu.pipeline.metrics import compute_metrics_from_tda
+from preprolamu.pipeline.preprocessing import preprocess_variant
+from preprolamu.pipeline.tda import run_tda_on_points
+from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 

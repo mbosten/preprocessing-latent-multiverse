@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/pipeline/autoencoder.py
+# src/preprolamu/pipeline/autoencoder.py
 from __future__ import annotations
 
 import logging
@@ -11,13 +11,13 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from alphacomplexbenchmarking.config import DatasetConfig, load_dataset_config
-from alphacomplexbenchmarking.io.storage import (
+from preprolamu.config import DatasetConfig, load_dataset_config
+from preprolamu.io.storage import (
     ensure_parent_dir,
     get_ae_model_path,
     get_preprocessed_path,
 )
-from alphacomplexbenchmarking.pipeline.universes import Universe
+from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 

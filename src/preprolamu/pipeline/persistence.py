@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/pipeline/persistence.py
+# src/preprolamu/pipeline/persistence.py
 from __future__ import annotations
 
 import logging

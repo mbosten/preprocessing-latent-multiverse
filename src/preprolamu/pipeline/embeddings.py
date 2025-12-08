@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/pipeline/embeddings.py
+# src/preprolamu/pipeline/embeddings.py
 from __future__ import annotations
 
 import logging
@@ -9,12 +9,12 @@ import torch
 from scipy.spatial.distance import cdist
 from sklearn.decomposition import PCA
 
-from alphacomplexbenchmarking.io.storage import get_embedding_path, save_numpy_array
-from alphacomplexbenchmarking.pipeline.autoencoder import (
+from preprolamu.io.storage import get_embedding_path, save_numpy_array
+from preprolamu.pipeline.autoencoder import (
     get_feature_matrix_from_universe,
     load_autoencoder_for_universe,
 )
-from alphacomplexbenchmarking.pipeline.universes import Universe
+from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 

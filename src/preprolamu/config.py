@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/config.py
+# src/preprolamu/config.py
 from __future__ import annotations
 
 import logging
@@ -11,7 +11,7 @@ import pandas as pd
 import typer
 import yaml
 
-from alphacomplexbenchmarking.logging_config import setup_logging
+from preprolamu.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 

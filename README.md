@@ -1,4 +1,4 @@
-# AlphaComplexBenchmarking - Multiverse Pipeline
+# preprolamu - Multiverse Pipeline
 
 This repository implements a multiverse analysis pipeline for studying how preprocessing variations influence the latent representation of a dataset, using:
 - automatic data cleaning (one-time per dataset),
@@ -43,7 +43,7 @@ project/
 │   └── raw
 ├── logs
 ├── src
-│   └── alphacomplexbenchmarking
+│   └── preprolamu
 │       ├── experiments
 │       │   └── parameter_sensitivity.py
 │       ├── io
@@ -86,7 +86,7 @@ uv run setup initiate [dataset_id]
 Alternatively, if using the CLI keybind fails (see FAQ):
 ```bash
 $env:PYTHONPATH="src"
-uv run python -m alphacomplexbenchmarking.config initiate [dataset_id]
+uv run python -m preprolamu.config initiate [dataset_id]
 ```
 
 This will return a cleaned dataset with the "_cleaned" suffix in `data/raw/`. The function sets specified columns to string values and drops the unwanted columnms.
@@ -140,7 +140,7 @@ From `pipeline/metrics.py`:
 ## 4. Running the Pipeline (CLI)
 The `pyproject.toml` file is set up such that the CLI commands are simple to run. The main Typer CLI is in:
 ```bash
-src/alphacomplexbenchmarking/cli.py
+src/preprolamu/cli.py
 ```
 This can be run from the command line with the following keybind:
 ```bash

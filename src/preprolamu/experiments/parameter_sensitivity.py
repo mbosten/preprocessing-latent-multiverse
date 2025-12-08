@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/experiments/parameter_sensitivity.py
+# src/preprolamu/experiments/parameter_sensitivity.py
 from __future__ import annotations
 
 import logging
@@ -12,23 +12,23 @@ import typer
 from sklearn.decomposition import PCA
 from typing_extensions import Annotated
 
-from alphacomplexbenchmarking.io.storage import get_latent_cache_path
-from alphacomplexbenchmarking.logging_config import setup_logging
-from alphacomplexbenchmarking.pipeline.autoencoder import train_autoencoder_for_universe
-from alphacomplexbenchmarking.pipeline.embeddings import (
+from preprolamu.io.storage import get_latent_cache_path
+from preprolamu.logging_config import setup_logging
+from preprolamu.pipeline.autoencoder import train_autoencoder_for_universe
+from preprolamu.pipeline.embeddings import (
     compute_embeddings_for_universe,
     from_latent_to_point_cloud,
     normalize_space,
 )
-from alphacomplexbenchmarking.pipeline.landscapes import compute_landscapes
-from alphacomplexbenchmarking.pipeline.persistence import (
+from preprolamu.pipeline.landscapes import compute_landscapes
+from preprolamu.pipeline.persistence import (
     build_alpha_complex_simplex_tree,
     compute_alpha_complex_persistence,
 )
 
 # Adjust these imports to your actual module names:
-from alphacomplexbenchmarking.pipeline.universes import Universe, get_universe
-from alphacomplexbenchmarking.visualization import (
+from preprolamu.pipeline.universes import Universe, get_universe
+from preprolamu.visualization import (
     _plot_distance_curve,
     _plot_landscape_overlay,
     _plot_multiple_barcodes,

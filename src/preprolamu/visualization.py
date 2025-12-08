@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/visualization.py
+# src/preprolamu/visualization.py
 from __future__ import annotations
 
 import logging

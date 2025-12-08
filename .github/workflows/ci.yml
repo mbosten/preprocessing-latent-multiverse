@@ -12,4 +12,4 @@ jobs:
       - name: Sync deps
         run: uv sync --frozen || uv sync
       - name: Smoke run CLI
-        run: PYTHONPATH=src uv run python -m alphacomplexbenchmarking.cli --help
+        run: PYTHONPATH=src uv run python -m preprolamu.cli --help

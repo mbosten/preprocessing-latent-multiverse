@@ -1,4 +1,4 @@
-# src/alphacomplexbenchmarking/pipeline/landscapes.py
+# src/preprolamu/pipeline/landscapes.py
 from __future__ import annotations
 
 import logging

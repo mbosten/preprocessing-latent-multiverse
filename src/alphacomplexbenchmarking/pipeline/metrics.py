@@ -55,7 +55,7 @@ def compute_metrics_from_tda(
     )
 
 
-# Integrate PRESTO scores
+# Integrate PRESTO scores (NOT YET SUPPORTED)
 def compute_presto_scores(landscapeX, landscapeY, score_type: str = "aggregate"):
 
     prestos = _compute_landscape_norm(

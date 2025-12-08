@@ -26,6 +26,7 @@ TARGET_LABEL_VALUE = "BENIGN"
 # MAX_ROWS_FOR_LABEL = 50000 # subsampling here has an inpact on shape (50k vs unlimited)
 
 
+# Load the cleaned dataset using Polars to handle large files efficiently
 def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     """
     Currently loads only a subset of benign traffic for debugging purposes.
@@ -53,17 +54,20 @@ def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     return df
 
 
+# Drop or keep the set of features as indicated in the Universe class
 def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     if universe.feature_subset == FeatureSubset.ALL:
         return df
 
-    if universe.to_id_string().startswith("ds-NF-ToN-IoT-v3"):
+    if universe.to_id_string().startswith(
+        "ds-NF-ToN-IoT-v3"
+    ):  # These are NF-ToN-IoT-v3 specific
         special_features = [
             "IPV4_SRC_ADDR",
             "IPV4_DST_ADDR",
             "L4_SRC_PORT",
             "L4_DST_PORT",
-        ]  # These are NF-ToN-IoT-v3 specific
+        ]
     elif universe.to_id_string().startswith("ds-Merged"):
         special_features = ["Protocol Type"]
     else:
@@ -95,7 +99,6 @@ def apply_scaling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     else:
         raise ValueError(f"Unknown scaling: {universe.scaling}")
 
-    # scaler = scaler_cls()
     logger.debug(
         f"Applying {universe.scaling.value} scaling to {len(numeric_cols)} numeric columns."
     )
@@ -132,6 +135,7 @@ def apply_cat_encoding(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
 
 
+# Orchestrator function to call in cli.py
 def preprocess_variant(universe: Universe) -> Path:
     """
     End-to-end preprocessing for one Universe.
@@ -145,7 +149,7 @@ def preprocess_variant(universe: Universe) -> Path:
 
     path = get_preprocessed_path(universe)
     ensure_parent_dir(path)
-    # Parquet is better for big datasets
+
     df.to_parquet(path)
     logger.info(f"Saved preprocessed data to {path}")
     return path

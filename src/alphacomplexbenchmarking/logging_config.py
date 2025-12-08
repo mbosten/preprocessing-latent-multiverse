@@ -64,7 +64,6 @@ def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> Non
     shell_formatter = logging.Formatter(fmt_shell)
     file_formatter = logging.Formatter(fmt_file)
 
-    # here we hook everything together
     shell_handler.setFormatter(shell_formatter)
     file_handler.setFormatter(file_formatter)
 

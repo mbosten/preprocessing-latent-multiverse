@@ -327,7 +327,7 @@ def simple_pd_grid(
 
             # 4c. Plot persistence diagram into the corresponding subplot
             ax = axes[i, j]
-            # GUDHI supports passing axes=... to draw into an existing subplot
+
             gd.plot_persistence_diagram(diag, axes=ax)
             ax.set_title(f"d={d}, m={m}", fontsize="small")
 
@@ -425,8 +425,6 @@ def subsample_sweep(
         diagrams_per_m[m] = per_dim
         landscapes_per_m[m] = lsc
 
-        # --- Per-m plots: single PD, single barcode, single landscape ---
-
         intervals = per_dim.get(homology_dim)
 
         # Single persistence diagram
@@ -440,7 +438,7 @@ def subsample_sweep(
             / f"pd_univ{universe_index}_pca{pca_dim}_H{homology_dim}_m{m}.png",
         )
 
-        # Single barcode plot (reuse multi-barcode helper with one entry)
+        # Single barcode plot
         _plot_multiple_barcodes(
             diagrams={m: intervals},
             title=(
@@ -509,7 +507,7 @@ def subsample_sweep(
         save_path=fig_path,
     )
 
-    # 10. Plot a few landscapes overlaid (for visual intuition)
+    # 10. Plot a few landscapes overlaid
     chosen_ms = sorted(
         {
             subsample_list[0],
@@ -555,7 +553,7 @@ def subsample_sweep(
         save_path=output_dir
         / f"barcodes_univ{universe_index}_pca{pca_dim}_H{homology_dim}.png",
         label_prefix="m=",
-        max_bars_per_group=100,  # adjust if you want more/less
+        max_bars_per_group=100,
     )
 
 
@@ -643,9 +641,6 @@ def pca_sweep(
         diagrams_per_d[d] = per_dim
         landscapes_per_d[d] = lsc
 
-        # 3a. --- Per-dimension plots (single PD, single barcode, single landscape) ---
-
-        # persistence diagram for this d
         intervals = per_dim.get(homology_dim)
         _plot_persistence_diagram(
             intervals=intervals,
@@ -657,8 +652,6 @@ def pca_sweep(
             / f"pd_univ{universe_index}_H{homology_dim}_m{subsample_size}_d{d}.png",
         )
 
-        # barcode plot for this d
-        # reuse multiple-barcode helper with a single entry dict
         _plot_multiple_barcodes(
             diagrams={d: intervals},
             title=(

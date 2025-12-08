@@ -13,7 +13,6 @@ from alphacomplexbenchmarking.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
-# Probably obsolete
 RAW_ROOT = Path("data/raw")
 INTERIM_ROOT = Path("data/interim")
 

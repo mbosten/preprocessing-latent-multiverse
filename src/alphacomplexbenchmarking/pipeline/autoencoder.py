@@ -77,7 +77,7 @@ class Autoencoder(nn.Module):
         return self.encoder(x)
 
 
-# gpu support
+# Check for GPU support
 def _get_device() -> torch.device:
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -89,6 +89,7 @@ def _get_device() -> torch.device:
     return device
 
 
+#
 def _get_feature_matrix_for_ae(df: pd.DataFrame, ds_cfg: DatasetConfig) -> np.ndarray:
     df_features = df.copy()
 

@@ -5,19 +5,13 @@ import logging
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import torch
 from scipy.spatial.distance import cdist
 from sklearn.decomposition import PCA
 
-from alphacomplexbenchmarking.config import load_dataset_config
-from alphacomplexbenchmarking.io.storage import (
-    get_embedding_path,
-    get_preprocessed_path,
-    save_numpy_array,
-)
+from alphacomplexbenchmarking.io.storage import get_embedding_path, save_numpy_array
 from alphacomplexbenchmarking.pipeline.autoencoder import (
-    _get_feature_matrix_for_ae,
+    get_feature_matrix_from_universe,
     load_autoencoder_for_universe,
 )
 from alphacomplexbenchmarking.pipeline.universes import Universe
@@ -76,11 +70,7 @@ def from_latent_to_point_cloud(
 def compute_embeddings_for_universe(universe: Universe):
     logger.info(f"[EMB] Computing embeddings for universe={universe.to_id_string()}")
 
-    preprocessed_path = get_preprocessed_path(universe)
-    df = pd.read_parquet(preprocessed_path)
-
-    ds_cfg = load_dataset_config(universe.dataset_id)
-    X = _get_feature_matrix_for_ae(df, ds_cfg)
+    X = get_feature_matrix_from_universe(universe)
 
     # Load AE model
     logger.debug("[EMB] Loading autoencoder model.")

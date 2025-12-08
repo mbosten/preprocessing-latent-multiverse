@@ -32,6 +32,10 @@ def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> Non
     # Drop font_manager debug logs to similarly reduce noise
     logging.getLogger('matplotlib.font_manager').disabled = True
 
+    # Necessarily filter on otherwise annoying matplotlib loggers
+    logging.getLogger("matplotlib.texmanager").setLevel(logging.ERROR)
+    logging.getLogger("matplotlib.dviread").setLevel(logging.ERROR)
+
     # Remove any existing handlers associated with the root logger (important for notebook use)
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)

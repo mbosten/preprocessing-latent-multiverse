@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 
 class Autoencoder(nn.Module):
+    """
+    Defines an autoencoder with adjustable architecture that is retrieved from the Universe class.
+    """
     def __init__(
             self,
             input_dim: int,
@@ -35,6 +38,7 @@ class Autoencoder(nn.Module):
         layers = []
         prev_dim = input_dim
 
+        # Build encoder
         for hdim in hidden_dims:
             layers.append(nn.Linear(prev_dim, hdim))
             layers.append(nn.ReLU())
@@ -48,6 +52,7 @@ class Autoencoder(nn.Module):
         dec_layers = []
         prev_dim = latent_dim
 
+        # Build decoder
         for hdim in reversed(hidden_dims):
             dec_layers.append(nn.Linear(prev_dim, hdim))
             dec_layers.append(nn.ReLU())
@@ -66,7 +71,7 @@ class Autoencoder(nn.Module):
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         return self.encoder(x)
 
-
+# gpu support
 def _get_device() -> torch.device:
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -93,14 +98,7 @@ def _get_feature_matrix_for_ae(df: pd.DataFrame, ds_cfg: DatasetConfig) -> np.nd
 def train_autoencoder_for_universe(universe: Universe) -> Path:
     """
     Train an autoencoder on the preprocessed data for this universe.
-    Uses:
-        - universe.ae_latent_dim
-        - universe.ae_hidden_dims
-        - universe.ae_epochs
-        - universe.ae_batch_size
-        - universe.ae_dropout
-        - universe.regularization (weight decay)
-    Saves a checkpoint to get_ae_model_path(universe) and returns that path.
+    Also saves a checkpoint to get_ae_model_path(universe) and returns that path.
     """
     logger.info(f"[AE] Training autoencoder for universe = {universe.to_id_string()}")
 
@@ -124,30 +122,14 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
 
     tensor_X = torch.from_numpy(X)
     dataset = TensorDataset(tensor_X)
-    loader = DataLoader(
-        dataset,
-        batch_size=universe.ae_batch_size,
-        shuffle=True,
-        drop_last=False,
-    )
+    loader = DataLoader(dataset, batch_size=universe.ae_batch_size, shuffle=True, drop_last=False)
 
     criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(
-        model.parameters(),
-        lr = 1e-3,
-        weight_decay=universe.ae_regularization,
-    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=universe.ae_regularization)
 
     logger.info(
         "[AE] Starting training: epochs=%d, batch_size=%d, input_dim=%d, latent_dim=%d, hidden_dims=%s, dropout=%.4f, weight_decay=%.6f",
-        universe.ae_epochs,
-        universe.ae_batch_size,
-        input_dim,
-        universe.ae_latent_dim,
-        universe.ae_hidden_dims,
-        universe.ae_dropout,
-        universe.ae_regularization,
-    )
+        universe.ae_epochs, universe.ae_batch_size, input_dim, universe.ae_latent_dim, universe.ae_hidden_dims, universe.ae_dropout, universe.ae_regularization)
 
     model.train()
     for epoch in range(1, universe.ae_epochs + 1):
@@ -208,12 +190,7 @@ def load_autoencoder_for_universe(universe: Universe) -> Autoencoder:
     model.load_state_dict(checkpoint["model_state_dict"])
     logger.info(
         "[AE] Loaded AE model from %s (input_dim=%d, latent_dim=%d, hidden_dims=%s, dropout=%.4f)",
-        model_path,
-        input_dim,
-        latent_dim,
-        hidden_dims,
-        dropout,
-    )
+        model_path, input_dim, latent_dim, hidden_dims, dropout)
 
     return model
 

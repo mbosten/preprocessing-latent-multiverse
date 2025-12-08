@@ -14,18 +14,25 @@ def mask_infinities(array: np.ndarray) -> np.ndarray:
     return masked
 
 
-def compute_alpha_complex_persistence(
-    data: np.ndarray,
-    homology_dimensions: list[int] = [0, 1, 2]
-) -> dict[int, np.ndarray]:
+def build_alpha_complex_simplex_tree(points: np.ndarray) -> gd.SimplexTree:
     """
-    Compute alpha-complex persistence for the given point cloud.
-    Returns a dict dim -> intervals (numpy array).
+    Build an alpha complex from the point cloud and return the simplex tree.
     """
-    logger.info(f"Computing alpha complex persistence for data of shape {data.shape}, dims={homology_dimensions}")
-    alpha_complex = gd.AlphaComplex(points=data, precision="fast")
-    st = alpha_complex.create_simplex_tree()
-    st.compute_persistence()
+    logger.info(f"Computing alpha complex persistence for data of shape {points.shape}")
+    alpha_complex = gd.AlphaComplex(points=points, precision="fast")
+    simplex_tree = alpha_complex.create_simplex_tree()
+    simplex_tree.compute_persistence()
+    return simplex_tree
+
+
+def compute_alpha_complex_persistence(data: np.ndarray, homology_dimensions: list[int] = [0, 1, 2]):
+    """
+    Compute persistence from alpha complex and return per-dimension persistence intervals.
+    """
+
+    st = build_alpha_complex_simplex_tree(data)
+
+    logger.info(f"Computed persistence with {st.num_persistence_intervals()} intervals")
 
     per_dim: dict[int, np.ndarray] = {}
     for dim in homology_dimensions:

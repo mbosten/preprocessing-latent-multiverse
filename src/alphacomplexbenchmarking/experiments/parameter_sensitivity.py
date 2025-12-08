@@ -4,7 +4,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from dataclasses import dataclass
+import gudhi as gd
 from typing import List, Dict, Tuple
+from typing_extensions import Annotated
 
 import numpy as np
 import pandas as pd 
@@ -16,7 +18,7 @@ import torch
 from alphacomplexbenchmarking.logging_config import setup_logging
 
 # Adjust these imports to your actual module names:
-from alphacomplexbenchmarking.pipeline.universes import Universe, generate_multiverse
+from alphacomplexbenchmarking.pipeline.universes import Universe, get_universe
 from alphacomplexbenchmarking.config import load_dataset_config, DatasetConfig
 from alphacomplexbenchmarking.io.storage import (
     get_preprocessed_path,
@@ -28,8 +30,9 @@ from alphacomplexbenchmarking.pipeline.autoencoder import (
     load_autoencoder_for_universe,
     _get_feature_matrix_for_ae,
 )
-from alphacomplexbenchmarking.pipeline.embeddings import normalize_space
+from alphacomplexbenchmarking.pipeline.embeddings import from_latent_to_point_cloud, normalize_space, compute_embeddings_for_universe
 from alphacomplexbenchmarking.pipeline.persistence import (
+    build_alpha_complex_simplex_tree,
     compute_alpha_complex_persistence,
 )
 from alphacomplexbenchmarking.pipeline.landscapes import compute_landscapes
@@ -65,20 +68,9 @@ def main(
 
 # ----------------- Helpers: embeddings + TDA ----------------- #
 
-def _get_latent_embeddings_for_universe(
-    universe: Universe,
-    retrain_if_missing: bool = False,
-) -> np.ndarray:
+def _get_latent_embeddings_for_universe(universe: Universe, retrain_if_missing: bool = True):
     """
-    Load latent embeddings for this universe.
-
-    Strategy:
-    - If a cached latent file exists, load it.
-    - Else:
-        - Optionally train AE (if retrain_if_missing=True).
-        - Load preprocessed data.
-        - Encode with AE.
-        - Save latent to cache.
+    Load latent embeddings for this universe if cached, otherwise retrain AE (if allowed) and compute latent embeddings.
     """
 
     cache_path = get_latent_cache_path(universe)
@@ -99,27 +91,8 @@ def _get_latent_embeddings_for_universe(
             universe,
         )
 
-    # Load preprocessed data (same as in embeddings.py)
-    ds_cfg: DatasetConfig = load_dataset_config(universe.dataset_id)
-    preprocessed_path = get_preprocessed_path(universe)
+    latent = compute_embeddings_for_universe(universe)
 
-    logger.info("[EXP] Loading preprocessed data from %s", preprocessed_path)
-    df = pd.read_parquet(preprocessed_path)
-
-    # Same feature selection as in AE training
-    X = _get_feature_matrix_for_ae(df, ds_cfg)
-
-    # Load AE
-    model = load_autoencoder_for_universe(universe)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    model.eval()
-
-    logger.info("[EXP] Computing latent embeddings for shape %s", X.shape)
-    with torch.no_grad():
-        tensor_X = torch.from_numpy(X).to(device)
-        latent_tensor = model.encode(tensor_X)
-        latent = latent_tensor.cpu().numpy()
 
     logger.info("[EXP] Latent representation shape: %s", latent.shape)
     np.save(cache_path, latent)
@@ -177,6 +150,8 @@ def _compute_persistence_and_landscapes_for_points(
         data=points,
         homology_dimensions=homology_dims,
     )
+    gd.plot_persistence_diagram(per_dim[2])
+    plt.show()
     landscapes = compute_landscapes(
         persistence_per_dimension=per_dim,
         num_landscapes=num_landscapes,
@@ -203,6 +178,157 @@ def _l2_distance(a: np.ndarray | None, b: np.ndarray | None) -> float:
     if a is None or b is None:
         return float("nan")
     return float(np.linalg.norm(a - b))
+
+# ----------------- Experiment: Simple PD Visualization ----------------- #
+# example:
+@app.command("simple-pd")
+def simple_pd(
+    universe_index: Annotated[int, typer.Argument()] = 1,
+    pca_dim: Annotated[int, typer.Option()] = 3,
+    tda_sample_size: Annotated[int, typer.Option()] = 1000,
+    output_dir: Annotated[Path, typer.Option()] = Path("data/experiments/simple_pd"),
+):
+    logger.info("[TEST] Running PD test for universe_index=%d", universe_index)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Get universe
+    universe = get_universe(universe_index)
+
+    # 2. Get embedding space for universe
+    latent = _get_latent_embeddings_for_universe(universe, retrain_if_missing=True)
+
+
+    # 3. Prepare point cloud for TDA (subsample, normalize, PCA)
+    points_for_tda = from_latent_to_point_cloud(
+        latent,
+        pca_dim=pca_dim,
+        target_size=tda_sample_size,
+        seed=universe.seed,
+        normalize=True,
+    )
+
+    # 4. Build alpha simplex tree
+    st = build_alpha_complex_simplex_tree(points_for_tda)
+    result_str = 'Alpha complex is of dimension ' + repr(st.dimension()) + ' - ' + repr(st.num_simplices()) + ' simplices - ' + repr(st.num_vertices()) + ' vertices.'
+    logger.info("[PD] " + result_str)
+    
+    
+    logger.info(f"[PD] Computed persistence with {len(st.persistence_pairs())} intervals")
+    logger.info(f"[PD] Betti numbers: {st.betti_numbers()}")
+
+    # 5. Compute persistence
+    diag = st.persistence(min_persistence=-1.0)
+    
+    # 6. Plot persistence diagram
+    ax = gd.plot_persistence_diagram(diag)
+    fig = ax.figure
+    fig_path = output_dir / f"persistence_diagram_univ{universe_index}_pca{pca_dim}_m{tda_sample_size}.png"
+    fig.savefig(fig_path, bbox_inches="tight")
+    plt.show()
+
+    ax = gd.plot_persistence_barcode(diag, max_intervals = 50)
+    fig = ax.figure
+    fig_path = output_dir / f"persistence_barcode_univ{universe_index}_pca{pca_dim}_m{tda_sample_size}.png"
+    fig.savefig(fig_path, bbox_inches="tight")
+    plt.show()
+
+    ax = gd.plot_persistence_density(diag)
+    fig = ax.figure
+    fig_path = output_dir / f"persistence_density_univ{universe_index}_pca{pca_dim}_m{tda_sample_size}.png"
+    fig.savefig(fig_path, bbox_inches="tight")
+    plt.show()
+
+
+@app.command("simple-pd-grid")
+def simple_pd_grid(
+    universe_index: Annotated[int, typer.Argument()] = 1,
+    pca_dims: Annotated[str, typer.Option()] = "2,3,4",
+    tda_sample_sizes: Annotated[str, typer.Option()] = "500,1000,2000",
+    output_dir: Annotated[Path, typer.Option()] = Path("data/experiments/simple_pd_grid"),
+    show: Annotated[bool, typer.Option()] = False,
+):
+    """
+    Create a grid of persistence diagrams for a single universe, varying:
+      - PCA dimension (columns)
+      - TDA sample size (rows)
+
+    Each cell is a GUDHI persistence diagram for the corresponding (pca_dim, tda_sample_size).
+    """
+    logger.info(
+        "[TEST] Running PD grid for universe_index=%d, pca_dims=%s, tda_sample_sizes=%s",
+        universe_index,
+        pca_dims,
+        tda_sample_sizes,
+    )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Get universe
+    universe = get_universe(universe_index)
+
+    # 2. Get embedding space for universe (latent, no subsampling here)
+    latent = _get_latent_embeddings_for_universe(universe, retrain_if_missing=True)
+    logger.info("[TEST] Latent shape for PD grid: %s", latent.shape)
+
+    # 3. Parse PCA dims and sample sizes
+    pca_dim_list = [int(x) for x in pca_dims.split(",") if x.strip()]
+    tda_sizes_list = [int(x) for x in tda_sample_sizes.split(",") if x.strip()]
+
+    logger.info("[TEST] PCA dims: %s", pca_dim_list)
+    logger.info("[TEST] TDA sample sizes: %s", tda_sizes_list)
+
+    n_rows = len(tda_sizes_list)
+    n_cols = len(pca_dim_list)
+
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        figsize=(4 * n_cols, 4 * n_rows),
+        squeeze=False,
+    )
+
+    # 4. Loop over grid: rows = tda_sample_size, cols = pca_dim
+    for i, m in enumerate(tda_sizes_list):
+        for j, d in enumerate(pca_dim_list):
+            logger.info(
+                "[TEST] Computing PD for PCA dim d=%d, TDA sample size m=%d",
+                d,
+                m,
+            )
+            # 4a. Prepare point cloud (normalize + PCA + subsample)
+            points_for_tda = from_latent_to_point_cloud(
+                latent,
+                pca_dim=d,
+                target_size=m,
+                seed=universe.seed,
+                normalize=True,
+            )
+
+            # 4b. Build alpha simplex tree and compute persistence
+            st = build_alpha_complex_simplex_tree(points_for_tda)
+            diag = st.persistence()
+
+            # 4c. Plot persistence diagram into the corresponding subplot
+            ax = axes[i, j]
+            # GUDHI supports passing axes=... to draw into an existing subplot
+            gd.plot_persistence_diagram(diag, axes=ax)
+            ax.set_title(f"d={d}, m={m}", fontsize="small")
+
+    fig.suptitle(
+        f"Persistence diagrams grid\nUniverse {universe_index}",
+        fontsize="medium",
+    )
+    fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+    fig_path = output_dir / f"pd_grid_univ{universe_index}.png"
+    fig.savefig(fig_path, bbox_inches="tight")
+    logger.info("[TEST] Saved PD grid to %s", fig_path)
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
 
 # ----------------- Experiment: Subsample size sweep ----------------- #
 # example: uv run exp subsample-sweep 0 --max-rows 50000 --subsample-sizes "500,1000,2000,5000,10000" --homology-dim 1 --pca-dim 3 --num-landscapes 5 --resolution 500 --output-dir data/experiments/subsampling
@@ -239,22 +365,20 @@ def subsample_sweep(
     logger.info("[EXP] Running subsample_sweep for universe_index=%d", universe_index)
 
     # 1. Pick universe
-    universes = generate_multiverse()
-    if universe_index < 0 or universe_index >= len(universes):
-        raise typer.BadParameter(f"universe_index must be in [0, {len(universes)-1}]")
-    universe = universes[universe_index]
-    logger.info("[EXP] Using universe: %s", universe)
+    universe = get_universe(universe_index)
+
 
     # 2. Get latent embeddings from AE
     latent = _get_latent_embeddings_for_universe(universe, retrain_if_missing=True)
 
-    # 3. Optionally limit number of rows (for toy experiments)
-    if latent.shape[0] > max_rows:
-        latent = latent[:max_rows]
-        logger.info("[EXP] Truncated latent to first %d rows for experiment.", max_rows)
-
-    # 4. PCA to fixed dim
-    latent_pca = _pca_project(latent, pca_dim=pca_dim, seed=universe.seed)
+    # 3. Prepare point cloud for TDA (subsample, normalize, PCA)
+    points_for_tda = from_latent_to_point_cloud(
+        latent,
+        pca_dim=pca_dim,
+        target_size=max_rows,
+        seed=universe.seed,
+        normalize=True,
+    )
 
     # 5. Parse subsample sizes
     subsample_list = [int(x) for x in subsample_sizes.split(",") if x.strip()]
@@ -267,7 +391,7 @@ def subsample_sweep(
     diagrams_per_m: Dict[int, Dict[int, np.ndarray]] = {}
 
     for m in subsample_list:
-        pts = _subsample_points(latent_pca, m, seed=universe.seed + m)
+        pts = _subsample_points(points_for_tda, m, seed=universe.seed + m)
         logger.info("[EXP] Computing landscapes for subsample size m=%d", m)
 
         per_dim, lsc = _compute_persistence_and_landscapes_for_points(
@@ -428,11 +552,10 @@ def pca_sweep(
     setup_logging(log_dir=Path("logs"), level=level)
     logger.info("[EXP] Running pca_sweep for universe_index=%d", universe_index)
 
-    universes = generate_multiverse()
-    if universe_index < 0 or universe_index >= len(universes):
-        raise typer.BadParameter(f"universe_index must be in [0, {len(universes)-1}]")
-    universe = universes[universe_index]
-    logger.info("[EXP] Using universe: %s", universe)
+
+    # 1. Pick universe
+    universe = get_universe(universe_index)
+
 
     # 1. Get latent embeddings
     latent = _get_latent_embeddings_for_universe(universe, retrain_if_missing=True)

@@ -3,6 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable, List, Tuple, Optional
+import logging
+import typer
+
+logger = logging.getLogger(__name__)
 
 class Scaling(str, Enum):
     ZSCORE = "zscore"
@@ -112,3 +116,14 @@ def generate_multiverse() -> List[Universe]:
                                 )
                             )
     return universes
+
+def get_universe(index: int) -> Universe:
+    """
+    Get a single universe from the multiverse.
+    """
+    universes = generate_multiverse()
+    if index < 0 or index >= len(universes):
+        raise typer.BadParameter(f"universe_index must be in [0, {len(universes)-1}]")
+    universe = universes[index]
+    logger.info("[EXP] Using universe: %s", universe)
+    return universe

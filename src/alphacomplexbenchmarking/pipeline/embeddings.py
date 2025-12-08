@@ -21,25 +21,9 @@ from alphacomplexbenchmarking.io.storage import (
 logger = logging.getLogger(__name__)
 
 
-def normalize_space(
-        X,
-        diameter_iterations=1000,
-        seed=42,
-    ):
+def normalize_space(X, diameter_iterations=1000, seed=42):
         """
         Normalize a space based on an approximate diameter.
-
-        Parameters:
-        - X : np.ndarray
-            The input space to be normalized.
-        - diameter_iterations : int, optional
-            The number of iterations to approximate the space diameter. Default is 1000.
-        - seed : int, optional
-            Seed for the random number generator. Default is 42.
-
-        Returns:
-        - np.ndarray
-            The normalized space based on approximate diameter.
         """
         rng = np.random.default_rng(seed)
         subset = [rng.choice(len(X))]
@@ -52,18 +36,38 @@ def normalize_space(
         return X / diameter
 
 
-def compute_embeddings_and_subsample_for_tda(universe: Universe) -> Path:
-    """
-    For this Universe:
-      - load preprocessed data,
-      - use trained encoder to compute embeddings,
-      - normalize embeddings,
-      - PCA to universe.pca_dim,
-      - subsample TDA points according to universe.tda_config.subsample_size,
-      - save resulting N x d array for TDA.
+def project_PCA(normalized_latent_space: np.ndarray, n_components: int):
+    pca = PCA(n_components=n_components)
+    projected = pca.fit_transform(normalized_latent_space)
+    logger.info(f"[EMB] PCA projection shape: {projected.shape}")
+    return projected
 
-    Returns path to the saved embedding array.
-    """
+
+def downsample_latent(X: np.ndarray, target_size: int, seed: int):
+    n = X.shape[0]
+    target = min(target_size, n) if target_size > 0 else n
+    rng = np.random.default_rng(seed)
+    indices = rng.choice(n, size=target, replace=False)
+    downsampled = X[indices]
+    logger.info(f"[EMB] Downsampled latent shape: {downsampled.shape}")
+    return downsampled
+     
+
+def from_latent_to_point_cloud(X: np.ndarray, pca_dim: int, target_size: int, seed: int, normalize: bool = True):
+    if normalize:
+        X = normalize_space(X, diameter_iterations=1000, seed=42)
+    
+    X_pca = project_PCA(X, n_components=pca_dim)
+    
+    if target_size < X_pca.shape[0]:
+        X_pca_sample = downsample_latent(X_pca, target_size=target_size, seed=seed)
+    else:
+        X_pca_sample = X_pca
+    
+    return X_pca_sample
+
+
+def compute_embeddings_for_universe(universe: Universe):
     logger.info(f"[EMB] Computing embeddings for universe={universe.to_id_string()}")
 
     preprocessed_path = get_preprocessed_path(universe)
@@ -86,23 +90,28 @@ def compute_embeddings_and_subsample_for_tda(universe: Universe) -> Path:
     
     logger.info(f"[EMB] Computed latent representation with shape {latent.shape}")
 
+    return latent
 
-    normalized_latent = normalize_space(latent, diameter_iterations=1000, seed=42)
+def compute_embeddings_and_subsample_for_tda(universe: Universe) -> Path:
+    """
+    For this Universe:
+      - load preprocessed data,
+      - use trained encoder to compute embeddings,
+      - normalize embeddings,
+      - PCA to universe.pca_dim,
+      - subsample TDA points according to universe.tda_config.subsample_size,
+      - save resulting N x d array for TDA.
 
-    # PCA to low dimension
-    pca = PCA(n_components=universe.pca_dim)
-    latent_pca = pca.fit_transform(normalized_latent)
-    logger.debug(f"[EMB] PCA projection shape: {latent_pca.shape}")
+    Returns path to the saved embedding array.
+    """
+    latent = compute_embeddings_for_universe(universe)
 
-    # Subsample for TDA
-    n = latent_pca.shape[0]
-    target = min(universe.tda_config.subsample_size, n)
-    rng = np.random.default_rng(universe.seed)
-    indices = rng.choice(n, size=target, replace=False)
-    points_for_tda = latent_pca[indices]
-
-    logger.info(
-        f"[EMB] Subsampled {target} points (from {n}) for TDA, dim={universe.pca_dim}"
+    points_for_tda = from_latent_to_point_cloud(
+        latent,
+        pca_dim=universe.pca_dim,
+        target_size=universe.tda_config.subsample_size,
+        seed=universe.seed,
+        normalize=True,
     )
 
     emb_path = get_embedding_path(universe)

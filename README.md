@@ -22,37 +22,50 @@ The pipeline is fully modular and allows systematic exploration of combinations 
 ```yaml
 project/
 │
-├── config/
-│   └── datasets/
-│       └── <dataset_id>.yml        # dataset-specific cleaning config
-│
-├── data/
-│   ├── raw/                        # cleaned datasets (parquet)
-│   ├── interim/                    # embeddings, PCA projections, model files
-│   └── processed/                  # TDA metrics & results
-│
-├── logs/                           # pipeline logs
-│
-├── src/
-│   └── alphacomplexbenchmarking/
+├── config
+│   └── datasets
+│       ├── Merged35.yml
+│       └── NF-ToN-IoT-v3.yml
+├── data
+│   ├── experiments
+│   │   ├── latent
+│   │   ├── pca
+│   │   ├── simple_pd
+│   │   ├── simple_pd_grid
+│   │   └── subsampling
+│   ├── interim
+│   │   ├── autoencoder
+│   │   ├── embeddings
+│   │   ├── landscapes
+│   │   └── persistence
+│   ├── processed
+│   │   └── metrics
+│   └── raw
+├── logs
+├── src
+│   └── alphacomplexbenchmarking
+│       ├── experiments
+│       │   └── parameter_sensitivity.py
+│       ├── io
+│       │   └── storage.py
+│       ├── pipeline
+│       │   ├── autoencoder.py
+│       │   ├── create_embeddings.py
+│       │   ├── create_tda.py
+│       │   ├── embeddings.py
+│       │   ├── landscapes.py
+│       │   ├── metrics.py
+│       │   ├── parallel.py
+│       │   ├── persistence.py
+│       │   ├── preprocessing.py
+│       │   ├── tda.py
+│       │   └── universes.py
+│       ├── __init__.py
 │       ├── cli.py
+│       ├── config.py
 │       ├── logging_config.py
-│       │
-│       ├── config.py               # cleaning config loader + prepare-dataset CLI
-│       │
-│       └── pipeline/
-│           ├── universes.py        # Universe, TdaConfig, universe grid generation
-│           ├── preprocessing.py    # scaling, encoding, feature exclusion
-│           ├── autoencoder.py      # Simple AE for embeddings
-│           ├── embeddings.py       # PCA, normalization, subsampling
-│           ├── persistence.py      # alpha complex TDA
-│           ├── landscapes.py       # landscape computation
-│           ├── tda.py              # TDA wrapper
-│           ├── metrics.py          # scalar TDA summaries
-│           ├── parallel.py         # run_full_pipeline_for_universe, run_many_universes
-│           └── sim.py              # Deprecated functionality
-│
-│
+│       ├── make_readme_tree.py
+│       └── visualization.py
 └── README.md
 ```
 

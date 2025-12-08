@@ -64,21 +64,21 @@ def apply_scaling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
 
     numeric_cols = df.select_dtypes(include="number").columns
     if universe.scaling == Scaling.ZSCORE:
-        scaler_cls = StandardScaler
+        scaler_cls = StandardScaler()
     elif universe.scaling == Scaling.MINMAX:
-        scaler_cls = MinMaxScaler
+        scaler_cls = MinMaxScaler()
     elif universe.scaling == Scaling.ROBUST:
-        scaler_cls = RobustScaler
+        scaler_cls = RobustScaler()
     elif universe.scaling == Scaling.QUANTILE:
         scaler_cls = QuantileTransformer(output_distribution="normal")
     else:
         raise ValueError(f"Unknown scaling: {universe.scaling}")
     
-    scaler = scaler_cls()
+    # scaler = scaler_cls()
     logger.debug(f"Applying {universe.scaling.value} scaling to {len(numeric_cols)} numeric columns.")
     df_scaled = df.copy()
     try:
-        df_scaled[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+        df_scaled[numeric_cols] = scaler_cls.fit_transform(df[numeric_cols])
     except ValueError as e:
         logger.error(f"Error during scaling: {e}")
         raise e

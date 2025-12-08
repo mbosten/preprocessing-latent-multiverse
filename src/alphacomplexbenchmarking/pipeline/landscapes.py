@@ -18,6 +18,7 @@ def compute_landscapes(
     """
     logger.info(f"Computing landscapes: dims={homology_dimensions}, "
                 f"num_landscapes={num_landscapes}, resolution={resolution}")
+    
     LS = Landscape(resolution=resolution, keep_endpoints=False, num_landscapes=num_landscapes)
 
     landscapes_per_dimension: dict[int, np.ndarray | None] = {}

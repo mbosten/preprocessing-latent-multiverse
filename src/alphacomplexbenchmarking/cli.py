@@ -9,6 +9,7 @@ from typing_extensions import Annotated
 
 
 from alphacomplexbenchmarking.logging_config import setup_logging
+from alphacomplexbenchmarking.pipeline.preprocessing import preprocess_variant
 from alphacomplexbenchmarking.pipeline.universes import Universe, generate_multiverse, get_universe
 from alphacomplexbenchmarking.pipeline.parallel import run_full_pipeline_for_universe, run_many_universes
 from alphacomplexbenchmarking.pipeline.create_embeddings import get_or_compute_latent
@@ -35,6 +36,20 @@ def main(
     logger = logging.getLogger(__name__)
     logger.debug("CLI started with verbose=%s", verbose)
 
+# ----------- Create preprocessing multiverse ----------- #
+@app.command("prepare-preprocessing")
+def prepare_preprocessing(
+    universe_index: Annotated[int | None, typer.Option()] = None,
+):
+    if universe_index is None:
+        universes = generate_multiverse()
+
+        for u in universes:
+            preprocess_variant(u)
+    else:
+        u = get_universe(universe_index)
+        preprocess_variant(u)
+
 # ----------- Train AEs and create embeddings ----------- #
 @app.command("prepare-embeddings")
 def prepare_embeddings(
@@ -51,7 +66,7 @@ def prepare_embeddings(
         get_or_compute_latent(u, force_recompute=force_recompute)
 
 
-# ----------- Compute simplexes and get TDA metrics ----------- #
+# ----------- Compute simplexes and TDA metrics ----------- #
 @app.command("prepare-tda")
 def prepare_tda(
     universe_index: Annotated[int | None, typer.Option()] = None,
@@ -64,8 +79,8 @@ def prepare_tda(
     else:
         u = get_universe(universe_index)
 
-        run_tda_for_universe(u)
-
+        complexes, landscapes, metrics = run_tda_for_universe(u)
+        
 
 # Will be removed in the future in favor of "prepare-embeddings" and "prepare-tda"
 @app.command("run-universe")

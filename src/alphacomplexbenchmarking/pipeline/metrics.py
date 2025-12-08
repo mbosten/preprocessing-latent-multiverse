@@ -44,7 +44,7 @@ def compute_metrics_from_tda(
         if landscapes is None:
             landscape_l2_per_dim[dim] = 0.0
         else:
-            # landscapes might be shape (1, num_landscapes, resolution) or similar
+            # landscapes are of the shape (1, num_landscapes * resolution)
             landscape_l2_per_dim[dim] = float(np.linalg.norm(landscapes))
 
     return MetricsResult(
@@ -52,3 +52,35 @@ def compute_metrics_from_tda(
         landscape_l2_per_dim=landscape_l2_per_dim,
     )
 
+
+# Integrate PRESTO scores
+from typing import Union
+def compute_presto_scores(landscapeX, landscapeY, score_type: str = "aggregate"):
+        
+        prestos = _compute_landscape_norm(
+            _subtract_landscapes(landscapeX, landscapeY),
+            score_type=score_type,
+        )
+        return prestos
+
+def _compute_landscape_norm(
+        landscape: Dict[int, np.array],
+        score_type: str = "aggregate",
+    ) -> Union[Dict[int, float], float]:
+        norms = {k: np.linalg.norm(v) for k, v in landscape.items()}
+        if score_type == "aggregate":
+            return sum(norms.values())
+        elif score_type == "average":
+            return sum(norms.values()) / len(norms.values())
+        elif score_type == "separate":
+            return norms
+        else:
+            raise NotImplementedError(score_type)
+        
+def _subtract_landscapes(
+        landscapeX: Dict[int, np.array], landscapeY: Dict[int, np.array]
+    ) -> Dict[int, np.array]:
+        res = dict()
+        for i in landscapeX.keys():
+            res[i] = landscapeX[i] - landscapeY[i]
+        return res

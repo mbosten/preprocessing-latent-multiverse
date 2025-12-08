@@ -6,13 +6,10 @@ import numpy as np
 import torch
 import pandas as pd
 from typing import List, Dict
-from alphacomplexbenchmarking.config import load_dataset_config, DatasetConfig
+
 from alphacomplexbenchmarking.pipeline.universes import Universe
-from alphacomplexbenchmarking.pipeline.autoencoder import train_autoencoder_for_universe, load_autoencoder_for_universe, _get_feature_matrix_for_ae
-from alphacomplexbenchmarking.io.storage import (
-    get_latent_cache_path,
-    get_preprocessed_path
-)
+from alphacomplexbenchmarking.pipeline.autoencoder import train_autoencoder_for_universe, load_autoencoder_for_universe, get_feature_matrix_from_universe
+from alphacomplexbenchmarking.io.storage import get_latent_cache_path
 
 
 logger = logging.getLogger(__name__)
@@ -27,33 +24,24 @@ def get_or_compute_latent(
     Canonical function for:
       Universe -> latent embeddings (full dataset, no PCA, no subsampling).
 
-    Behavior:
+    Behavior:s
       - if cached latent exists and not force_recompute: load and return
       - otherwise: ensure AE trained, compute latent, save cache, return
     """
     cache_path = get_latent_cache_path(universe)
 
     if cache_path.exists() and not force_recompute:
-        logger.info("[Embedding] Loading cached latent from %s for %s", cache_path, universe)
+        logger.info("[Embedding] Loading cached latent from %s for %s", cache_path, universe.to_id_string())
         return np.load(cache_path)
-
-    logger.info("[Embedding] Computing latent for %s (force_recompute=%s)", universe, force_recompute)
 
     # 1. Optionally (re)train AE
     if retrain_if_missing:
-        logger.info("[Embedding] Training AE for universe %s (if needed).", universe)
         train_autoencoder_for_universe(universe)
 
-    # 2. Load preprocessed data
-    ds_cfg: DatasetConfig = load_dataset_config(universe.dataset_id)
-    preprocessed_path = get_preprocessed_path(universe)
-    logger.info("[Embedding] Loading preprocessed data from %s", preprocessed_path)
-    df = pd.read_parquet(preprocessed_path)
+    # 2. Feature matrix
+    X = get_feature_matrix_from_universe(universe)
 
-    # 3. Feature matrix
-    X = _get_feature_matrix_for_ae(df, ds_cfg)
-
-    # 4. Encode with AE
+    # 4. Encode with previously trained AE
     model = load_autoencoder_for_universe(universe)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)

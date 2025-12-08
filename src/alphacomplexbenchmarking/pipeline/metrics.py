@@ -51,3 +51,4 @@ def compute_metrics_from_tda(
         total_persistence_per_dim=total_persistence_per_dim,
         landscape_l2_per_dim=landscape_l2_per_dim,
     )
+

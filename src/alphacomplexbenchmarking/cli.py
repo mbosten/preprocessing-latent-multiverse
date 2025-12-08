@@ -5,17 +5,19 @@ from pathlib import Path
 import typer
 from rich import print
 from typing import Optional
+from typing_extensions import Annotated
 
 
 from alphacomplexbenchmarking.logging_config import setup_logging
-from alphacomplexbenchmarking.pipeline.universes import Universe, generate_multiverse
+from alphacomplexbenchmarking.pipeline.universes import Universe, generate_multiverse, get_universe
 from alphacomplexbenchmarking.pipeline.parallel import run_full_pipeline_for_universe, run_many_universes
-
+from alphacomplexbenchmarking.pipeline.create_embeddings import get_or_compute_latent
+from alphacomplexbenchmarking.pipeline.create_tda import run_tda_for_universe
 
 
 app = typer.Typer(help="Simulation + TDA pipeline")
 
-
+# ----------- Global CLI options and commands ----------- #
 @app.callback()
 def main(
     verbose: bool = typer.Option(
@@ -33,7 +35,39 @@ def main(
     logger = logging.getLogger(__name__)
     logger.debug("CLI started with verbose=%s", verbose)
 
+# ----------- Train AEs and create embeddings ----------- #
+@app.command("prepare-embeddings")
+def prepare_embeddings(
+    universe_index: Annotated[int | None, typer.Option()] = None,
+    force_recompute: Annotated[bool, typer.Option()] = False
+):
+    if universe_index is None:
+        universes = generate_multiverse()
 
+        for u in universes:
+            get_or_compute_latent(u, force_recompute=force_recompute)
+    else:
+        u = get_universe(universe_index)
+        get_or_compute_latent(u, force_recompute=force_recompute)
+
+
+# ----------- Compute simplexes and get TDA metrics ----------- #
+@app.command("prepare-tda")
+def prepare_tda(
+    universe_index: Annotated[int | None, typer.Option()] = None,
+):
+    if universe_index is None:
+        universes = generate_multiverse()
+
+        for u in universes:
+            run_tda_for_universe(u)
+    else:
+        u = get_universe(universe_index)
+
+        run_tda_for_universe(u)
+
+
+# Will be removed in the future in favor of "prepare-embeddings" and "prepare-tda"
 @app.command("run-universe")
 def run_universe(
     index: int = typer.Argument(
@@ -50,7 +84,7 @@ def run_universe(
     typer.echo(f"Running universe[{index}] = {universe.to_id_string()}")
     run_full_pipeline_for_universe(universe)
 
-
+# Will be removed in the future in favor of "prepare-embeddings" and "prepare-tda"
 @app.command("run-universe-batch")
 def run_universe_batch(
     start: int = typer.Option(0, help="Start index (inclusive) in default universe list."),

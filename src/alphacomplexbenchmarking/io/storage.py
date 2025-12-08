@@ -5,6 +5,7 @@ import numpy as np
 import logging
 import json
 from typing import Any, Dict
+from dataclasses import asdict
 
 from alphacomplexbenchmarking.pipeline.universes import Universe
 
@@ -128,6 +129,21 @@ def save_landscapes(landscapes: dict[int, np.ndarray | None], run_id: str) -> Pa
     )
     return path
 
+def save_metrics_from_tda_output(universe: Universe, per_dim: dict[int, np.ndarray], landscapes: dict[int, np.ndarray | None], metrics: dict[str, float]):
+    tda_path = get_tda_result_path(universe)
+    arrays_for_npz = {}
+    for d, arr in per_dim.items():
+        arrays_for_npz[f"dim{d}_intervals"] = arr
+    for d, ls in landscapes.items():
+        if ls is not None:
+            arrays_for_npz[f"dim{d}_landscapes"] = ls
+
+    save_tda_npz(tda_path, **arrays_for_npz)
+
+    metrics_path = get_metrics_path(universe)
+    metrics_dict = asdict(metrics)
+    save_json(metrics_path, metrics_dict)
+    logger.info("[TDA] Saved TDA results to %s and metrics to %s", tda_path, metrics_path)
 
 def save_numpy_array(path: Path, array: np.ndarray) -> None:
     ensure_parent_dir(path)

@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Iterable, List
-import numpy as np
 
 from alphacomplexbenchmarking.pipeline.universes import Universe
 from alphacomplexbenchmarking.pipeline.preprocessing import preprocess_variant
@@ -12,7 +11,6 @@ from alphacomplexbenchmarking.pipeline.embeddings import compute_embeddings_and_
 from alphacomplexbenchmarking.pipeline.tda import run_tda_on_points
 from alphacomplexbenchmarking.pipeline.metrics import compute_metrics_from_tda
 from alphacomplexbenchmarking.io.storage import (
-    get_embedding_path,
     load_numpy_array,
     get_tda_result_path,
     get_metrics_path,

@@ -32,7 +32,7 @@ def compute_alpha_complex_persistence(data: np.ndarray, homology_dimensions: lis
 
     st = build_alpha_complex_simplex_tree(data)
 
-    logger.info(f"Computed persistence with {st.num_persistence_intervals()} intervals")
+    logger.info(f"Computed persistence with {len(st.persistence_pairs())} intervals")
 
     per_dim: dict[int, np.ndarray] = {}
     for dim in homology_dimensions:

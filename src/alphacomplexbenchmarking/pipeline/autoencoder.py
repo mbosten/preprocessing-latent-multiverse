@@ -95,6 +95,17 @@ def _get_feature_matrix_for_ae(df: pd.DataFrame, ds_cfg: DatasetConfig) -> np.nd
 
     return X
 
+
+def get_feature_matrix_from_universe(universe: Universe):
+    ds_cfg: DatasetConfig = load_dataset_config(universe.dataset_id)
+    preprocessed_path = get_preprocessed_path(universe)
+    logger.info("[AE] Loading preprocessed data from %s", preprocessed_path)
+    df = pd.read_parquet(preprocessed_path)
+
+    X = _get_feature_matrix_for_ae(df, ds_cfg)
+    return X
+
+
 def train_autoencoder_for_universe(universe: Universe) -> Path:
     """
     Train an autoencoder on the preprocessed data for this universe.
@@ -102,13 +113,8 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
     """
     logger.info(f"[AE] Training autoencoder for universe = {universe.to_id_string()}")
 
-    ds_cfg = load_dataset_config(universe.dataset_id)
-    preprocessed_path = get_preprocessed_path(universe)
+    X = get_feature_matrix_from_universe(universe)
 
-    logger.info(f"[AE] Loading preprocessed data from {preprocessed_path}")
-    df = pd.read_parquet(preprocessed_path)
-
-    X = _get_feature_matrix_for_ae(df, ds_cfg)
     input_dim = X.shape[1]
 
     device = _get_device()

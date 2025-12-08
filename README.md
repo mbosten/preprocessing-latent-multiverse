@@ -1,4 +1,4 @@
-# preprolamu - Multiverse Pipeline
+# preprolamu - Preprocessing Latent Multiverse
 
 This repository implements a multiverse analysis pipeline for studying how preprocessing variations influence the latent representation of a dataset, using:
 - automatic data cleaning (one-time per dataset),

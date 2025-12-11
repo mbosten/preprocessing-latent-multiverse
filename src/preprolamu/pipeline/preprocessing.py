@@ -57,7 +57,6 @@ def split_train_test(
         df,
         train_size=train_frac,
         random_state=seed,
-        shuffle=True,
         stratify=stratify_col,
     )
 

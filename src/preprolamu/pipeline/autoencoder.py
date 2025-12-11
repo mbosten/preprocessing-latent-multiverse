@@ -92,12 +92,15 @@ def _get_device() -> torch.device:
 #
 def _get_feature_matrix_for_ae(df: pd.DataFrame, ds_cfg: DatasetConfig) -> np.ndarray:
     df_features = df.copy()
+    cols_to_drop = [ds_cfg.label_column]
 
-    if ds_cfg.label_column and ds_cfg.label_column in df_features.columns:
-        logger.info(
-            f"[AE] Dropping label column '{ds_cfg.label_column}' for autoencoder training."
-        )
-        df_features = df_features.drop(columns=[ds_cfg.label_column])
+    if "Attack" in df_features.columns:
+        cols_to_drop.append("Attack")
+
+    logger.info(
+        f"[AE] Dropping columns for AE feature matrix (if present): {cols_to_drop}"
+    )
+    df_features = df_features.drop(columns=cols_to_drop, errors="ignore")
 
     X = df_features.to_numpy(dtype=np.float32)
     logger.info(f"[AE] Feature matrix shape for AE: {X.shape}")

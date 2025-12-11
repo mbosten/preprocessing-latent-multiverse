@@ -71,6 +71,7 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
         non_numerical_columns=list(raw_cfg.get("non_numerical_columns", []) or []),
         features_to_exclude=list(raw_cfg.get("features_to_exclude", []) or []),
         label_column=raw_cfg.get("label_column"),
+        benign_label=raw_cfg.get("benign_label"),
         label_classes=list(raw_cfg.get("label_classes", [])) or None,
     )
     return cfg

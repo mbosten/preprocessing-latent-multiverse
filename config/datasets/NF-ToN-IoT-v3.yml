@@ -10,6 +10,8 @@ features_to_exclude:
 
 label_column: "Attack"
 
+benign_label: "Benign"
+
 label_classes:
   - "Benign"
   - "scanning"

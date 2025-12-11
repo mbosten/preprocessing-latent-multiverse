@@ -42,6 +42,7 @@ def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
 def split_train_test(
     df: pd.DataFrame,
     label_col: str,
+    benign_label: str,
     train_frac: float = 0.7,
     seed: int = 42,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -64,11 +65,15 @@ def split_train_test(
     df_train = df_train.reset_index(drop=True)
     df_test = df_test.reset_index(drop=True)
 
+    # Keep only benign samples for training. Otherwise preprocessing is affected by soft leakage.
+    df_train = df_train[df_train[label_col] == benign_label].reset_index(drop=True)
+
     logger.info(
-        "Data split into train (%d rows) and test (%d rows).",
+        "Data split into train (benign-only: %d rows) and test (all classes: %d rows).",
         len(df_train),
         len(df_test),
     )
+
     return df_train, df_test
 
 
@@ -96,17 +101,16 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     return df.drop(columns=[c for c in special_features if c in df.columns])
 
 
-def apply_scaling(df: pd.DataFrame, universe: Universe, ds_cfg) -> pd.DataFrame:
-
+def fit_scaler(df_train: pd.DataFrame, universe: Universe, ds_cfg):
     # numeric features = numeric cols except label
     numeric_cols = [
         c
-        for c in df.select_dtypes(include="number").columns
+        for c in df_train.select_dtypes(include="number").columns
         if c != ds_cfg.label_column
     ]
 
     if not numeric_cols:
-        return df
+        return df_train
 
     if universe.scaling == Scaling.ZSCORE:
         scaler = StandardScaler()
@@ -125,42 +129,123 @@ def apply_scaling(df: pd.DataFrame, universe: Universe, ds_cfg) -> pd.DataFrame:
         len(numeric_cols),
     )
 
+    scaler.fit(df_train[numeric_cols])
+    return scaler, numeric_cols
+
+
+def transform_with_scaler(df: pd.DataFrame, scaler, numeric_cols) -> pd.DataFrame:
     df_scaled = df.copy()
-    df_scaled[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    df_scaled[numeric_cols] = scaler.transform(df[numeric_cols])
     return df_scaled
 
 
-def apply_cat_encoding(df: pd.DataFrame, universe: Universe, ds_cfg) -> pd.DataFrame:
-    # Categorical columns = non-numeric, excluding Label
+# def apply_scaling(df: pd.DataFrame, universe: Universe, ds_cfg) -> pd.DataFrame:
+
+#     # numeric features = numeric cols except label
+#     numeric_cols = [
+#         c
+#         for c in df.select_dtypes(include="number").columns
+#         if c != ds_cfg.label_column
+#     ]
+
+#     if not numeric_cols:
+#         return df
+
+#     if universe.scaling == Scaling.ZSCORE:
+#         scaler = StandardScaler()
+#     elif universe.scaling == Scaling.MINMAX:
+#         scaler = MinMaxScaler()
+#     elif universe.scaling == Scaling.ROBUST:
+#         scaler = RobustScaler()
+#     elif universe.scaling == Scaling.QUANTILE:
+#         scaler = QuantileTransformer(output_distribution="normal")
+#     else:
+#         raise ValueError(f"Unknown scaling: {universe.scaling}")
+
+#     logger.debug(
+#         "Applying %s scaling to %d numeric columns.",
+#         universe.scaling.value,
+#         len(numeric_cols),
+#     )
+
+#     df_scaled = df.copy()
+#     df_scaled[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+#     return df_scaled
+
+
+def fit_cat_encoder(df_train: pd.DataFrame, universe: Universe, ds_cfg):
     cat_cols = [
         c
-        for c in df.select_dtypes(exclude="number").columns
+        for c in df_train.select_dtypes(exclude="number").columns
         if c != ds_cfg.label_column
     ]
 
     if not cat_cols or universe.cat_encoding is None:
-        return df
-
-    logger.debug(
-        "Applying %s encoding to categorical columns: %s",
-        universe.cat_encoding.value,
-        list(cat_cols),
-    )
+        return None, []
 
     if universe.cat_encoding == CatEncoding.ONEHOT:
-        return pd.get_dummies(df, columns=cat_cols, drop_first=False)
+        return None, cat_cols
 
     if universe.cat_encoding == CatEncoding.LABEL:
-
-        df_encoded = df.copy()
         enc = OrdinalEncoder(
             handle_unknown="use_encoded_value",
             unknown_value=-1,
         )
-        df_encoded[cat_cols] = enc.fit_transform(df[cat_cols])
-        return df_encoded
+        enc.fit(df_train[cat_cols])
+        return enc, cat_cols
 
     raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
+
+
+def transform_with_cat_encoder(
+    df: pd.DataFrame, universe: Universe, encoder, cat_cols
+) -> pd.DataFrame:
+    if universe.cat_encoding is None or not cat_cols:
+        return df
+
+    df_encoded = df.copy()
+
+    if universe.cat_encoding == CatEncoding.ONEHOT:
+        df_encoded = pd.get_dummies(df_encoded, columns=cat_cols, drop_first=False)
+        return df_encoded
+
+    if universe.cat_encoding == CatEncoding.LABEL and encoder is not None:
+        df_encoded[cat_cols] = encoder.transform(df[cat_cols])
+        return df_encoded
+    raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
+
+
+# def apply_cat_encoding(df: pd.DataFrame, universe: Universe, ds_cfg) -> pd.DataFrame:
+#     # Categorical columns = non-numeric, excluding Label
+#     cat_cols = [
+#         c
+#         for c in df.select_dtypes(exclude="number").columns
+#         if c != ds_cfg.label_column
+#     ]
+
+#     if not cat_cols or universe.cat_encoding is None:
+#         return df
+
+#     logger.debug(
+#         "Applying %s encoding to categorical columns: %s",
+#         universe.cat_encoding.value,
+#         list(cat_cols),
+#     )
+
+#     if universe.cat_encoding == CatEncoding.ONEHOT:
+#         return pd.get_dummies(df, columns=cat_cols, drop_first=False)
+
+#     if universe.cat_encoding == CatEncoding.LABEL:
+
+#         df_encoded = df.copy()
+#         enc = OrdinalEncoder(
+#             handle_unknown="use_encoded_value",
+#             unknown_value=-1,
+#         )
+#         df_encoded[cat_cols] = enc.fit_transform(df[cat_cols])
+#         return df_encoded
+
+#     raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
 
 
 # Orchestrator function to call in cli.py
@@ -176,15 +261,21 @@ def preprocess_variant(universe: Universe) -> Path:
     df_train, df_test = split_train_test(
         df,
         label_col=ds_cfg.label_column,
+        benign_label=ds_cfg.benign_label,
         train_frac=0.7,
         seed=42,
     )
-    df = None  # free memory, just to be sure
-    df_train = apply_scaling(df_train, universe, ds_cfg)
-    df_train = apply_cat_encoding(df_train, universe, ds_cfg)
 
-    df_test = apply_scaling(df_test, universe, ds_cfg)
-    df_test = apply_cat_encoding(df_test, universe, ds_cfg)
+    df = None  # free memory, just to be sure
+
+    scaler, numeric_cols = fit_scaler(df_train, universe, ds_cfg)
+    encoder, cat_cols = fit_cat_encoder(df_train, universe, ds_cfg)
+
+    df_train = transform_with_scaler(df_train, scaler, numeric_cols)
+    df_train = transform_with_cat_encoder(df_train, universe, encoder, cat_cols)
+
+    df_test = transform_with_scaler(df_test, scaler, numeric_cols)
+    df_test = transform_with_cat_encoder(df_test, universe, encoder, cat_cols)
 
     path_train = get_preprocessed_train_path(universe)
     path_test = get_preprocessed_test_path(universe)

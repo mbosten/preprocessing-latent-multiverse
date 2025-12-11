@@ -12,6 +12,8 @@ features_to_exclude:
 
 label_column: "Label"
 
+benign_label: "BENIGN"
+
 label_classes:
   - "BENIGN"
   - "DDOS-ICMP_FLOOD"

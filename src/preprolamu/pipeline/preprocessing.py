@@ -5,8 +5,16 @@ import logging
 from pathlib import Path
 
 import pandas as pd
-import polars as pl
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import (
+    MinMaxScaler,
+    OrdinalEncoder,
+    QuantileTransformer,
+    RobustScaler,
+    StandardScaler,
+)
 
+from preprolamu.config import load_dataset_config
 from preprolamu.io.storage import (
     ensure_parent_dir,
     get_clean_dataset_path,
@@ -16,37 +24,52 @@ from preprolamu.pipeline.universes import CatEncoding, FeatureSubset, Scaling, U
 
 logger = logging.getLogger(__name__)
 
-LABEL_COLUMN = "Label"
-TARGET_LABEL_VALUE = "BENIGN"
-# MAX_ROWS_FOR_LABEL = 50000 # subsampling here has an inpact on shape (50k vs unlimited)
 
-
-# Load the cleaned dataset using Polars to handle large files efficiently
+# Load the cleaned dataset
 def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     """
-    Currently loads only a subset of benign traffic for debugging purposes.
-    Returns a pandas DataFrame to ensure further compatibility.
+    Load the cleaned dataset (all classes) as a pandas DataFrame.
     """
-    logger.info(
-        "Loading raw dataset from %s using Polars: %s == %r",
-        dataset_id,
-        LABEL_COLUMN,
-        TARGET_LABEL_VALUE,
-        # MAX_ROWS_FOR_LABEL,
-    )
     path = get_clean_dataset_path(dataset_id, extension="parquet")
-    lf = (
-        pl.scan_parquet(path).filter(pl.col(LABEL_COLUMN) == TARGET_LABEL_VALUE)
-        # .limit(MAX_ROWS_FOR_LABEL)
+    logger.info("Loading full cleaned dataset from %s", path)
+    df = pd.read_parquet(path)
+    logger.info("Loaded %d rows x %d columns.", *df.shape)
+    logger.debug("Column dtypes: %s", dict(df.dtypes))
+    return df
+
+
+def split_train_test(
+    df: pd.DataFrame,
+    label_col: str,
+    train_frac: float = 0.7,
+    seed: int = 42,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Random train/test split, stratified by 'Attack' if present,
+    otherwise by the label column.
+    """
+    if label_col not in df.columns:
+        raise ValueError(f"Label column {label_col!r} not found in dataframe.")
+
+    stratify_col = df["Attack"] if "Attack" in df.columns else df[label_col]
+
+    df_train, df_test = train_test_split(
+        df,
+        train_size=train_frac,
+        random_state=seed,
+        shuffle=True,
+        stratify=stratify_col,
     )
 
-    # Collect into an in-memory Polars DataFrame, then convert to pandas
-    df_polars = lf.collect()
-    df = df_polars.to_pandas()
+    df_train = df_train.reset_index(drop=True)
+    df_test = df_test.reset_index(drop=True)
 
-    logger.info("Loaded %d rows x %d columns after Polars filter+limit.", *df.shape)
-    logger.debug(f"Column dtypes: {dict(df.dtypes)}")
-    return df
+    logger.info(
+        "Data split into train (%d rows) and test (%d rows).",
+        len(df_train),
+        len(df_test),
+    )
+    return df_train, df_test
 
 
 # Drop or keep the set of features as indicated in the Universe class
@@ -73,57 +96,63 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     return df.drop(columns=[c for c in special_features if c in df.columns])
 
 
-def apply_scaling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
+def apply_scaling(df: pd.DataFrame, universe: Universe, cfg) -> pd.DataFrame:
 
-    from sklearn.preprocessing import (
-        MinMaxScaler,
-        QuantileTransformer,
-        RobustScaler,
-        StandardScaler,
-    )
+    # numeric features = numeric cols except label
+    numeric_cols = [
+        c for c in df.select_dtypes(include="number").columns if c != cfg.label_column
+    ]
 
-    numeric_cols = df.select_dtypes(include="number").columns
+    if not numeric_cols:
+        return df
+
     if universe.scaling == Scaling.ZSCORE:
-        scaler_cls = StandardScaler()
+        scaler = StandardScaler()
     elif universe.scaling == Scaling.MINMAX:
-        scaler_cls = MinMaxScaler()
+        scaler = MinMaxScaler()
     elif universe.scaling == Scaling.ROBUST:
-        scaler_cls = RobustScaler()
+        scaler = RobustScaler()
     elif universe.scaling == Scaling.QUANTILE:
-        scaler_cls = QuantileTransformer(output_distribution="normal")
+        scaler = QuantileTransformer(output_distribution="normal")
     else:
         raise ValueError(f"Unknown scaling: {universe.scaling}")
 
     logger.debug(
-        f"Applying {universe.scaling.value} scaling to {len(numeric_cols)} numeric columns."
+        "Applying %s scaling to %d numeric columns.",
+        universe.scaling.value,
+        len(numeric_cols),
     )
+
     df_scaled = df.copy()
-    try:
-        df_scaled[numeric_cols] = scaler_cls.fit_transform(df[numeric_cols])
-    except ValueError as e:
-        logger.error(f"Error during scaling: {e}")
-        raise e
+    df_scaled[numeric_cols] = scaler.fit_transform(df[numeric_cols])
     return df_scaled
 
 
-def apply_cat_encoding(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
-    cat_cols = df.select_dtypes(exclude="number").columns
+def apply_cat_encoding(df: pd.DataFrame, universe: Universe, cfg) -> pd.DataFrame:
+    # Categorical columns = non-numeric, excluding Label
+    cat_cols = [
+        c for c in df.select_dtypes(exclude="number").columns if c != cfg.label_column
+    ]
 
-    if cat_cols.empty or universe.cat_encoding is None:
+    if not cat_cols or universe.cat_encoding is None:
         return df
 
     logger.debug(
-        f"Applying {universe.cat_encoding.value} encoding to categorical columns: {list(cat_cols)}"
+        "Applying %s encoding to categorical columns: %s",
+        universe.cat_encoding.value,
+        list(cat_cols),
     )
 
     if universe.cat_encoding == CatEncoding.ONEHOT:
         return pd.get_dummies(df, columns=cat_cols, drop_first=False)
 
     if universe.cat_encoding == CatEncoding.LABEL:
-        from sklearn.preprocessing import OrdinalEncoder
 
         df_encoded = df.copy()
-        enc = OrdinalEncoder()
+        enc = OrdinalEncoder(
+            handle_unknown="use_encoded_value",
+            unknown_value=-1,
+        )
         df_encoded[cat_cols] = enc.fit_transform(df[cat_cols])
         return df_encoded
 
@@ -138,13 +167,30 @@ def preprocess_variant(universe: Universe) -> Path:
     """
     logger.info(f"Preprocessing dataset for universe={universe.to_id_string()}")
     df = load_raw_dataset(universe.dataset_id)
+    cfg = load_dataset_config(universe.dataset_id)
     df = apply_feature_subset(df, universe)
-    df = apply_scaling(df, universe)
-    df = apply_cat_encoding(df, universe)
+    df_train, df_test = split_train_test(
+        df,
+        label_col=cfg.label_column,
+        train_frac=0.7,
+        seed=42,
+    )
+    df = None  # free memory, just to be sure
+    df_train = apply_scaling(df_train, universe, cfg)
+    df_train = apply_cat_encoding(df_train, universe, cfg)
 
-    path = get_preprocessed_path(universe)
-    ensure_parent_dir(path)
+    df_test = apply_scaling(df_test, universe, cfg)
+    df_test = apply_cat_encoding(df_test, universe, cfg)
 
-    df.to_parquet(path)
-    logger.info(f"Saved preprocessed data to {path}")
-    return path
+    base_path = get_preprocessed_path(universe)
+    path_train = base_path.with_name(base_path.stem + "_train.parquet")
+    path_test = base_path.with_name(base_path.stem + "_test.parquet")
+
+    ensure_parent_dir(path_train)
+    df_train.to_parquet(path_train)
+    df_test.to_parquet(path_test)
+
+    logger.info("Saved preprocessed TRAIN data to %s", path_train)
+    logger.info("Saved preprocessed TEST data to %s", path_test)
+
+    return path_train, path_test

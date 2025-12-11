@@ -7,7 +7,6 @@ non_numerical_columns:
   - "IPV4_DST_ADDR"
 
 features_to_exclude:
-  - "Label"
 
 label_column: "Attack"
 

@@ -5,6 +5,7 @@ raw_path: "data/raw/Merged35.csv"
 non_numerical_columns:
   - "Protocol Type"
 
+# These are the features  that are removed in the initial cleaning of the data and are not part of the multiverse.
 features_to_exclude:
   - "Time_To_Live"
   - "ece_flag_number"

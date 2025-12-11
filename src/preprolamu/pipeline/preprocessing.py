@@ -18,7 +18,8 @@ from preprolamu.config import load_dataset_config
 from preprolamu.io.storage import (
     ensure_parent_dir,
     get_clean_dataset_path,
-    get_preprocessed_path,
+    get_preprocessed_test_path,
+    get_preprocessed_train_path,
 )
 from preprolamu.pipeline.universes import CatEncoding, FeatureSubset, Scaling, Universe
 
@@ -95,11 +96,13 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     return df.drop(columns=[c for c in special_features if c in df.columns])
 
 
-def apply_scaling(df: pd.DataFrame, universe: Universe, cfg) -> pd.DataFrame:
+def apply_scaling(df: pd.DataFrame, universe: Universe, ds_cfg) -> pd.DataFrame:
 
     # numeric features = numeric cols except label
     numeric_cols = [
-        c for c in df.select_dtypes(include="number").columns if c != cfg.label_column
+        c
+        for c in df.select_dtypes(include="number").columns
+        if c != ds_cfg.label_column
     ]
 
     if not numeric_cols:
@@ -127,10 +130,12 @@ def apply_scaling(df: pd.DataFrame, universe: Universe, cfg) -> pd.DataFrame:
     return df_scaled
 
 
-def apply_cat_encoding(df: pd.DataFrame, universe: Universe, cfg) -> pd.DataFrame:
+def apply_cat_encoding(df: pd.DataFrame, universe: Universe, ds_cfg) -> pd.DataFrame:
     # Categorical columns = non-numeric, excluding Label
     cat_cols = [
-        c for c in df.select_dtypes(exclude="number").columns if c != cfg.label_column
+        c
+        for c in df.select_dtypes(exclude="number").columns
+        if c != ds_cfg.label_column
     ]
 
     if not cat_cols or universe.cat_encoding is None:
@@ -166,26 +171,27 @@ def preprocess_variant(universe: Universe) -> Path:
     """
     logger.info(f"Preprocessing dataset for universe={universe.to_id_string()}")
     df = load_raw_dataset(universe.dataset_id)
-    cfg = load_dataset_config(universe.dataset_id)
+    ds_cfg = load_dataset_config(universe.dataset_id)
     df = apply_feature_subset(df, universe)
     df_train, df_test = split_train_test(
         df,
-        label_col=cfg.label_column,
+        label_col=ds_cfg.label_column,
         train_frac=0.7,
         seed=42,
     )
     df = None  # free memory, just to be sure
-    df_train = apply_scaling(df_train, universe, cfg)
-    df_train = apply_cat_encoding(df_train, universe, cfg)
+    df_train = apply_scaling(df_train, universe, ds_cfg)
+    df_train = apply_cat_encoding(df_train, universe, ds_cfg)
 
-    df_test = apply_scaling(df_test, universe, cfg)
-    df_test = apply_cat_encoding(df_test, universe, cfg)
+    df_test = apply_scaling(df_test, universe, ds_cfg)
+    df_test = apply_cat_encoding(df_test, universe, ds_cfg)
 
-    base_path = get_preprocessed_path(universe)
-    path_train = base_path.with_name(base_path.stem + "_train.parquet")
-    path_test = base_path.with_name(base_path.stem + "_test.parquet")
+    path_train = get_preprocessed_train_path(universe)
+    path_test = get_preprocessed_test_path(universe)
 
     ensure_parent_dir(path_train)
+    ensure_parent_dir(path_test)
+
     df_train.to_parquet(path_train)
     df_test.to_parquet(path_test)
 

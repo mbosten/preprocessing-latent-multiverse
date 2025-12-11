@@ -62,6 +62,24 @@ def get_preprocessed_path(universe: Universe) -> Path:
     )
 
 
+def get_preprocessed_train_path(universe: Universe) -> Path:
+    return (
+        BASE_DATA_DIR
+        / "processed"
+        / "train"
+        / f"{universe.to_id_string()}_preprocessed_train.parquet"
+    )
+
+
+def get_preprocessed_test_path(universe: Universe) -> Path:
+    return (
+        BASE_DATA_DIR
+        / "processed"
+        / "test"
+        / f"{universe.to_id_string()}_preprocessed_test.parquet"
+    )
+
+
 def get_ae_model_path(universe: Universe) -> Path:
     return (
         BASE_DATA_DIR / "interim" / "autoencoder" / f"{universe.to_id_string()}_ae.pt"

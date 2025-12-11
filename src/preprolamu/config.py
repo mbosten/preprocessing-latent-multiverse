@@ -282,6 +282,12 @@ def apply_remove_nans(df: pd.DataFrame) -> pd.DataFrame:
     return df_out
 
 
+def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+    df.drop_duplicates(inplace=True)
+    df.reset_index(drop=True, inplace=True)
+    return df
+
+
 def save_clean_dataset(df: pd.DataFrame, cfg: DatasetConfig) -> None:
     out_path = cfg.output_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -301,6 +307,7 @@ def prepare_dataset(dataset_id: str) -> None:
     df = apply_remove_infinite(df)
     df = apply_remove_nans(df)
     df = df_shrink(df, obj2cat=False, int2uint=False)
+    df = remove_duplicates(df)
 
     save_clean_dataset(df, cfg)
 

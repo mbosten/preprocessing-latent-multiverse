@@ -56,10 +56,10 @@ def landscapes_path(run_id: str) -> Path:
     return INTERIM_ROOT / "landscapes" / f"{run_id}.npz"
 
 
-def get_preprocessed_path(universe: Universe) -> Path:
-    return (
-        BASE_DATA_DIR / "processed" / f"{universe.to_id_string()}_preprocessed.parquet"
-    )
+# def get_preprocessed_path(universe: Universe) -> Path:
+#     return (
+#         BASE_DATA_DIR / "processed" / f"{universe.to_id_string()}_preprocessed.parquet"
+#     )
 
 
 def get_preprocessed_train_path(universe: Universe) -> Path:

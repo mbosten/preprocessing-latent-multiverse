@@ -25,6 +25,7 @@ class DatasetConfig:
     non_numerical_columns: List[str]
     features_to_exclude: Optional[List[str]] = None
     label_column: Optional[str] = None
+    benign_label: Optional[str] = None
     label_classes: Optional[List[str]] = None
 
     @property

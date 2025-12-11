@@ -15,7 +15,7 @@ from preprolamu.config import DatasetConfig, load_dataset_config
 from preprolamu.io.storage import (
     ensure_parent_dir,
     get_ae_model_path,
-    get_preprocessed_path,
+    get_preprocessed_train_path,
 )
 from preprolamu.pipeline.universes import Universe
 
@@ -110,9 +110,9 @@ def _get_feature_matrix_for_ae(df: pd.DataFrame, ds_cfg: DatasetConfig) -> np.nd
 
 def get_feature_matrix_from_universe(universe: Universe):
     ds_cfg: DatasetConfig = load_dataset_config(universe.dataset_id)
-    preprocessed_path = get_preprocessed_path(universe)
-    logger.info("[AE] Loading preprocessed data from %s", preprocessed_path)
-    df = pd.read_parquet(preprocessed_path)
+    preprocessed_train_path = get_preprocessed_train_path(universe)
+    logger.info("[AE] Loading preprocessed data from %s", preprocessed_train_path)
+    df = pd.read_parquet(preprocessed_train_path)
 
     X = _get_feature_matrix_for_ae(df, ds_cfg)
     return X

@@ -91,7 +91,9 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
             "L4_SRC_PORT",
             "L4_DST_PORT",
         ]
-    elif universe.to_id_string().startswith("ds-Merged"):
+    elif universe.to_id_string().startswith(
+        "ds-Merged"
+    ):  # Just a dummy variable to keep the pipeline similar.
         special_features = ["Protocol Type"]
     else:
         raise ValueError(
@@ -204,6 +206,12 @@ def transform_with_cat_encoder(
         return df
 
     df_encoded = df.copy()
+
+    logger.debug(
+        "Applying %s encoding to categorical columns: %s",
+        universe.cat_encoding.value,
+        list(cat_cols),
+    )
 
     if universe.cat_encoding == CatEncoding.ONEHOT:
         df_encoded = pd.get_dummies(df_encoded, columns=cat_cols, drop_first=False)

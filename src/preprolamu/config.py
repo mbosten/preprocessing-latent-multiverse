@@ -23,7 +23,7 @@ class DatasetConfig:
     dataset_id: str
     raw_path: Path
     non_numerical_columns: List[str]
-    features_to_exclude: List[str]
+    features_to_exclude: Optional[List[str]] = None
     label_column: Optional[str] = None
     label_classes: Optional[List[str]] = None
 
@@ -68,8 +68,8 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
     cfg = DatasetConfig(
         dataset_id=raw_cfg.get("dataset_id", dataset_id),
         raw_path=Path(raw_cfg["raw_path"]),
-        non_numerical_columns=list(raw_cfg.get("non_numerical_columns", [])),
-        features_to_exclude=list(raw_cfg.get("features_to_exclude", [])),
+        non_numerical_columns=list(raw_cfg.get("non_numerical_columns", []) or []),
+        features_to_exclude=list(raw_cfg.get("features_to_exclude", []) or []),
         label_column=raw_cfg.get("label_column"),
         label_classes=list(raw_cfg.get("label_classes", [])) or None,
     )
@@ -136,9 +136,9 @@ def apply_dtypes(df: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
 
     if changed_cols:
         logger.info(
-            "[PREP] Changed dtypes for %d non-numerical columns:\n    %s",
+            "[PREP] Changed dtypes for %d non-numerical columns: %s",
             len(changed_cols),
-            "\n    ".join(changed_cols),
+            ", ".join(changed_cols),
         )
     else:
         logger.info("[PREP] No dtype changes were applied to non-numerical columns.")
@@ -202,6 +202,7 @@ def df_shrink_dtypes(df, skip=[], obj2cat=True, int2uint=False):
 def df_shrink(df, skip=[], obj2cat=True, int2uint=False):
     "Reduce DataFrame memory usage, by casting to smaller types returned by `df_shrink_dtypes()`."
     dt = df_shrink_dtypes(df, skip, obj2cat=obj2cat, int2uint=int2uint)
+    logger.info("[PREP] Shrunk dtypes of dataframe columns: %s", dt)
     return df.astype(dt)
 
 
@@ -283,8 +284,10 @@ def apply_remove_nans(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+    logger.info("[PREP] Removing duplicate rows from dataset with shape %s.", df.shape)
     df.drop_duplicates(inplace=True)
     df.reset_index(drop=True, inplace=True)
+    logger.info("[PREP] Removed duplicates. New shape: %s", df.shape)
     return df
 
 

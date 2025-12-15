@@ -11,6 +11,7 @@ from typing_extensions import Annotated
 from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.create_embeddings import get_or_compute_latent
 from preprolamu.pipeline.create_tda import run_tda_for_universe
+from preprolamu.pipeline.metrics import compute_presto_variance_across_universes
 from preprolamu.pipeline.parallel import (
     run_full_pipeline_for_universe,
     run_many_universes,
@@ -83,8 +84,13 @@ def prepare_tda(
             run_tda_for_universe(u)
     else:
         u = get_universe(universe_index)
+        run_tda_for_universe(u)
 
-        complexes, landscapes, metrics = run_tda_for_universe(u)
+    if universe_index is None:
+        Landscape_norm_variance = compute_presto_variance_across_universes(
+            universes,
+        )
+        print("PRESTO variance across multiverse:", Landscape_norm_variance)
 
 
 # Will be removed in the future in favor of "prepare-embeddings" and "prepare-tda"

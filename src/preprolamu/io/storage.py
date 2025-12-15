@@ -5,7 +5,7 @@ import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 import numpy as np
 
@@ -189,6 +189,38 @@ def save_metrics_from_tda_output(
     logger.info(
         "[TDA] Saved TDA results to %s and metrics to %s", tda_path, metrics_path
     )
+
+
+def load_tda_output_for_universe(
+    universe: Universe,
+) -> Tuple[Dict[int, np.ndarray], Dict[int, np.ndarray | None]]:
+    """
+    Inverse of `save_metrics_from_tda_output`:
+    load per-dimension persistence intervals and landscapes for a universe.
+
+    Returns:
+        per_dim:    dim -> intervals array
+        landscapes: dim -> landscapes array (or None if not present)
+    """
+    tda_path = get_tda_result_path(universe)
+    raw = load_tda_npz(tda_path)  # dict[str, np.ndarray]
+
+    per_dim: Dict[int, np.ndarray] = {}
+    landscapes: Dict[int, np.ndarray | None] = {}
+
+    for key, arr in raw.items():
+        if key.startswith("dim") and key.endswith("_intervals"):
+            # key like "dim1_intervals" -> extract 1
+            dim_str = key[3:-10]  # strip "dim" and "_intervals"
+            dim = int(dim_str)
+            per_dim[dim] = arr
+        elif key.startswith("dim") and key.endswith("_landscapes"):
+            # key like "dim1_landscapes"
+            dim_str = key[3:-11]  # strip "dim" and "_landscapes"
+            dim = int(dim_str)
+            landscapes[dim] = arr
+
+    return per_dim, landscapes
 
 
 def save_numpy_array(path: Path, array: np.ndarray) -> None:

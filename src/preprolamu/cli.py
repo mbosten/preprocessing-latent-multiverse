@@ -87,10 +87,9 @@ def prepare_tda(
         run_tda_for_universe(u)
 
     if universe_index is None:
-        Landscape_norm_variance = compute_presto_variance_across_universes(
+        compute_presto_variance_across_universes(
             universes,
         )
-        print("PRESTO variance across multiverse:", Landscape_norm_variance)
 
 
 # Will be removed in the future in favor of "prepare-embeddings" and "prepare-tda"

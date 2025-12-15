@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional
 
@@ -9,6 +10,8 @@ import numpy as np
 
 from preprolamu.io.storage import load_tda_output_for_universe
 from preprolamu.pipeline.universes import Universe
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -123,10 +126,16 @@ def compute_presto_variance_across_universes(
         _, landscapes = load_tda_output_for_universe(u)
         landscapes_list.append(landscapes)
 
-    return compute_presto_variance(
+    var = compute_presto_variance(
         landscapes=landscapes_list,
         homology_dims=homology_dims,
     )
+    logger.info(
+        "[TDA] Computed PRESTO variance across %d universes: %.6f",
+        len(landscapes_list),
+        var,
+    )
+    return var
 
 
 def compute_metrics_from_tda(

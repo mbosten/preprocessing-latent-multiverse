@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import typer
 import yaml
 
@@ -103,8 +104,6 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
 
 
 # ----------------- Core cleaning logic ----------------- #
-
-
 def load_raw_source(cfg: DatasetConfig) -> pd.DataFrame:
     path = cfg.raw_path
 
@@ -114,7 +113,15 @@ def load_raw_source(cfg: DatasetConfig) -> pd.DataFrame:
         raise FileNotFoundError(f"Raw source file not found at {path}")
 
     if path.suffix.lower() == ".csv":
-        df = pd.read_csv(path)
+        # df = pd.read_csv(path)
+        pl.Config.set_verbose(True)
+        with pl.Config(verbose=True):
+            logger.debug("[PREP] Scanning csv with Polars")
+            lf = pl.scan_csv(path)
+            logger.debug("[PREP] Collecting LazyFrame")
+            df_polars = lf.collect()
+            logger.debug("[PREP] Converting Polars to Pandas")
+            df = df_polars.to_pandas()
     elif path.suffix.lower() == ".parquet":
         df = pd.read_parquet(path)
     else:
@@ -331,11 +338,11 @@ def prepare_dataset(dataset_id: str) -> None:
     logger.info(f"[PREP] Preparing dataset_id={cfg.dataset_id}")
 
     df = load_raw_source(cfg)
+    df = df_shrink(df, obj2cat=False, int2uint=False)
     df = apply_drop_columns(df, cfg)
     df = apply_dtypes(df, cfg)
     df = apply_remove_infinite(df)
     df = apply_remove_nans(df)
-    df = df_shrink(df, obj2cat=False, int2uint=False)
     df = remove_duplicates(df)
 
     save_clean_dataset(df, cfg)

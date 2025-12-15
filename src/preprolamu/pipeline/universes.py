@@ -73,10 +73,10 @@ class Universe:
 
 
 DATASET_IDS: List[str] = [
-    "Merged35",
-    # "NF-ToN-IoT-v3",
-    # "NF-UNSW-NB15-v3",
-    # "NF-CICIDS2018-v3",
+    # "Merged35",
+    "NF-ToN-IoT-v3",
+    "NF-UNSW-NB15-v3",
+    "NF-CICIDS2018-v3",
 ]
 
 

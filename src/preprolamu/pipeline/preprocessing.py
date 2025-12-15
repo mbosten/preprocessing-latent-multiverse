@@ -141,40 +141,6 @@ def transform_with_scaler(df: pd.DataFrame, scaler, numeric_cols) -> pd.DataFram
     return df_scaled
 
 
-# def apply_scaling(df: pd.DataFrame, universe: Universe, ds_cfg) -> pd.DataFrame:
-
-#     # numeric features = numeric cols except label
-#     numeric_cols = [
-#         c
-#         for c in df.select_dtypes(include="number").columns
-#         if c != ds_cfg.label_column
-#     ]
-
-#     if not numeric_cols:
-#         return df
-
-#     if universe.scaling == Scaling.ZSCORE:
-#         scaler = StandardScaler()
-#     elif universe.scaling == Scaling.MINMAX:
-#         scaler = MinMaxScaler()
-#     elif universe.scaling == Scaling.ROBUST:
-#         scaler = RobustScaler()
-#     elif universe.scaling == Scaling.QUANTILE:
-#         scaler = QuantileTransformer(output_distribution="normal")
-#     else:
-#         raise ValueError(f"Unknown scaling: {universe.scaling}")
-
-#     logger.debug(
-#         "Applying %s scaling to %d numeric columns.",
-#         universe.scaling.value,
-#         len(numeric_cols),
-#     )
-
-#     df_scaled = df.copy()
-#     df_scaled[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-#     return df_scaled
-
-
 def fit_cat_encoder(df_train: pd.DataFrame, universe: Universe, ds_cfg):
     cat_cols = [
         c
@@ -221,39 +187,6 @@ def transform_with_cat_encoder(
         df_encoded[cat_cols] = encoder.transform(df[cat_cols])
         return df_encoded
     raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
-
-
-# def apply_cat_encoding(df: pd.DataFrame, universe: Universe, ds_cfg) -> pd.DataFrame:
-#     # Categorical columns = non-numeric, excluding Label
-#     cat_cols = [
-#         c
-#         for c in df.select_dtypes(exclude="number").columns
-#         if c != ds_cfg.label_column
-#     ]
-
-#     if not cat_cols or universe.cat_encoding is None:
-#         return df
-
-#     logger.debug(
-#         "Applying %s encoding to categorical columns: %s",
-#         universe.cat_encoding.value,
-#         list(cat_cols),
-#     )
-
-#     if universe.cat_encoding == CatEncoding.ONEHOT:
-#         return pd.get_dummies(df, columns=cat_cols, drop_first=False)
-
-#     if universe.cat_encoding == CatEncoding.LABEL:
-
-#         df_encoded = df.copy()
-#         enc = OrdinalEncoder(
-#             handle_unknown="use_encoded_value",
-#             unknown_value=-1,
-#         )
-#         df_encoded[cat_cols] = enc.fit_transform(df[cat_cols])
-#         return df_encoded
-
-#     raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
 
 
 # Orchestrator function to call in cli.py

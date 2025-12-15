@@ -73,6 +73,6 @@ def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> Non
 
     root_logger._acb_logging_configured = True
     root_logger.debug(
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 🧪 NEW RUN STARTED 🧪 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        "------------------------------------------ & NEW RUN STARTED & ------------------------------------------"
     )
     root_logger.debug(f"Logging configured. Log file: {log_file}")

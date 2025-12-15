@@ -115,7 +115,7 @@ def get_feature_matrix_from_universe(universe: Universe):
     df = pd.read_parquet(preprocessed_train_path)
 
     X = _get_feature_matrix_for_ae(df, ds_cfg)
-    return X
+    return X, ds_cfg
 
 
 def train_autoencoder_for_universe(universe: Universe) -> Path:
@@ -125,7 +125,9 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
     """
     logger.info(f"[AE] Training autoencoder for universe = {universe.to_id_string()}")
 
-    X = get_feature_matrix_from_universe(universe)
+    X, ds_cfg = get_feature_matrix_from_universe(universe)
+
+    ae_cfg = ds_cfg.autoencoder
 
     input_dim = X.shape[1]
 
@@ -133,35 +135,35 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
 
     model = Autoencoder(
         input_dim=input_dim,
-        hidden_dims=universe.ae_hidden_dims,
-        latent_dim=universe.ae_latent_dim,
-        dropout=universe.ae_dropout,
+        hidden_dims=ae_cfg.hidden_dims,
+        latent_dim=ae_cfg.latent_dim,
+        dropout=ae_cfg.dropout,
     ).to(device)
 
     tensor_X = torch.from_numpy(X)
     dataset = TensorDataset(tensor_X)
     loader = DataLoader(
-        dataset, batch_size=universe.ae_batch_size, shuffle=True, drop_last=False
+        dataset, batch_size=ae_cfg.batch_size, shuffle=True, drop_last=False
     )
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(
-        model.parameters(), lr=1e-3, weight_decay=universe.ae_regularization
+        model.parameters(), lr=1e-3, weight_decay=ae_cfg.regularization
     )
 
     logger.info(
-        "[AE] Starting training: epochs=%d, batch_size=%d, input_dim=%d, latent_dim=%d, hidden_dims=%s, dropout=%.4f, weight_decay=%.6f",
-        universe.ae_epochs,
-        universe.ae_batch_size,
+        "[AE] Starting training: epochs=%d, batch_size=%d, input_dim=%d, latent_dim=%d, hidden_dims=%s, dropout=%.4f, regularization=%.6f",
+        ae_cfg.epochs,
+        ae_cfg.batch_size,
         input_dim,
-        universe.ae_latent_dim,
-        universe.ae_hidden_dims,
-        universe.ae_dropout,
-        universe.ae_regularization,
+        ae_cfg.latent_dim,
+        ae_cfg.hidden_dims,
+        ae_cfg.dropout,
+        ae_cfg.regularization,
     )
 
     model.train()
-    for epoch in range(1, universe.ae_epochs + 1):
+    for epoch in range(1, ae_cfg.epochs + 1):
         epoch_loss = 0.0
         n_batches = 0
         for (batch_X,) in loader:
@@ -176,17 +178,17 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
             n_batches += 1
 
         avg_loss = epoch_loss / max(n_batches, 1)
-        logger.info(f"[AE] Epoch {epoch}/{universe.ae_epochs}, Loss: {avg_loss:.6f}")
+        logger.info(f"[AE] Epoch {epoch}/{ae_cfg.epochs}, Loss: {avg_loss:.6f}")
 
     model_path = get_ae_model_path(universe)
     ensure_parent_dir(model_path)
 
     checkpoint = {
         "input_dim": input_dim,
-        "hidden_dims": list(universe.ae_hidden_dims),
-        "latent_dim": universe.ae_latent_dim,
-        "dropout": universe.ae_dropout,
-        "ae_regularization": universe.ae_regularization,
+        "hidden_dims": list(ae_cfg.hidden_dims),
+        "latent_dim": ae_cfg.latent_dim,
+        "dropout": ae_cfg.dropout,
+        "ae_regularization": ae_cfg.regularization,
         "model_state_dict": model.state_dict(),
         "universe_id": universe.to_id_string(),
     }
@@ -196,7 +198,9 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
     return model_path
 
 
-def load_autoencoder_for_universe(universe: Universe) -> Autoencoder:
+def load_autoencoder_for_universe(
+    universe: Universe, ds_cfg: DatasetConfig
+) -> Autoencoder:
     """
     Load the trained autoencoder model for this universe from its checkpoint.
     """
@@ -205,11 +209,12 @@ def load_autoencoder_for_universe(universe: Universe) -> Autoencoder:
         raise FileNotFoundError(
             f"Autoencoder model checkpoint not found at {model_path}"
         )
+    ae_cfg = ds_cfg.autoencoder
     checkpoint = torch.load(model_path, map_location=_get_device())
     input_dim = int(checkpoint["input_dim"])
     hidden_dims = tuple(int(h) for h in checkpoint["hidden_dims"])
     latent_dim = int(checkpoint["latent_dim"])
-    dropout = float(checkpoint.get("dropout", universe.ae_dropout))
+    dropout = float(checkpoint.get("dropout", ae_cfg.dropout))
 
     model = Autoencoder(
         input_dim=input_dim,

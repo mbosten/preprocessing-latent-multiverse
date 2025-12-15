@@ -49,3 +49,11 @@ label_classes:
   - "SQLINJECTION"
   - "XSS"
   - "BACKDOOR_MALWARE"
+
+autoencoder:
+  latent_dim: 25
+  hidden_dims: [44, 39]
+  epochs: 10
+  batch_size: 256
+  dropout: 0.0377
+  regularization: 0.0019

@@ -70,11 +70,11 @@ def from_latent_to_point_cloud(
 def compute_embeddings_for_universe(universe: Universe):
     logger.info(f"[EMB] Computing embeddings for universe={universe.to_id_string()}")
 
-    X = get_feature_matrix_from_universe(universe)
+    X, ds_cfg = get_feature_matrix_from_universe(universe)
 
     # Load AE model
     logger.debug("[EMB] Loading autoencoder model.")
-    model = load_autoencoder_for_universe(universe)
+    model = load_autoencoder_for_universe(universe, ds_cfg)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     model.eval()

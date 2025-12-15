@@ -19,6 +19,16 @@ app = typer.Typer()
 
 
 @dataclass
+class AutoencoderConfig:
+    latent_dim: int
+    hidden_dims: tuple[int, ...]
+    epochs: int
+    batch_size: int
+    dropout: float
+    regularization: float
+
+
+@dataclass
 class DatasetConfig:
     dataset_id: str
     raw_path: Path
@@ -27,6 +37,7 @@ class DatasetConfig:
     label_column: Optional[str] = None
     benign_label: Optional[str] = None
     label_classes: Optional[List[str]] = None
+    autoencoder: AutoencoderConfig = AutoencoderConfig
 
     @property
     def output_path(self) -> Path:
@@ -66,6 +77,18 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
     with config_path.open("r", encoding="utf-8") as f:
         raw_cfg: Dict[str, Any] = yaml.safe_load(f)
 
+    ae_raw = raw_cfg.get("autoencoder", {}) or {}
+
+    # Default to Ton-IoT-v3 AE config if not specified
+    ae_cfg = AutoencoderConfig(
+        latent_dim=ae_raw.get("latent_dim", 12),
+        hidden_dims=tuple(ae_raw.get("hidden_dims", (26,))),
+        epochs=ae_raw.get("epochs", 10),
+        batch_size=ae_raw.get("batch_size", 256),
+        dropout=ae_raw.get("dropout", 0.0377),
+        regularization=ae_raw.get("regularization", 0.0019),
+    )
+
     cfg = DatasetConfig(
         dataset_id=raw_cfg.get("dataset_id", dataset_id),
         raw_path=Path(raw_cfg["raw_path"]),
@@ -74,6 +97,7 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
         label_column=raw_cfg.get("label_column"),
         benign_label=raw_cfg.get("benign_label"),
         label_classes=list(raw_cfg.get("label_classes", [])) or None,
+        autoencoder=ae_cfg,
     )
     return cfg
 

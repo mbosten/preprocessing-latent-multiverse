@@ -1,0 +1,38 @@
+daaset_id: NF-CICIDS2018-v3
+
+raw_path: "data/raw/NF-CICIDS2018-v3.csv"
+
+non_numerical_columns:
+  - "IPV4_SRC_ADDR"
+  - "IPV4_DST_ADDR"
+
+features_to_exclude:
+
+label_column: "Attack"
+
+benign_label: "Benign"
+
+label_classes:
+  - "Benign"
+  - "DDOS attack-HOIC"
+  - "DoS attacks-Hulk"
+  - "DDoS attacks-LOIC-HTTP"
+  - "Infilteration"
+  - "SSH-Bruteforce"
+  - "Bot"
+  - "DoS attacks-GoldenEye"
+  - "FTP-BruteForce"
+  - "DoS attacks-SlowHTTPTest"
+  - "DoS attacks-Slowloris"
+  - "Brute Force -Web"
+  - "DDOS attack-LOIC-UDP"
+  - "Brute Force -XSS"
+  - "SQL Injection"
+
+autoencoder:
+  latent_dim: 28
+  hidden_dims: [29, 28]
+  epochs: 10
+  batch_size: 128
+  dropout: 0.1097
+  regularization: 0.0240

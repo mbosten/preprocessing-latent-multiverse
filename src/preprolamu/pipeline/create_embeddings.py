@@ -46,10 +46,10 @@ def get_or_compute_latent(
         train_autoencoder_for_universe(universe)
 
     # 2. Feature matrix
-    X = get_feature_matrix_from_universe(universe)
+    X, ds_cfg = get_feature_matrix_from_universe(universe)
 
     # 4. Encode with previously trained AE
-    model = load_autoencoder_for_universe(universe)
+    model = load_autoencoder_for_universe(universe, ds_cfg)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     model.eval()

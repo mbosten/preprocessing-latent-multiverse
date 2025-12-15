@@ -83,7 +83,7 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
         return df
 
     if universe.to_id_string().startswith(
-        "ds-NF-ToN-IoT-v3"
+        ("ds-NF-ToN-IoT-v3", "ds-NF-UNSW-NB15-v3", "df-NF-CICIDS2018-v3")
     ):  # These are NF-ToN-IoT-v3 specific
         special_features = [
             "IPV4_SRC_ADDR",

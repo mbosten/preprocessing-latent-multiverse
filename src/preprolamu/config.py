@@ -177,47 +177,6 @@ def apply_one_time_categorical_encoding(
     return df_out
 
 
-# THis function is likely redundant due to categorical encoding above.
-def apply_dtypes(df: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
-    """
-    Convert columns listed in non_numerical_columns to pandas string dtype.
-    Leave all other columns unchanged, and log which columns actually changed dtype.
-    """
-    df_out = df.copy()
-
-    # Record original dtypes
-    original_dtypes = df_out.dtypes.to_dict()
-
-    changed_cols: list[str] = []
-    non_num_cols = cfg.non_numerical_columns
-
-    for col in non_num_cols:
-        if col not in df_out.columns:
-            logger.warning(
-                "[PREP] non-numerical column '%s' listed in config but not found in dataset.",
-                col,
-            )
-            continue
-
-        old_dtype = original_dtypes.get(col)
-        df_out[col] = df_out[col].astype("string")
-        new_dtype = df_out[col].dtype
-
-        if new_dtype != old_dtype:
-            changed_cols.append(f"{col}: {old_dtype} -> {new_dtype}")
-
-    if changed_cols:
-        logger.info(
-            "[PREP] Changed dtypes for %d non-numerical columns: %s",
-            len(changed_cols),
-            ", ".join(changed_cols),
-        )
-    else:
-        logger.info("[PREP] No dtype changes were applied to non-numerical columns.")
-
-    return df_out
-
-
 # Fastai function copied from https://github.com/fastai/fastai/blob/main/fastai/tabular/core.py#L99 to avoid installing the whole library
 def df_shrink_dtypes(df, skip=[], obj2cat=True, int2uint=False):
     "Return any possible smaller data types for DataFrame columns. Allows `object`->`category`, `int`->`uint`, and exclusion."
@@ -278,91 +237,6 @@ def df_shrink(df, skip=[], obj2cat=True, int2uint=False):
     return df.astype(dt)
 
 
-def apply_remove_infinite(df: pd.DataFrame) -> pd.DataFrame:
-
-    df_out = df.copy()
-
-    # Work only on numeric columns
-    num_cols = df_out.select_dtypes(include=[np.number]).columns
-    if not len(num_cols):
-        logger.info("[PREP] No numeric columns found; skipping infinity check.")
-        return df_out
-
-    # Build mask of inf/-inf
-    inf_mask = np.isinf(df_out[num_cols])
-    total_inf = int(inf_mask.values.sum())
-
-    if total_inf == 0:
-        logger.info("[PREP] No +/- infinity values found in numeric columns.")
-        return df_out
-
-    # Log per-column counts
-    col_counts = inf_mask.sum()
-    detailed_counts = ", ".join(
-        f"{col}: {int(cnt)}" for col, cnt in col_counts.items() if cnt > 0
-    )
-
-    logger.info(
-        "[PREP] Found %d +/- infinity values in numeric columns. Breakdown: %s",
-        total_inf,
-        detailed_counts,
-    )
-
-    # Replace infinities with NaN, only in numeric cols
-    df_out[num_cols] = df_out[num_cols].replace([np.inf, -np.inf], np.nan)
-
-    return df_out
-
-
-def apply_remove_nans(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Remove rows containing NaN values.
-    Logs total NaN count and per-column NaN counts before removal.
-    """
-    df_out = df.copy()
-
-    # Count NaNs per column
-    nan_counts = df_out.isna().sum()
-    total_nans = int(nan_counts.sum())
-
-    if total_nans == 0:
-        logger.info("[PREP] No NaN values found in dataset.")
-        return df_out
-
-    # Build detailed log string
-    detailed_counts = ", ".join(
-        f"{col}: {int(cnt)}" for col, cnt in nan_counts.items() if cnt > 0
-    )
-
-    logger.info(
-        "[PREP] Found %d NaN values across %d columns. Breakdown: %s",
-        total_nans,
-        (nan_counts > 0).sum(),
-        detailed_counts,
-    )
-
-    # Drop rows with any NaN
-    before = df_out.shape[0]
-    df_out = df_out.dropna()
-    after = df_out.shape[0]
-
-    logger.info(
-        "[PREP] Dropped %d rows containing NaN values. New shape: %s",
-        before - after,
-        df_out.shape,
-    )
-
-    return df_out
-
-
-def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-    logger.info("[PREP] Removing duplicate rows from dataset with shape %s.", df.shape)
-    df.drop_duplicates(inplace=True)
-    df.reset_index(drop=True, inplace=True)
-    logger.info("[PREP] Removed duplicates. New shape: %s", df.shape)
-    return df
-
-
 def save_clean_dataset(df: pd.DataFrame, cfg: DatasetConfig) -> None:
     out_path = cfg.output_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -379,12 +253,7 @@ def prepare_dataset(dataset_id: str) -> None:
     df = load_raw_source(cfg)
     df = df_shrink(df, obj2cat=False, int2uint=False)
     df = apply_drop_columns(df, cfg)
-    # df = apply_dtypes(df, cfg)
     df = apply_one_time_categorical_encoding(df, cfg)
-    # Functions below will be incorporated into the multiverse pipeline
-    # df = apply_remove_infinite(df)
-    # df = apply_remove_nans(df)
-    # df = remove_duplicates(df)
 
     save_clean_dataset(df, cfg)
 

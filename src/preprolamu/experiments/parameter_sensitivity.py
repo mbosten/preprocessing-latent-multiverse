@@ -57,7 +57,7 @@ def main(
     level = logging.DEBUG if verbose else logging.INFO
     setup_logging(log_dir=Path("logs"), level=level)
     logger = logging.getLogger(__name__)
-    logger.debug("CLI started with verbose=%s", verbose)
+    logger.info("CLI started with verbose=%s", verbose)
 
 
 # ----------------- Helpers: embeddings + TDA ----------------- #

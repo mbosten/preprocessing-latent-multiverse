@@ -61,7 +61,7 @@ def main(
     level = logging.DEBUG if verbose else logging.INFO
     setup_logging(log_dir=Path("logs"), level=level)
     logger = logging.getLogger(__name__)
-    logger.debug("CLI started with verbose=%s", verbose)
+    logger.info("CLI started with verbose=%s", verbose)
 
 
 def load_dataset_config(dataset_id: str) -> DatasetConfig:
@@ -117,11 +117,11 @@ def load_raw_source(cfg: DatasetConfig) -> pd.DataFrame:
         # df = pd.read_csv(path)
         pl.Config.set_verbose(True)
         with pl.Config(verbose=True):
-            logger.debug("[PREP] Scanning csv with Polars")
+            logger.info("[PREP] Scanning csv with Polars")
             lf = pl.scan_csv(path)
-            logger.debug("[PREP] Collecting LazyFrame")
+            logger.info("[PREP] Collecting LazyFrame")
             df_polars = lf.collect()
-            logger.debug("[PREP] Converting Polars to Pandas")
+            logger.info("[PREP] Converting Polars to Pandas")
             df = df_polars.to_pandas()
     elif path.suffix.lower() == ".parquet":
         df = pd.read_parquet(path)

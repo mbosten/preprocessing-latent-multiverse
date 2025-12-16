@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 
 def mask_infinities(array: np.ndarray) -> np.ndarray:
-    logger.debug(f"Masking infinities in array with shape {array.shape}")
+    logger.info(f"Masking infinities in array with shape {array.shape}")
     masked = array[array[:, 1] < np.inf]
-    logger.debug(f"Resulting masked array shape: {masked.shape}")
+    logger.info(f"Resulting masked array shape: {masked.shape}")
     return masked
 
 
@@ -41,5 +41,5 @@ def compute_alpha_complex_persistence(
     per_dim: dict[int, np.ndarray] = {}
     for dim in homology_dimensions:
         per_dim[dim] = mask_infinities(st.persistence_intervals_in_dimension(dim))
-        logger.debug(f"Dim {dim}: {per_dim[dim].shape[0]} intervals after masking")
+        logger.info(f"Dim {dim}: {per_dim[dim].shape[0]} intervals after masking")
     return per_dim

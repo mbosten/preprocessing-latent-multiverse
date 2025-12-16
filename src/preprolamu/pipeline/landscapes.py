@@ -40,7 +40,7 @@ def compute_landscapes(
             continue
 
         landscapes_per_dimension[dim] = LS.fit_transform([persistence_pairs])
-        logger.debug(
+        logger.info(
             f"Dim {dim}: landscapes shape {landscapes_per_dimension[dim].shape}"
         )
 

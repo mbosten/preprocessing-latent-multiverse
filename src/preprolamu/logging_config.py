@@ -72,7 +72,7 @@ def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> Non
     root_logger.addHandler(file_handler)
 
     root_logger._acb_logging_configured = True
-    root_logger.debug(
+    root_logger.info(
         "------------------------------------------ & NEW RUN STARTED & ------------------------------------------"
     )
-    root_logger.debug(f"Logging configured. Log file: {log_file}")
+    root_logger.info(f"Logging configured. Log file: {log_file}")

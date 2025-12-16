@@ -234,35 +234,35 @@ def load_tda_output_for_universe(
 
 def save_numpy_array(path: Path, array: np.ndarray) -> None:
     ensure_parent_dir(path)
-    logger.debug(f"Saving numpy array with shape {array.shape} to {path}")
+    logger.info(f"Saving numpy array with shape {array.shape} to {path}")
     np.save(path, array)
 
 
 def load_numpy_array(path: Path) -> np.ndarray:
-    logger.debug(f"Loading numpy array from {path}")
+    logger.info(f"Loading numpy array from {path}")
     return np.load(path)
 
 
 def save_tda_npz(path: Path, **arrays: np.ndarray) -> None:
     ensure_parent_dir(path)
-    logger.debug(f"Saving TDA npz to {path} with keys {list(arrays.keys())}")
+    logger.info(f"Saving TDA npz to {path} with keys {list(arrays.keys())}")
     np.savez(path, **arrays)
 
 
 def load_tda_npz(path: Path) -> Dict[str, np.ndarray]:
-    logger.debug(f"Loading TDA npz from {path}")
+    logger.info(f"Loading TDA npz from {path}")
     with np.load(path) as data:
         return {k: data[k] for k in data.files}
 
 
 def save_json(path: Path, payload: Dict[str, Any]) -> None:
     ensure_parent_dir(path)
-    logger.debug(f"Saving JSON to {path}")
+    logger.info(f"Saving JSON to {path}")
     with path.open("w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
 
 
 def load_json(path: Path) -> Dict[str, Any]:
-    logger.debug(f"Loading JSON from {path}")
+    logger.info(f"Loading JSON from {path}")
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)

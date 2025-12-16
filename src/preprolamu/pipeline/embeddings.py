@@ -73,7 +73,7 @@ def compute_embeddings_for_universe(universe: Universe):
     X, ds_cfg = get_feature_matrix_from_universe(universe)
 
     # Load AE model
-    logger.debug("[EMB] Loading autoencoder model.")
+    logger.info("[EMB] Loading autoencoder model.")
     model = load_autoencoder_for_universe(universe, ds_cfg)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)

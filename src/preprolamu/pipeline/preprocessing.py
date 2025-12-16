@@ -44,7 +44,7 @@ def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
     logger.info("Loading full cleaned dataset from %s", path)
     df = pd.read_parquet(path)
     logger.info("Loaded %d rows x %d columns.", *df.shape)
-    logger.debug("Column dtypes: %s", dict(df.dtypes))
+    logger.info("Column dtypes: %s", dict(df.dtypes))
     return df
 
 
@@ -108,7 +108,7 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
         raise ValueError(
             f"Unknown universe for feature subseting: {universe.to_id_string()}"
         )
-    logger.debug(f"Dropping special features: {special_features}")
+    logger.info(f"Dropping special features: {special_features}")
     return df.drop(columns=[c for c in special_features if c in df.columns])
 
 
@@ -218,7 +218,7 @@ def fit_scaler(df_train: pd.DataFrame, universe: Universe, ds_cfg):
     else:
         raise ValueError(f"Unknown scaling: {universe.scaling}")
 
-    logger.debug(
+    logger.info(
         "Applying %s scaling to %d numeric columns.",
         universe.scaling.value,
         len(numeric_cols),
@@ -266,7 +266,7 @@ def transform_with_scaler(df: pd.DataFrame, scaler, numeric_cols) -> pd.DataFram
 
 #     df_encoded = df.copy()
 
-#     logger.debug(
+#     logger.info(
 #         "Applying %s encoding to categorical columns: %s",
 #         universe.cat_encoding.value,
 #         list(cat_cols),

@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import typer
 
@@ -23,9 +23,14 @@ class FeatureSubset(str, Enum):
     WITHOUT_CONFOUNDERS = "without_confounders"
 
 
-class CatEncoding(str, Enum):
-    ONEHOT = "one_hot"
-    LABEL = "label"
+class DuplicateHandling(str, Enum):
+    DROP = "drop"
+    KEEP = "keep"
+
+
+class Missingness(str, Enum):
+    DROP_ROWS = "drop_rows"
+    IMPUTE_MEDIAN = "impute_median"
 
 
 @dataclass(frozen=True)
@@ -48,7 +53,8 @@ class Universe:
     # Preprocessing choices
     scaling: Scaling
     feature_subset: FeatureSubset
-    cat_encoding: Optional[CatEncoding]
+    duplicate_handling: DuplicateHandling
+    missingness: Missingness
     seed: int
 
     # Will be overridden by PCA dims below.
@@ -61,22 +67,21 @@ class Universe:
         """
         Short string encoding for filenames/logs.
         """
-        ce_val = self.cat_encoding.value if self.cat_encoding is not None else "none"
         return (
             f"ds-{self.dataset_id}"
             f"_sc-{self.scaling.value}"
             f"_fs-{self.feature_subset.value}"
-            f"_ce-{ce_val}"
+            f"_dup-{self.duplicate_handling.value}"
+            f"_miss-{self.missingness.value}"
             f"_sd-{self.seed}"
-            f"_pca-{self.pca_dim}"
         )
 
 
 DATASET_IDS: List[str] = [
-    # "Merged35",
-    "NF-ToN-IoT-v3",
-    "NF-UNSW-NB15-v3",
-    "NF-CICIDS2018-v3",
+    "Merged35",
+    # "NF-ToN-IoT-v3",
+    # "NF-UNSW-NB15-v3",
+    # "NF-CICIDS2018-v3",
 ]
 
 
@@ -86,32 +91,26 @@ def generate_multiverse() -> List[Universe]:
     """
     scalings = [Scaling.ZSCORE, Scaling.MINMAX, Scaling.ROBUST, Scaling.QUANTILE]
     feature_subsets = [FeatureSubset.ALL, FeatureSubset.WITHOUT_CONFOUNDERS]
-    cat_encodings = [CatEncoding.ONEHOT, CatEncoding.LABEL]
+    duplicate_opts = [DuplicateHandling.KEEP, DuplicateHandling.DROP]
+    missingness_opts = [Missingness.DROP_ROWS, Missingness.IMPUTE_MEDIAN]
     seeds = [42, 420, 4200]
-    pca_dims = (2, 3, 4)
 
     universes: List[Universe] = []
 
     for ds_id in DATASET_IDS:
         for sc in scalings:
             for fs in feature_subsets:
-                # Without confounders there are no categorical features
-                if fs == FeatureSubset.WITHOUT_CONFOUNDERS:
-                    relevant_cat_encodings = [None]
-                else:
-                    relevant_cat_encodings = list(cat_encodings)
-
-                for ce in relevant_cat_encodings:
-                    for sd in seeds:
-                        for pca_dim in pca_dims:
+                for dup in duplicate_opts:
+                    for miss in missingness_opts:
+                        for sd in seeds:
                             universes.append(
                                 Universe(
                                     dataset_id=ds_id,
                                     scaling=sc,
                                     feature_subset=fs,
-                                    cat_encoding=ce,
+                                    duplicate_handling=dup,
+                                    missingness=miss,
                                     seed=sd,
-                                    pca_dim=pca_dim,
                                 )
                             )
     return universes

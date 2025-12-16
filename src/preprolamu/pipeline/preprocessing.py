@@ -6,11 +6,11 @@ import logging
 from pathlib import Path
 from typing import Tuple
 
+import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import (
     MinMaxScaler,
-    OrdinalEncoder,
     QuantileTransformer,
     RobustScaler,
     StandardScaler,
@@ -24,7 +24,13 @@ from preprolamu.io.storage import (
     get_preprocessed_train_path,
     get_preprocessing_status_path,
 )
-from preprolamu.pipeline.universes import CatEncoding, FeatureSubset, Scaling, Universe
+from preprolamu.pipeline.universes import (
+    DuplicateHandling,
+    FeatureSubset,
+    Missingness,
+    Scaling,
+    Universe,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +112,90 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     return df.drop(columns=[c for c in special_features if c in df.columns])
 
 
+def apply_duplicate_handling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
+    if universe.duplicate_handling == DuplicateHandling.KEEP:
+        return df
+
+    before = len(df)
+    df_nodup = df.drop_duplicates()
+    after = len(df_nodup)
+    logger.info(
+        "Dropped %d duplicate rows for universe %s",
+        before - after,
+        universe.to_id_string(),
+    )
+    return df_nodup
+
+
+def apply_missingness(
+    df_train: pd.DataFrame,
+    df_test: pd.DataFrame,
+    universe: Universe,
+    ds_cfg,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    label_col = ds_cfg.label_column
+
+    # Numeric columns only
+    numeric_cols = [
+        c for c in df_train.select_dtypes(include="number").columns if c != label_col
+    ]
+
+    if not numeric_cols:
+        logger.info("[PREP] No numeric columns found for missingness handling.")
+        return df_train, df_test
+
+    # ---- Replace infinities with NaN ----
+    df_train = df_train.copy()
+    df_test = df_test.copy()
+
+    df_train[numeric_cols] = df_train[numeric_cols].replace([np.inf, -np.inf], np.nan)
+    df_test[numeric_cols] = df_test[numeric_cols].replace([np.inf, -np.inf], np.nan)
+
+    # Count missing
+    missing_train_before = df_train[numeric_cols].isna().sum().sum()
+    missing_test_before = df_test[numeric_cols].isna().sum().sum()
+
+    logger.info(
+        "[PREP] Missingness before handling: train=%d, test=%d",
+        missing_train_before,
+        missing_test_before,
+    )
+
+    # ---- DROP ROWS ----
+    if universe.missingness == Missingness.DROP_ROWS:
+        before_train = len(df_train)
+        before_test = len(df_test)
+
+        df_train = df_train.dropna(subset=numeric_cols).reset_index(drop=True)
+        df_test = df_test.dropna(subset=numeric_cols).reset_index(drop=True)
+
+        logger.info(
+            "[PREP] Missingness DROP_ROWS: train %d→%d, test %d→%d",
+            before_train,
+            len(df_train),
+            before_test,
+            len(df_test),
+        )
+
+        return df_train, df_test
+
+    # ---- IMPUTE MEDIAN based on training data only ----
+    if universe.missingness == Missingness.IMPUTE_MEDIAN:
+        medians = df_train[numeric_cols].median()
+
+        df_train[numeric_cols] = df_train[numeric_cols].fillna(medians)
+        df_test[numeric_cols] = df_test[numeric_cols].fillna(medians)
+
+        logger.info(
+            "[PREP] Missingness IMPUTE_MEDIAN: filled missing values in %d numeric cols.",
+            len(numeric_cols),
+        )
+
+        return df_train, df_test
+
+    raise ValueError(f"Unknown missingness setting: {universe.missingness}")
+
+
 def fit_scaler(df_train: pd.DataFrame, universe: Universe, ds_cfg):
     # numeric features = numeric cols except label
     numeric_cols = [
@@ -144,52 +234,52 @@ def transform_with_scaler(df: pd.DataFrame, scaler, numeric_cols) -> pd.DataFram
     return df_scaled
 
 
-def fit_cat_encoder(df_train: pd.DataFrame, universe: Universe, ds_cfg):
-    cat_cols = [
-        c
-        for c in df_train.select_dtypes(exclude="number").columns
-        if c != ds_cfg.label_column
-    ]
+# def fit_cat_encoder(df_train: pd.DataFrame, universe: Universe, ds_cfg):
+#     cat_cols = [
+#         c
+#         for c in df_train.select_dtypes(exclude="number").columns
+#         if c != ds_cfg.label_column
+#     ]
 
-    if not cat_cols or universe.cat_encoding is None:
-        return None, []
+#     if not cat_cols or universe.cat_encoding is None:
+#         return None, []
 
-    if universe.cat_encoding == CatEncoding.ONEHOT:
-        return None, cat_cols
+#     if universe.cat_encoding == CatEncoding.ONEHOT:
+#         return None, cat_cols
 
-    if universe.cat_encoding == CatEncoding.LABEL:
-        enc = OrdinalEncoder(
-            handle_unknown="use_encoded_value",
-            unknown_value=-1,
-        )
-        enc.fit(df_train[cat_cols])
-        return enc, cat_cols
+#     if universe.cat_encoding == CatEncoding.LABEL:
+#         enc = OrdinalEncoder(
+#             handle_unknown="use_encoded_value",
+#             unknown_value=-1,
+#         )
+#         enc.fit(df_train[cat_cols])
+#         return enc, cat_cols
 
-    raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
+#     raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
 
 
-def transform_with_cat_encoder(
-    df: pd.DataFrame, universe: Universe, encoder, cat_cols
-) -> pd.DataFrame:
-    if universe.cat_encoding is None or not cat_cols:
-        return df
+# def transform_with_cat_encoder(
+#     df: pd.DataFrame, universe: Universe, encoder, cat_cols
+# ) -> pd.DataFrame:
+#     if universe.cat_encoding is None or not cat_cols:
+#         return df
 
-    df_encoded = df.copy()
+#     df_encoded = df.copy()
 
-    logger.debug(
-        "Applying %s encoding to categorical columns: %s",
-        universe.cat_encoding.value,
-        list(cat_cols),
-    )
+#     logger.debug(
+#         "Applying %s encoding to categorical columns: %s",
+#         universe.cat_encoding.value,
+#         list(cat_cols),
+#     )
 
-    if universe.cat_encoding == CatEncoding.ONEHOT:
-        df_encoded = pd.get_dummies(df_encoded, columns=cat_cols, drop_first=False)
-        return df_encoded
+#     if universe.cat_encoding == CatEncoding.ONEHOT:
+#         df_encoded = pd.get_dummies(df_encoded, columns=cat_cols, drop_first=False)
+#         return df_encoded
 
-    if universe.cat_encoding == CatEncoding.LABEL and encoder is not None:
-        df_encoded[cat_cols] = encoder.transform(df[cat_cols])
-        return df_encoded
-    raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
+#     if universe.cat_encoding == CatEncoding.LABEL and encoder is not None:
+#         df_encoded[cat_cols] = encoder.transform(df[cat_cols])
+#         return df_encoded
+#     raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
 
 
 # Orchestrator function to call in cli.py
@@ -233,6 +323,7 @@ def preprocess_variant(
         df = load_raw_dataset(universe.dataset_id)
         ds_cfg = load_dataset_config(universe.dataset_id)
         df = apply_feature_subset(df, universe)
+        df = apply_duplicate_handling(df, universe)
         df_train, df_test = split_train_test(
             df,
             label_col=ds_cfg.label_column,
@@ -244,14 +335,22 @@ def preprocess_variant(
         df = None  # free memory, just to be sure
         gc.collect()
 
+        # Remove or impute missing values (e.g., NaN, inf)
+        df_train, df_test = apply_missingness(
+            df_train,
+            df_test,
+            universe,
+            ds_cfg,
+        )
+
         scaler, numeric_cols = fit_scaler(df_train, universe, ds_cfg)
-        encoder, cat_cols = fit_cat_encoder(df_train, universe, ds_cfg)
+        # encoder, cat_cols = fit_cat_encoder(df_train, universe, ds_cfg)
 
         df_train = transform_with_scaler(df_train, scaler, numeric_cols)
-        df_train = transform_with_cat_encoder(df_train, universe, encoder, cat_cols)
+        # df_train = transform_with_cat_encoder(df_train, universe, encoder, cat_cols)
 
         df_test = transform_with_scaler(df_test, scaler, numeric_cols)
-        df_test = transform_with_cat_encoder(df_test, universe, encoder, cat_cols)
+        # df_test = transform_with_cat_encoder(df_test, universe, encoder, cat_cols)
 
         ensure_parent_dir(path_train)
         ensure_parent_dir(path_test)

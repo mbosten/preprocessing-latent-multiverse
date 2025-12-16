@@ -139,6 +139,44 @@ def apply_drop_columns(df: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
     return df
 
 
+def apply_one_time_categorical_encoding(
+    df: pd.DataFrame, cfg: DatasetConfig
+) -> pd.DataFrame:
+    df_out = df.copy()
+
+    label_col = cfg.label_column
+    non_num_cols = cfg.non_numerical_columns or []
+
+    cols_to_encode: list[str] = [
+        c for c in non_num_cols if c in df_out.columns and c != label_col
+    ]
+
+    if not cols_to_encode:
+        logger.info("[PREP] No categorical columns to encode in one-time setup.")
+        return df_out
+
+    changed: list[str] = []
+
+    for col in cols_to_encode:
+        old_dtype = df_out[col].dtype
+
+        df_out[col] = df_out[col].astype("category")
+        codes = df_out[col].cat.codes  # int64 by default
+        logger.info("[PREP] Category codes range %s-%s", codes.min(), codes.max())
+        df_out[col] = codes.astype("int32")
+
+        new_dtype = df_out[col].dtype
+        changed.append(f"{col}: {old_dtype} -> {new_dtype}")
+
+    logger.info(
+        "[PREP] One-time categorical encoding applied to %d columns: %s",
+        len(changed),
+        ", ".join(changed),
+    )
+
+    return df_out
+
+
 def apply_dtypes(df: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
     """
     Convert columns listed in non_numerical_columns to pandas string dtype.
@@ -341,6 +379,8 @@ def prepare_dataset(dataset_id: str) -> None:
     df = df_shrink(df, obj2cat=False, int2uint=False)
     df = apply_drop_columns(df, cfg)
     df = apply_dtypes(df, cfg)
+    df = apply_one_time_categorical_encoding(df, cfg)
+    # Functions below will be incorporated into the multiverse pipeline
     df = apply_remove_infinite(df)
     df = apply_remove_nans(df)
     df = remove_duplicates(df)

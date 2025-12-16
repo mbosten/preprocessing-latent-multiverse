@@ -4,6 +4,7 @@ from __future__ import annotations
 import gc
 import logging
 from pathlib import Path
+from typing import Tuple
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -191,12 +192,27 @@ def transform_with_cat_encoder(
 
 
 # Orchestrator function to call in cli.py
-def preprocess_variant(universe: Universe) -> Path:
+def preprocess_variant(
+    universe: Universe, overwrite: bool = False
+) -> Tuple[Path, Path]:
     """
     End-to-end preprocessing for one Universe.
     Returns path to preprocessed dataset.
     """
     logger.info(f"Preprocessing dataset for universe={universe.to_id_string()}")
+
+    path_train = get_preprocessed_train_path(universe)
+    path_test = get_preprocessed_test_path(universe)
+
+    if not overwrite and path_train.exists() and path_test.exists():
+        logger.info(
+            "Preprocessed files for %s already exist at %s and %s. Skipping preprocessing.",
+            universe.to_id_string(),
+            path_train,
+            path_test,
+        )
+        return path_train, path_test
+
     df = load_raw_dataset(universe.dataset_id)
     ds_cfg = load_dataset_config(universe.dataset_id)
     df = apply_feature_subset(df, universe)
@@ -219,9 +235,6 @@ def preprocess_variant(universe: Universe) -> Path:
 
     df_test = transform_with_scaler(df_test, scaler, numeric_cols)
     df_test = transform_with_cat_encoder(df_test, universe, encoder, cat_cols)
-
-    path_train = get_preprocessed_train_path(universe)
-    path_test = get_preprocessed_test_path(universe)
 
     ensure_parent_dir(path_train)
     ensure_parent_dir(path_test)

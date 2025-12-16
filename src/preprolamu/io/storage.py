@@ -80,6 +80,15 @@ def get_preprocessed_test_path(universe: Universe) -> Path:
     )
 
 
+def get_preprocessing_status_path(universe: Universe) -> Path:
+    return (
+        BASE_DATA_DIR
+        / "interim"
+        / "preprocessing_status"
+        / f"{universe.to_id_string()}.status"
+    )
+
+
 def get_ae_model_path(universe: Universe) -> Path:
     return (
         BASE_DATA_DIR / "interim" / "autoencoder" / f"{universe.to_id_string()}_ae.pt"

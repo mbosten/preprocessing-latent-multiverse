@@ -22,6 +22,7 @@ from preprolamu.io.storage import (
     get_clean_dataset_path,
     get_preprocessed_test_path,
     get_preprocessed_train_path,
+    get_preprocessing_status_path,
 )
 from preprolamu.pipeline.universes import CatEncoding, FeatureSubset, Scaling, Universe
 
@@ -203,6 +204,7 @@ def preprocess_variant(
 
     path_train = get_preprocessed_train_path(universe)
     path_test = get_preprocessed_test_path(universe)
+    status_path = get_preprocessing_status_path(universe)
 
     if not overwrite and path_train.exists() and path_test.exists():
         logger.info(
@@ -211,41 +213,78 @@ def preprocess_variant(
             path_train,
             path_test,
         )
+
+        if status_path.exists():
+            try:
+                status_path.unlink()
+            except OSError:
+                logger.warning(
+                    "Could not remove existing preprocessing status file at %s",
+                    status_path,
+                    exc_info=True,
+                )
+
         return path_train, path_test
 
-    df = load_raw_dataset(universe.dataset_id)
-    ds_cfg = load_dataset_config(universe.dataset_id)
-    df = apply_feature_subset(df, universe)
-    df_train, df_test = split_train_test(
-        df,
-        label_col=ds_cfg.label_column,
-        benign_label=ds_cfg.benign_label,
-        train_frac=0.7,
-        seed=42,
-    )
+    ensure_parent_dir(status_path)
+    status_path.write_text("IN_PROGRESS\n", encoding="utf-8")
 
-    df = None  # free memory, just to be sure
-    gc.collect()
+    try:
+        df = load_raw_dataset(universe.dataset_id)
+        ds_cfg = load_dataset_config(universe.dataset_id)
+        df = apply_feature_subset(df, universe)
+        df_train, df_test = split_train_test(
+            df,
+            label_col=ds_cfg.label_column,
+            benign_label=ds_cfg.benign_label,
+            train_frac=0.7,
+            seed=42,
+        )
 
-    scaler, numeric_cols = fit_scaler(df_train, universe, ds_cfg)
-    encoder, cat_cols = fit_cat_encoder(df_train, universe, ds_cfg)
+        df = None  # free memory, just to be sure
+        gc.collect()
 
-    df_train = transform_with_scaler(df_train, scaler, numeric_cols)
-    df_train = transform_with_cat_encoder(df_train, universe, encoder, cat_cols)
+        scaler, numeric_cols = fit_scaler(df_train, universe, ds_cfg)
+        encoder, cat_cols = fit_cat_encoder(df_train, universe, ds_cfg)
 
-    df_test = transform_with_scaler(df_test, scaler, numeric_cols)
-    df_test = transform_with_cat_encoder(df_test, universe, encoder, cat_cols)
+        df_train = transform_with_scaler(df_train, scaler, numeric_cols)
+        df_train = transform_with_cat_encoder(df_train, universe, encoder, cat_cols)
 
-    ensure_parent_dir(path_train)
-    ensure_parent_dir(path_test)
+        df_test = transform_with_scaler(df_test, scaler, numeric_cols)
+        df_test = transform_with_cat_encoder(df_test, universe, encoder, cat_cols)
 
-    df_train.to_parquet(path_train)
-    df_test.to_parquet(path_test)
+        ensure_parent_dir(path_train)
+        ensure_parent_dir(path_test)
 
-    del df_train, df_test
-    gc.collect()
+        df_train.to_parquet(path_train)
+        df_test.to_parquet(path_test)
 
-    logger.info("Saved preprocessed TRAIN data to %s", path_train)
-    logger.info("Saved preprocessed TEST data to %s", path_test)
+        del df_train, df_test
+        gc.collect()
 
-    return path_train, path_test
+        logger.info("Saved preprocessed TRAIN data to %s", path_train)
+        logger.info("Saved preprocessed TEST data to %s", path_test)
+
+        try:
+            if status_path.exists():
+                status_path.unlink()
+        except OSError:
+            logger.warning(
+                "Could not remove status file %s after success",
+                status_path,
+                exc_info=True,
+            )
+
+        return path_train, path_test
+
+    except Exception:
+        logger.exception(
+            "Preprocessing failed for universe=%s", universe.to_id_string()
+        )
+        try:
+            status_path.write_text("FAILED\n", encoding="utf-8")
+        except OSError:
+            logger.warning(
+                "Could not write FAILED status to %s", status_path, exc_info=True
+            )
+        raise

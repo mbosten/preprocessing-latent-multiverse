@@ -50,10 +50,10 @@ def prepare_preprocessing(
         universes = generate_multiverse()
 
         for u in universes:
-            preprocess_variant(u)
+            preprocess_variant(u, overwrite=False)
     else:
         u = get_universe(universe_index)
-        preprocess_variant(u)
+        preprocess_variant(u, overwrite=False)
 
 
 # ----------- Train AEs and create embeddings ----------- #

@@ -1,6 +1,7 @@
 # src/preprolamu/pipeline/preprocessing.py
 from __future__ import annotations
 
+import gc
 import logging
 from pathlib import Path
 
@@ -208,6 +209,7 @@ def preprocess_variant(universe: Universe) -> Path:
     )
 
     df = None  # free memory, just to be sure
+    gc.collect()
 
     scaler, numeric_cols = fit_scaler(df_train, universe, ds_cfg)
     encoder, cat_cols = fit_cat_encoder(df_train, universe, ds_cfg)
@@ -226,6 +228,9 @@ def preprocess_variant(universe: Universe) -> Path:
 
     df_train.to_parquet(path_train)
     df_test.to_parquet(path_test)
+
+    del df_train, df_test
+    gc.collect()
 
     logger.info("Saved preprocessed TRAIN data to %s", path_train)
     logger.info("Saved preprocessed TEST data to %s", path_test)

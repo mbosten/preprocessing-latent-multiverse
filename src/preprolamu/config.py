@@ -1,6 +1,7 @@
 # src/preprolamu/config.py
 from __future__ import annotations
 
+import gc
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -256,6 +257,9 @@ def prepare_dataset(dataset_id: str) -> None:
     df = apply_one_time_categorical_encoding(df, cfg)
 
     save_clean_dataset(df, cfg)
+
+    df = None
+    gc.collect()
 
 
 # ----------------- Typer CLI ----------------- #

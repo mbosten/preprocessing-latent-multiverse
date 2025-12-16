@@ -177,6 +177,7 @@ def apply_one_time_categorical_encoding(
     return df_out
 
 
+# THis function is likely redundant due to categorical encoding above.
 def apply_dtypes(df: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
     """
     Convert columns listed in non_numerical_columns to pandas string dtype.
@@ -378,12 +379,12 @@ def prepare_dataset(dataset_id: str) -> None:
     df = load_raw_source(cfg)
     df = df_shrink(df, obj2cat=False, int2uint=False)
     df = apply_drop_columns(df, cfg)
-    df = apply_dtypes(df, cfg)
+    # df = apply_dtypes(df, cfg)
     df = apply_one_time_categorical_encoding(df, cfg)
     # Functions below will be incorporated into the multiverse pipeline
-    df = apply_remove_infinite(df)
-    df = apply_remove_nans(df)
-    df = remove_duplicates(df)
+    # df = apply_remove_infinite(df)
+    # df = apply_remove_nans(df)
+    # df = remove_duplicates(df)
 
     save_clean_dataset(df, cfg)
 

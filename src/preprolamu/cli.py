@@ -45,15 +45,16 @@ def main(
 @app.command("prepare-preprocessing")
 def prepare_preprocessing(
     universe_index: Annotated[int | None, typer.Option()] = None,
+    overwrite: Annotated[bool, typer.Option()] = False,
 ):
     if universe_index is None:
         universes = generate_multiverse()
 
         for u in universes:
-            preprocess_variant(u, overwrite=False)
+            preprocess_variant(u, overwrite=overwrite)
     else:
         u = get_universe(universe_index)
-        preprocess_variant(u, overwrite=False)
+        preprocess_variant(u, overwrite=overwrite)
 
 
 # ----------- Train AEs and create embeddings ----------- #

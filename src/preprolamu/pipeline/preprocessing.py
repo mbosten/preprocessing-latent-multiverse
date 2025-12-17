@@ -52,7 +52,8 @@ def split_train_test(
     df: pd.DataFrame,
     label_col: str,
     benign_label: str,
-    train_frac: float = 0.7,
+    train_frac: float = 0.6,
+    val_frac: float = 0.2,
     seed: int = 42,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -64,26 +65,43 @@ def split_train_test(
 
     stratify_col = df["Attack"] if "Attack" in df.columns else df[label_col]
 
-    df_train, df_test = train_test_split(
+    df_train, df_temp = train_test_split(
         df,
         train_size=train_frac,
         random_state=seed,
         stratify=stratify_col,
     )
 
+    # get correct proportions of val and test set in the remainder of the data
+    remaining_frac = val_frac + (1 - train_frac - val_frac)
+    relative_val_frac = val_frac / remaining_frac
+
+    stratify_temp = (
+        df_temp["Attack"] if "Attack" in df_temp.columns else df_temp[label_col]
+    )
+
+    df_val, df_test = train_test_split(
+        df_temp,
+        train_size=relative_val_frac,
+        random_state=seed,
+        stratify=stratify_temp,
+    )
+
     df_train = df_train.reset_index(drop=True)
     df_test = df_test.reset_index(drop=True)
+    df_val = df_val.reset_index(drop=True)
 
     # Keep only benign samples for training. Otherwise preprocessing is affected by soft leakage.
     df_train = df_train[df_train[label_col] == benign_label].reset_index(drop=True)
 
     logger.info(
-        "Data split into train (benign-only: %d rows) and test (all classes: %d rows).",
+        "Data split: train_benign=%d, val_all=%d, test_all=%d",
         len(df_train),
+        len(df_val),
         len(df_test),
     )
 
-    return df_train, df_test
+    return df_train, df_val, df_test
 
 
 # Drop or keep the set of features as indicated in the Universe class

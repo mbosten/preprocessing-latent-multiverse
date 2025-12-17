@@ -96,7 +96,7 @@ def split_train_test(
     df_train = df_train[df_train[label_col] == benign_label].reset_index(drop=True)
 
     logger.info(
-        "Data split: train_benign=%d, val_all=%d, test_all=%d",
+        "Data split:\ntrain (benign only)=%d,\nvalidation (all classes)=%d,\ntest (all classes)=%d",
         len(df_train),
         len(df_val),
         len(df_test),
@@ -189,7 +189,7 @@ def apply_missingness(
         df_test = df_test.dropna(subset=numeric_cols).reset_index(drop=True)
 
         logger.info(
-            "[PREP] Missingness DROP_ROWS: train %d→%d, test %d→%d",
+            "[PREP] Missingness DROP_ROWS: train %d-->%d, test %d-->%d",
             before_train,
             len(df_train),
             before_test,
@@ -220,7 +220,7 @@ def fit_scaler(df_train: pd.DataFrame, universe: Universe, ds_cfg):
     numeric_cols = [
         c
         for c in df_train.select_dtypes(include="number").columns
-        if c != ds_cfg.label_column
+        if c != ds_cfg.label_column and c != "Label"
     ]
 
     if not numeric_cols:

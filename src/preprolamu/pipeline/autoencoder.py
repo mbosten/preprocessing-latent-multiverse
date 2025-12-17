@@ -84,6 +84,8 @@ def _get_device() -> torch.device:
     if torch.cuda.is_available():
         device = torch.device("cuda")
         logger.info(f"Using GPU: {torch.cuda.get_device_name(0)}")
+        logger.info("[TORCH] Resetting peak memory stats.")
+        torch.cuda.reset_peak_memory_stats(device)
     else:
         device = torch.device("cpu")
         logger.info("Using CPU")
@@ -287,6 +289,16 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
     }
     torch.save(checkpoint, model_path)
     logger.info(f"[AE] Saved AE checkpoint to {model_path}")
+
+    if device.type == "cuda":
+        peak_memory = torch.cuda.max_memory_allocated(device) / (1024**2)
+        reserved_memory = torch.cuda.max_memory_reserved(device) / (1024**2)
+        logger.info(
+            f"[TORCH] Peak GPU memory usage during training: {peak_memory:.2f} MB"
+        )
+        logger.info(
+            f"[TORCH] Peak GPU reserved memory during training: {reserved_memory:.2f} MB"
+        )
 
     return model_path
 

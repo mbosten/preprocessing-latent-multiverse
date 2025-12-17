@@ -94,7 +94,7 @@ def _get_feature_matrix_for_ae(df: pd.DataFrame, ds_cfg: DatasetConfig) -> np.nd
     df_features = df.copy()
     cols_to_drop = [ds_cfg.label_column]
 
-    if "Attack" in df_features.columns:
+    if "Attack" in df_features.columns and "Attack" not in cols_to_drop:
         cols_to_drop.append("Attack")
 
     logger.info(
@@ -113,8 +113,10 @@ def get_feature_matrix_from_universe(universe: Universe):
     preprocessed_train_path = get_preprocessed_train_path(universe)
     logger.info("[AE] Loading preprocessed data from %s", preprocessed_train_path)
     df = pd.read_parquet(preprocessed_train_path)
-
+    logger.info("[AE] Preprocessed data shape: %s", df.shape)
+    logger.info("[AE] Data columns: %s", df.columns.tolist())
     X = _get_feature_matrix_for_ae(df, ds_cfg)
+
     return X, ds_cfg
 
 

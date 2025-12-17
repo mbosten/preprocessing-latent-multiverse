@@ -60,16 +60,23 @@ def prepare_preprocessing(
 @app.command("prepare-embeddings")
 def prepare_embeddings(
     universe_index: Annotated[int | None, typer.Option()] = None,
+    retrain_regardless: Annotated[bool, typer.Option()] = False,
     force_recompute: Annotated[bool, typer.Option()] = False,
 ):
     if universe_index is None:
         universes = generate_multiverse()
 
         for u in universes:
-            get_or_compute_latent(u, force_recompute=force_recompute)
+            get_or_compute_latent(
+                u,
+                retrain_regardless=retrain_regardless,
+                force_recompute=force_recompute,
+            )
     else:
         u = get_universe(universe_index)
-        get_or_compute_latent(u, force_recompute=force_recompute)
+        get_or_compute_latent(
+            u, retrain_regardless=retrain_regardless, force_recompute=force_recompute
+        )
 
 
 # ----------- Compute simplexes and TDA metrics ----------- #

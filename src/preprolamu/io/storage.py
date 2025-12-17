@@ -100,7 +100,10 @@ def get_embedding_path(universe: Universe) -> Path:
     Path for the PCA-projected embedding used for TDA.
     """
     return (
-        BASE_DATA_DIR / "interim" / "embeddings" / f"{universe.to_id_string()}_pca.npy"
+        BASE_DATA_DIR
+        / "interim"
+        / "embeddings"
+        / f"{universe.to_id_string()}_latent.npy"
     )
 
 

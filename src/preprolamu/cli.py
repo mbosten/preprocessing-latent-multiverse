@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import typer
 from typing_extensions import Annotated
@@ -60,6 +60,7 @@ def prepare_preprocessing(
 @app.command("prepare-embeddings")
 def prepare_embeddings(
     universe_index: Annotated[int | None, typer.Option()] = None,
+    split: Annotated[Literal["train", "val", "test"], typer.Option()] = "test",
     retrain_regardless: Annotated[bool, typer.Option()] = False,
     force_recompute: Annotated[bool, typer.Option()] = False,
 ):
@@ -69,13 +70,17 @@ def prepare_embeddings(
         for u in universes:
             get_or_compute_latent(
                 u,
+                split=split,
                 retrain_regardless=retrain_regardless,
                 force_recompute=force_recompute,
             )
     else:
         u = get_universe(universe_index)
         get_or_compute_latent(
-            u, retrain_regardless=retrain_regardless, force_recompute=force_recompute
+            u,
+            split=split,
+            retrain_regardless=retrain_regardless,
+            force_recompute=force_recompute,
         )
 
 

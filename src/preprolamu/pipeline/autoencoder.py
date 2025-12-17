@@ -119,14 +119,12 @@ def get_feature_matrix_from_universe(
 
     if split == "train":
         path = get_preprocessed_train_path(universe)
-    elif split == "validation":
+    elif split == "val":
         path = get_preprocessed_validation_path(universe)
     elif split == "test":
         path = get_preprocessed_test_path(universe)
     else:
-        raise ValueError(
-            f"Invalid split: {split}. Must be 'train', 'validation', or 'test'."
-        )
+        raise ValueError(f"Invalid split: {split}. Must be 'train', 'val', or 'test'.")
 
     logger.info("[AE] Loading preprocessed %s data from %s", split.upper(), path)
 
@@ -145,7 +143,7 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
     logger.info(f"[AE] Training autoencoder for universe = {universe.to_id_string()}")
 
     X_train, ds_cfg = get_feature_matrix_from_universe(universe, split="train")
-    X_val, _ = get_feature_matrix_from_universe(universe, split="validation")
+    X_val, _ = get_feature_matrix_from_universe(universe, split="val")
 
     ae_cfg = ds_cfg.autoencoder
 

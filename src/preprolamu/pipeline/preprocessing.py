@@ -22,6 +22,7 @@ from preprolamu.io.storage import (
     get_clean_dataset_path,
     get_preprocessed_test_path,
     get_preprocessed_train_path,
+    get_preprocessed_validation_path,
     get_preprocessing_status_path,
 )
 from preprolamu.pipeline.universes import (
@@ -252,54 +253,6 @@ def transform_with_scaler(df: pd.DataFrame, scaler, numeric_cols) -> pd.DataFram
     return df_scaled
 
 
-# def fit_cat_encoder(df_train: pd.DataFrame, universe: Universe, ds_cfg):
-#     cat_cols = [
-#         c
-#         for c in df_train.select_dtypes(exclude="number").columns
-#         if c != ds_cfg.label_column
-#     ]
-
-#     if not cat_cols or universe.cat_encoding is None:
-#         return None, []
-
-#     if universe.cat_encoding == CatEncoding.ONEHOT:
-#         return None, cat_cols
-
-#     if universe.cat_encoding == CatEncoding.LABEL:
-#         enc = OrdinalEncoder(
-#             handle_unknown="use_encoded_value",
-#             unknown_value=-1,
-#         )
-#         enc.fit(df_train[cat_cols])
-#         return enc, cat_cols
-
-#     raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
-
-
-# def transform_with_cat_encoder(
-#     df: pd.DataFrame, universe: Universe, encoder, cat_cols
-# ) -> pd.DataFrame:
-#     if universe.cat_encoding is None or not cat_cols:
-#         return df
-
-#     df_encoded = df.copy()
-
-#     logger.info(
-#         "Applying %s encoding to categorical columns: %s",
-#         universe.cat_encoding.value,
-#         list(cat_cols),
-#     )
-
-#     if universe.cat_encoding == CatEncoding.ONEHOT:
-#         df_encoded = pd.get_dummies(df_encoded, columns=cat_cols, drop_first=False)
-#         return df_encoded
-
-#     if universe.cat_encoding == CatEncoding.LABEL and encoder is not None:
-#         df_encoded[cat_cols] = encoder.transform(df[cat_cols])
-#         return df_encoded
-#     raise ValueError(f"Unknown cat_encoding: {universe.cat_encoding}")
-
-
 # Orchestrator function to call in cli.py
 def preprocess_variant(
     universe: Universe, overwrite: bool = False
@@ -311,6 +264,7 @@ def preprocess_variant(
     logger.info(f"Preprocessing dataset for universe={universe.to_id_string()}")
 
     path_train = get_preprocessed_train_path(universe)
+    path_val = get_preprocessed_validation_path(universe)
     path_test = get_preprocessed_test_path(universe)
     status_path = get_preprocessing_status_path(universe)
 
@@ -342,19 +296,27 @@ def preprocess_variant(
         ds_cfg = load_dataset_config(universe.dataset_id)
         df = apply_feature_subset(df, universe)
         df = apply_duplicate_handling(df, universe)
-        df_train, df_test = split_train_test(
+        df_train, df_val, df_test = split_train_test(
             df,
             label_col=ds_cfg.label_column,
             benign_label=ds_cfg.benign_label,
-            train_frac=0.7,
+            train_frac=0.6,
+            val_frac=0.2,
             seed=42,
         )
 
         df = None  # free memory, just to be sure
         gc.collect()
 
-        # Remove or impute missing values (e.g., NaN, inf)
-        df_train, df_test = apply_missingness(
+        # Remove or impute missing values (e.g., NaN, inf) from val and test, respectively
+        df_train, df_val = apply_missingness(
+            df_train,
+            df_val,
+            universe,
+            ds_cfg,
+        )
+
+        _, df_test = apply_missingness(
             df_train,
             df_test,
             universe,
@@ -362,24 +324,24 @@ def preprocess_variant(
         )
 
         scaler, numeric_cols = fit_scaler(df_train, universe, ds_cfg)
-        # encoder, cat_cols = fit_cat_encoder(df_train, universe, ds_cfg)
 
         df_train = transform_with_scaler(df_train, scaler, numeric_cols)
-        # df_train = transform_with_cat_encoder(df_train, universe, encoder, cat_cols)
-
+        df_val = transform_with_scaler(df_val, scaler, numeric_cols)
         df_test = transform_with_scaler(df_test, scaler, numeric_cols)
-        # df_test = transform_with_cat_encoder(df_test, universe, encoder, cat_cols)
 
         ensure_parent_dir(path_train)
+        ensure_parent_dir(path_val)
         ensure_parent_dir(path_test)
 
         df_train.to_parquet(path_train)
+        df_val.to_parquet(path_val)
         df_test.to_parquet(path_test)
 
-        del df_train, df_test
+        del df_train, df_val, df_test
         gc.collect()
 
         logger.info("Saved preprocessed TRAIN data to %s", path_train)
+        logger.info("Saved preprocessed VALIDATION data to %s", path_val)
         logger.info("Saved preprocessed TEST data to %s", path_test)
 
         try:
@@ -392,7 +354,7 @@ def preprocess_variant(
                 exc_info=True,
             )
 
-        return path_train, path_test
+        return path_train, path_val, path_test
 
     except Exception:
         logger.exception(

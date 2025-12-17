@@ -71,6 +71,15 @@ def get_preprocessed_train_path(universe: Universe) -> Path:
     )
 
 
+def get_preprocessed_validation_path(universe: Universe) -> Path:
+    return (
+        BASE_DATA_DIR
+        / "processed"
+        / "validation"
+        / f"{universe.to_id_string()}_preprocessed_validation.parquet"
+    )
+
+
 def get_preprocessed_test_path(universe: Universe) -> Path:
     return (
         BASE_DATA_DIR

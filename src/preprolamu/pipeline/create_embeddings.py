@@ -7,7 +7,7 @@ from typing import Dict, List
 import numpy as np
 import torch
 
-from preprolamu.io.storage import get_ae_model_path, get_latent_cache_path
+from preprolamu.io.storage import get_ae_model_path, get_embedding_path
 from preprolamu.pipeline.autoencoder import (
     get_feature_matrix_from_universe,
     load_autoencoder_for_universe,
@@ -17,14 +17,10 @@ from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
-# CHANGES TO BE MADE:
-#
-# 1. Change `get_latent_cache_path` to refer to `iterim/embeddings` instead of `experiments/latent`.
-
 
 def get_or_compute_latent(
     universe: Universe,
-    retrain_regardless: bool = True,
+    retrain_regardless: bool = False,
     force_recompute: bool = False,
 ) -> np.ndarray:
     """
@@ -38,16 +34,15 @@ def get_or_compute_latent(
       - if cached latent exists and not force_recompute: load and return
       - otherwise: ensure AE trained, compute latent, save cache, return
     """
-    # latent_path =
-    cache_path = get_latent_cache_path(universe)
+    latent_path = get_embedding_path(universe)
 
-    if cache_path.exists() and not force_recompute:
+    if latent_path.exists() and not force_recompute:
         logger.info(
             "[Embedding] Loading cached latent from %s for %s",
-            cache_path,
+            latent_path,
             universe.to_id_string(),
         )
-        return np.load(cache_path)
+        return np.load(latent_path)
 
     # Retrieve model path to see if a checkpoint exists.
     model_path = get_ae_model_path(universe)
@@ -73,9 +68,9 @@ def get_or_compute_latent(
         latent = latent_tensor.cpu().numpy()
 
     # 5. Cache
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    np.save(cache_path, latent)
-    logger.info("[Embedding] Saved latent cache to %s", cache_path)
+    latent_path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(latent_path, latent)
+    logger.info("[Embedding] Saved latent cache to %s", latent_path)
 
     return latent
 

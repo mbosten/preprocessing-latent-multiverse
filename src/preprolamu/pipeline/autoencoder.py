@@ -15,7 +15,9 @@ from preprolamu.config import DatasetConfig, load_dataset_config
 from preprolamu.io.storage import (
     ensure_parent_dir,
     get_ae_model_path,
+    get_preprocessed_test_path,
     get_preprocessed_train_path,
+    get_preprocessed_validation_path,
 )
 from preprolamu.pipeline.universes import Universe
 
@@ -109,15 +111,29 @@ def _get_feature_matrix_for_ae(df: pd.DataFrame, ds_cfg: DatasetConfig) -> np.nd
     return X
 
 
-def get_feature_matrix_from_universe(universe: Universe):
-    ds_cfg: DatasetConfig = load_dataset_config(universe.dataset_id)
-    preprocessed_train_path = get_preprocessed_train_path(universe)
-    logger.info("[AE] Loading preprocessed data from %s", preprocessed_train_path)
-    df = pd.read_parquet(preprocessed_train_path)
-    logger.info("[AE] Preprocessed data shape: %s", df.shape)
-    logger.info("[AE] Data columns: %s", df.columns.tolist())
-    X = _get_feature_matrix_for_ae(df, ds_cfg)
+def get_feature_matrix_from_universe(
+    universe: Universe, split: str = "train"
+) -> Tuple[np.ndarray, np.ndarray, DatasetConfig]:
 
+    ds_cfg: DatasetConfig = load_dataset_config(universe.dataset_id)
+
+    if split == "train":
+        path = get_preprocessed_train_path(universe)
+    elif split == "validation":
+        path = get_preprocessed_validation_path(universe)
+    elif split == "test":
+        path = get_preprocessed_test_path(universe)
+    else:
+        raise ValueError(
+            f"Invalid split: {split}. Must be 'train', 'validation', or 'test'."
+        )
+
+    logger.info("[AE] Loading preprocessed %s data from %s", split.upper(), path)
+
+    df = pd.read_parquet(path)
+    logger.info("[AE] %s data shape: %s", split.upper(), df.shape)
+
+    X = _get_feature_matrix_for_ae(df, ds_cfg)
     return X, ds_cfg
 
 
@@ -128,12 +144,12 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
     """
     logger.info(f"[AE] Training autoencoder for universe = {universe.to_id_string()}")
 
-    X, ds_cfg = get_feature_matrix_from_universe(universe)
+    X_train, ds_cfg = get_feature_matrix_from_universe(universe, split="train")
+    X_val, _ = get_feature_matrix_from_universe(universe, split="validation")
 
     ae_cfg = ds_cfg.autoencoder
 
-    input_dim = X.shape[1]
-
+    input_dim = X_train.shape[1]
     device = _get_device()
 
     model = Autoencoder(
@@ -143,10 +159,18 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
         dropout=ae_cfg.dropout,
     ).to(device)
 
-    tensor_X = torch.from_numpy(X)
-    dataset = TensorDataset(tensor_X)
-    loader = DataLoader(
-        dataset, batch_size=ae_cfg.batch_size, shuffle=True, drop_last=False
+    tensor_X_train = torch.from_numpy(X_train)
+    tensor_X_val = torch.from_numpy(X_val)
+
+    train_dataset = TensorDataset(tensor_X_train)
+    val_dataset = TensorDataset(tensor_X_val)
+
+    train_loader = DataLoader(
+        train_dataset, batch_size=ae_cfg.batch_size, shuffle=True, drop_last=False
+    )
+
+    val_loader = DataLoader(
+        val_dataset, batch_size=ae_cfg.batch_size, shuffle=False, drop_last=False
     )
 
     criterion = nn.MSELoss()
@@ -154,35 +178,101 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
         model.parameters(), lr=1e-3, weight_decay=ae_cfg.regularization
     )
 
+    max_epochs = ae_cfg.epochs
+    patience = getattr(ae_cfg, "patience", 5)
+    min_delta = getattr(ae_cfg, "min_delta", 1e-4)
+
+    best_val_loss = float("inf")
+    best_state_dict = None
+    best_epoch = 0
+    epochs_no_improve = 0
+
     logger.info(
-        "[AE] Starting training: epochs=%d, batch_size=%d, input_dim=%d, latent_dim=%d, hidden_dims=%s, dropout=%.4f, regularization=%.6f",
-        ae_cfg.epochs,
+        "[AE] Starting training: epochs=%d, batch_size=%d, input_dim=%d, "
+        "latent_dim=%d, hidden_dims=%s, dropout=%.4f, regularization=%.6f, "
+        "patience=%d, min_delta=%.6f",
+        max_epochs,
         ae_cfg.batch_size,
         input_dim,
         ae_cfg.latent_dim,
         ae_cfg.hidden_dims,
         ae_cfg.dropout,
         ae_cfg.regularization,
+        patience,
+        min_delta,
     )
 
-    model.train()
-    for epoch in range(1, ae_cfg.epochs + 1):
-        epoch_loss = 0.0
-        n_batches = 0
-        for (batch_X,) in loader:
+    for epoch in range(1, max_epochs + 1):
+        # Training phase
+        model.train()
+        train_loss_sum = 0.0
+        train_batches = 0
+        for (batch_X,) in train_loader:
             batch_X = batch_X.to(device)
+
             optimizer.zero_grad()
             recon_X = model(batch_X)
             loss = criterion(recon_X, batch_X)
             loss.backward()
             optimizer.step()
 
-            epoch_loss += loss.item()
-            n_batches += 1
+            train_loss_sum += loss.item()
+            train_batches += 1
 
-        avg_loss = epoch_loss / max(n_batches, 1)
-        logger.info(f"[AE] Epoch {epoch}/{ae_cfg.epochs}, Loss: {avg_loss:.6f}")
+        avg_train_loss = train_loss_sum / max(train_batches, 1)
 
+        # Validation phase
+        model.eval()
+        val_loss_sum = 0.0
+        val_batches = 0
+
+        with torch.no_grad():
+            for (batch_X,) in val_loader:
+                batch_X = batch_X.to(device)
+                recon_X = model(batch_X)
+                loss = criterion(recon_X, batch_X)
+
+                val_loss_sum += loss.item()
+                val_batches += 1
+
+        avg_val_loss = val_loss_sum / max(val_batches, 1)
+
+        logger.info(
+            "[AE] Epoch %d/%d, Train Loss: %.6f, Val Loss: %.6f",
+            epoch,
+            max_epochs,
+            avg_train_loss,
+            avg_val_loss,
+        )
+
+        # Early stopping check
+        if avg_val_loss < best_val_loss - min_delta:
+            best_val_loss = avg_val_loss
+            best_state_dict = model.state_dict()
+            best_epoch = epoch
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= patience:
+                logger.info(
+                    "[AE] Early stopping triggered at epoch %d (best epoch %d, "
+                    "best val loss %.6f).",
+                    epoch,
+                    best_epoch,
+                    best_val_loss,
+                )
+                break
+
+    # Restore best model state
+    if best_state_dict is not None:
+        model.load_state_dict(best_state_dict)
+        logger.info(
+            "[AE] Restored best model from epoch %d with val loss %.6f.",
+            best_epoch,
+            best_val_loss,
+        )
+
+    # Save model checkpoint
     model_path = get_ae_model_path(universe)
     ensure_parent_dir(model_path)
 
@@ -194,6 +284,8 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
         "ae_regularization": ae_cfg.regularization,
         "model_state_dict": model.state_dict(),
         "universe_id": universe.to_id_string(),
+        "best_epoch": best_epoch,
+        "best_val_loss": best_val_loss,
     }
     torch.save(checkpoint, model_path)
     logger.info(f"[AE] Saved AE checkpoint to {model_path}")

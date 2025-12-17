@@ -26,7 +26,7 @@ def run_tda_for_universe(universe: Universe):
     num_landscapes = tda_cfg.num_landscapes
     resolution = tda_cfg.resolution
 
-    # 1. Latent
+    # 1. Latent --> CHANGE TO CHECK WHETHER EMBEDDINGS EXIST.
     latent = get_or_compute_latent(
         universe, retrain_if_missing=True, force_recompute=False
     )

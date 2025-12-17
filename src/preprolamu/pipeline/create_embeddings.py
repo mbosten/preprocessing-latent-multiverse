@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 def get_or_compute_latent(
     universe: Universe,
+    split: str = "test",
     retrain_regardless: bool = False,
     force_recompute: bool = False,
 ) -> np.ndarray:
@@ -34,11 +35,13 @@ def get_or_compute_latent(
       - if cached latent exists and not force_recompute: load and return
       - otherwise: ensure AE trained, compute latent, save cache, return
     """
-    latent_path = get_embedding_path(universe)
+    # Specify split-specific file name depending on which dataset we retrieve the embedding space from.
+    latent_path = get_embedding_path(universe, split=split)
 
     if latent_path.exists() and not force_recompute:
         logger.info(
-            "[Embedding] Loading cached latent from %s for %s",
+            "[Embedding] Loading cached latent (%s) from %s for %s",
+            split,
             latent_path,
             universe.to_id_string(),
         )
@@ -52,7 +55,7 @@ def get_or_compute_latent(
         train_autoencoder_for_universe(universe)
 
     # Feature matrix
-    X, ds_cfg = get_feature_matrix_from_universe(universe)
+    X, ds_cfg = get_feature_matrix_from_universe(universe, split=split)
 
     model = load_autoencoder_for_universe(universe, ds_cfg)
 
@@ -61,7 +64,12 @@ def get_or_compute_latent(
     model.to(device)
     model.eval()
 
-    logger.info("[Embedding] Encoding %d samples into latent space.", X.shape[0])
+    logger.info(
+        "[Embedding] Encoding %d samples into latent space (%s split).",
+        X.shape[0],
+        split,
+    )
+
     with torch.no_grad():
         tensor_X = torch.from_numpy(X).to(device)
         latent_tensor = model.encode(tensor_X)
@@ -70,7 +78,7 @@ def get_or_compute_latent(
     # 5. Cache
     latent_path.parent.mkdir(parents=True, exist_ok=True)
     np.save(latent_path, latent)
-    logger.info("[Embedding] Saved latent cache to %s", latent_path)
+    logger.info("[Embedding] Saved latent (%s split) to %s", split, latent_path)
 
     return latent
 

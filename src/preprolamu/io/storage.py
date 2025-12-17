@@ -104,7 +104,7 @@ def get_ae_model_path(universe: Universe) -> Path:
     )
 
 
-def get_embedding_path(universe: Universe) -> Path:
+def get_embedding_path(universe: Universe, split: str = "test") -> Path:
     """
     Path for the PCA-projected embedding used for TDA.
     """
@@ -112,7 +112,7 @@ def get_embedding_path(universe: Universe) -> Path:
         BASE_DATA_DIR
         / "interim"
         / "embeddings"
-        / f"{universe.to_id_string()}_latent.npy"
+        / f"{universe.to_id_string()}_latent_{split}.npy"
     )
 
 

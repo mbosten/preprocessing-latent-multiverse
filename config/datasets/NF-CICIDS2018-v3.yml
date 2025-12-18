@@ -33,6 +33,6 @@ autoencoder:
   latent_dim: 28
   hidden_dims: [29, 28]
   epochs: 10
-  batch_size: 128
+  batch_size: 512
   dropout: 0.1097
   regularization: 0.0240

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List
 
 import numpy as np
 import torch
@@ -50,17 +49,24 @@ def get_or_compute_latent(
     # Retrieve model path to see if a checkpoint exists.
     model_path = get_ae_model_path(universe)
 
+    # Feature matrix
+    X, ds_cfg = get_feature_matrix_from_universe(universe, split=split)
+    logger.info(
+        "[Embedding] Retrieved feature matrix of shape %s for %s (%s split).",
+        X.shape,
+        universe.to_id_string(),
+        split,
+    )
+
     # If model does not exist yet, or training should be overwritten.
     if not model_path.exists() or retrain_regardless:
         train_autoencoder_for_universe(universe)
-
-    # Feature matrix
-    X, ds_cfg = get_feature_matrix_from_universe(universe, split=split)
 
     model = load_autoencoder_for_universe(universe, ds_cfg)
 
     # Encode with trained AE
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info("Found device: %s", device)
     model.to(device)
     model.eval()
 
@@ -81,23 +87,3 @@ def get_or_compute_latent(
     logger.info("[Embedding] Saved latent (%s split) to %s", split, latent_path)
 
     return latent
-
-
-# CURRENTLY NOT USED, REDUNDANT OR DEPRECATED
-def collect_latents_for_universes(
-    universes: List[Universe],
-    retrain_regardless: bool = False,
-    force_recompute: bool = False,
-) -> Dict[str, np.ndarray]:
-    """
-    Write embedding space to object for list of universes.
-    """
-    latents: Dict[str, np.ndarray] = {}
-    for u in universes:
-        uid = u.to_id_string()
-        latents[uid] = get_or_compute_latent(
-            u,
-            retrain_regardless=retrain_regardless,
-            force_recompute=force_recompute,
-        )
-    return latents

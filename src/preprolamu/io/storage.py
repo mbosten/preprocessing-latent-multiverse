@@ -13,8 +13,6 @@ from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
-RAW_ROOT = Path("data/raw")
-INTERIM_ROOT = Path("data/interim")
 
 # Data base directory
 BASE_DATA_DIR = Path("data")
@@ -42,24 +40,6 @@ def get_raw_dataset_path(dataset_id: str, extension: str) -> Path:
 
 def get_clean_dataset_path(dataset_id: str, extension: str) -> Path:
     return BASE_DATA_DIR / "raw" / f"{dataset_id}_clean.{extension}"
-
-
-def raw_matrix_path(run_id: str) -> Path:
-    return RAW_ROOT / f"{run_id}.npz"
-
-
-def persistence_path(run_id: str) -> Path:
-    return INTERIM_ROOT / "persistence" / f"{run_id}.npz"
-
-
-def landscapes_path(run_id: str) -> Path:
-    return INTERIM_ROOT / "landscapes" / f"{run_id}.npz"
-
-
-# def get_preprocessed_path(universe: Universe) -> Path:
-#     return (
-#         BASE_DATA_DIR / "processed" / f"{universe.to_id_string()}_preprocessed.parquet"
-#     )
 
 
 def get_preprocessed_train_path(universe: Universe) -> Path:
@@ -136,58 +116,6 @@ def get_latent_cache_path(universe: Universe) -> Path:
     return root / f"{universe.to_id_string()}_latent.npy"
 
 
-# SAVE 'N LOAD
-def save_matrix(data: np.ndarray, run_id: str) -> Path:
-    ensure_dir(RAW_ROOT)
-    path = raw_matrix_path(run_id)
-    np.savez_compressed(path, data=data)
-    return path
-
-
-def load_matrix(run_id: str) -> np.ndarray:
-    path = raw_matrix_path(run_id)
-    return np.load(path)["data"]
-
-
-def load_latent_from_cache(universe: Universe) -> np.ndarray:
-    cache_path = get_latent_cache_path(universe)
-    if not cache_path.exists():
-        raise FileNotFoundError(
-            f"No latent cache found for {universe}. Expected at {cache_path}. "
-            "Run the embedding preparation command first."
-        )
-    logger.info("[Embedding] Loading latent from %s for %s", cache_path, universe)
-    return np.load(cache_path)
-
-
-def save_persistence(per_dim: dict[int, np.ndarray], run_id: str) -> Path:
-    out_dir = ensure_dir(INTERIM_ROOT / "persistence")
-    path = out_dir / f"{run_id}.npz"
-    np.savez_compressed(path, **{f"dim{d}": arr for d, arr in per_dim.items()})
-    return path
-
-
-def load_persistence(run_id: str) -> dict[int, np.ndarray]:
-    path = persistence_path(run_id)
-    data = np.load(path)
-    out: dict[int, np.ndarray] = {}
-    for key in data.files:
-        if key.startswith("dim"):
-            dim = int(key[3:])
-            out[dim] = data[key]
-    return out
-
-
-def save_landscapes(landscapes: dict[int, np.ndarray | None], run_id: str) -> Path:
-    out_dir = ensure_dir(INTERIM_ROOT / "landscapes")
-    path = out_dir / f"{run_id}.npz"
-    np.savez_compressed(
-        path,
-        **{f"dim{d}": arr for d, arr in landscapes.items() if arr is not None},
-    )
-    return path
-
-
 def save_metrics_from_tda_output(
     universe: Universe,
     per_dim: dict[int, np.ndarray],
@@ -242,17 +170,6 @@ def load_tda_output_for_universe(
             landscapes[dim] = arr
 
     return per_dim, landscapes
-
-
-def save_numpy_array(path: Path, array: np.ndarray) -> None:
-    ensure_parent_dir(path)
-    logger.info(f"Saving numpy array with shape {array.shape} to {path}")
-    np.save(path, array)
-
-
-def load_numpy_array(path: Path) -> np.ndarray:
-    logger.info(f"Loading numpy array from {path}")
-    return np.load(path)
 
 
 def save_tda_npz(path: Path, **arrays: np.ndarray) -> None:

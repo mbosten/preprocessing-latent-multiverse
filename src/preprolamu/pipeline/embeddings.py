@@ -2,14 +2,12 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import numpy as np
 import torch
 from scipy.spatial.distance import cdist
 from sklearn.decomposition import PCA
 
-from preprolamu.io.storage import get_embedding_path, save_numpy_array
 from preprolamu.pipeline.autoencoder import (
     get_feature_matrix_from_universe,
     load_autoencoder_for_universe,
@@ -87,30 +85,3 @@ def compute_embeddings_for_universe(universe: Universe):
     logger.info(f"[EMB] Computed latent representation with shape {latent.shape}")
 
     return latent
-
-
-def compute_embeddings_and_subsample_for_tda(universe: Universe) -> Path:
-    """
-    For this Universe:
-      - load preprocessed data,
-      - use trained encoder to compute embeddings,
-      - normalize embeddings,
-      - PCA to universe.pca_dim,
-      - subsample TDA points according to universe.tda_config.subsample_size,
-      - save resulting N x d array for TDA.
-
-    Returns path to the saved embedding array.
-    """
-    latent = compute_embeddings_for_universe(universe)
-
-    points_for_tda = from_latent_to_point_cloud(
-        latent,
-        pca_dim=universe.pca_dim,
-        target_size=universe.tda_config.subsample_size,
-        seed=universe.seed,
-        normalize=True,
-    )
-
-    emb_path = get_embedding_path(universe)
-    save_numpy_array(emb_path, points_for_tda)
-    return emb_path

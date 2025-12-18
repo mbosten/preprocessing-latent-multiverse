@@ -9,12 +9,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import (
-    MinMaxScaler,
-    QuantileTransformer,
-    RobustScaler,
-    StandardScaler,
-)
+from sklearn.preprocessing import MinMaxScaler, QuantileTransformer, StandardScaler
 
 from preprolamu.config import load_dataset_config
 from preprolamu.io.storage import (
@@ -230,8 +225,6 @@ def fit_scaler(df_train: pd.DataFrame, universe: Universe, ds_cfg):
         scaler = StandardScaler()
     elif universe.scaling == Scaling.MINMAX:
         scaler = MinMaxScaler()
-    elif universe.scaling == Scaling.ROBUST:
-        scaler = RobustScaler()
     elif universe.scaling == Scaling.QUANTILE:
         scaler = QuantileTransformer(output_distribution="normal")
     else:

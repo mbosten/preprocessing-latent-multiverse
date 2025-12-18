@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 class Scaling(str, Enum):
     ZSCORE = "zscore"
     MINMAX = "minmax"
-    ROBUST = "robust"
     QUANTILE = "quantile"
 
 
@@ -89,7 +88,7 @@ def generate_multiverse() -> List[Universe]:
     """
     Generate the multiverses
     """
-    scalings = [Scaling.ZSCORE, Scaling.MINMAX, Scaling.ROBUST, Scaling.QUANTILE]
+    scalings = [Scaling.ZSCORE, Scaling.MINMAX, Scaling.QUANTILE]
     feature_subsets = [FeatureSubset.ALL, FeatureSubset.WITHOUT_CONFOUNDERS]
     duplicate_opts = [DuplicateHandling.KEEP, DuplicateHandling.DROP]
     missingness_opts = [Missingness.DROP_ROWS, Missingness.IMPUTE_MEDIAN]

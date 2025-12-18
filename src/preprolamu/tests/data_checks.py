@@ -10,7 +10,9 @@ from preprolamu.pipeline.universes import Universe
 logger = logging.getLogger(__name__)
 
 
-def log_feature_stats(X: np.ndarray, split: str, universe: Universe) -> None:
+def log_feature_stats(
+    X: np.ndarray, feature_names, split: str, universe: Universe
+) -> None:
     X = X.astype(np.float64)
 
     # Global stats
@@ -58,13 +60,19 @@ def log_feature_stats(X: np.ndarray, split: str, universe: Universe) -> None:
 
     # Log top-5 “worst” features by max abs value
     worst_idx = np.argsort(-feature_max_abs)[:5]
-    for idx in worst_idx:
+    for j in worst_idx:
+        name = (
+            feature_names[j]
+            if feature_names is not None and j < len(feature_names)
+            else f"col_{j}"
+        )
         logger.info(
-            "[AE][%s][%s] feature %d: mean=%.4e, std=%.4e, max_abs=%.4e",
+            "[AE][%s][%s] feature %4d (%s): mean=%.4e, std=%.4e, max_abs=%.4e",
             universe.to_id_string(),
             split,
-            idx,
-            feature_means[idx],
-            feature_stds[idx],
-            feature_max_abs[idx],
+            j,
+            name,
+            feature_means[j],
+            feature_stds[j],
+            feature_max_abs[j],
         )

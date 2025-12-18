@@ -20,6 +20,7 @@ from preprolamu.io.storage import (
     get_preprocessed_validation_path,
 )
 from preprolamu.pipeline.universes import Universe
+from preprolamu.tests.data_checks import log_feature_stats
 
 logger = logging.getLogger(__name__)
 
@@ -106,11 +107,12 @@ def _get_feature_matrix_for_ae(df: pd.DataFrame, ds_cfg: DatasetConfig) -> np.nd
         f"[AE] Dropping columns for AE feature matrix (if present): {cols_to_drop}"
     )
     df_features = df_features.drop(columns=cols_to_drop, errors="ignore")
+    feature_names = df_features.columns.tolist()
 
     X = df_features.to_numpy(dtype=np.float32)
     logger.info(f"[AE] Feature matrix shape for AE: {X.shape}")
 
-    return X
+    return X, feature_names
 
 
 def get_feature_matrix_from_universe(
@@ -133,8 +135,8 @@ def get_feature_matrix_from_universe(
     df = pd.read_parquet(path)
     logger.info("[AE] %s data shape: %s", split.upper(), df.shape)
 
-    X = _get_feature_matrix_for_ae(df, ds_cfg)
-    return X, ds_cfg
+    X, feature_names = _get_feature_matrix_for_ae(df, ds_cfg)
+    return X, feature_names, ds_cfg
 
 
 def train_autoencoder_for_universe(universe: Universe) -> Path:
@@ -144,7 +146,12 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
     """
     logger.info(f"[AE] Training autoencoder for universe = {universe.to_id_string()}")
 
-    X_train, ds_cfg = get_feature_matrix_from_universe(universe, split="train")
+    X_train, feature_names, ds_cfg = get_feature_matrix_from_universe(
+        universe, split="train"
+    )
+
+    log_feature_stats(X_train, feature_names, "train", universe)
+
     X_val, _ = get_feature_matrix_from_universe(universe, split="val")
 
     ae_cfg = ds_cfg.autoencoder

@@ -50,7 +50,7 @@ def get_or_compute_latent(
     model_path = get_ae_model_path(universe)
 
     # Feature matrix
-    X, ds_cfg = get_feature_matrix_from_universe(universe, split=split)
+    X, _, ds_cfg = get_feature_matrix_from_universe(universe, split=split)
 
     logger.info(
         "[Embedding] Retrieved feature matrix of shape %s for %s (%s split).",

@@ -152,7 +152,7 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
 
     log_feature_stats(X_train, feature_names, "train", universe)
 
-    X_val, _ = get_feature_matrix_from_universe(universe, split="val")
+    X_val, _, _ = get_feature_matrix_from_universe(universe, split="val")
 
     ae_cfg = ds_cfg.autoencoder
 

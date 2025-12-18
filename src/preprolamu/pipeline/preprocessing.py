@@ -255,7 +255,9 @@ def apply_log_transform(
             if all_nonneg:
                 # log1p on non-negative features
                 for df_split in (df_train, df_val, df_test):
-                    df_split[col] = np.log1p(df_split[col].astype(float).clip(min=0.0))
+                    df_split[col] = np.log1p(
+                        df_split[col].astype(float).clip(lower=0.0)
+                    )
             else:
                 # signed log1p for features with negatives
                 logger.info(

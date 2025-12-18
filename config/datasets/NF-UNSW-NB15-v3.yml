@@ -27,7 +27,7 @@ label_classes:
 autoencoder:
   latent_dim: 19
   hidden_dims: [43, 41]
-  epochs: 10
+  epochs: 50
   batch_size: 256
   dropout: 0.0717
   regularization: 0.0012

@@ -57,8 +57,8 @@ def log_feature_stats(
     feature_stds = np.nanstd(X, axis=0)
     feature_max_abs = np.nanmax(np.abs(X), axis=0)
 
-    # Log top-5 “worst” features by max abs value
-    worst_idx = np.argsort(-feature_max_abs)[:5]
+    # Log top-10 “worst” features by max abs value
+    worst_idx = np.argsort(-feature_max_abs)[:10]
     for j in worst_idx:
         name = (
             feature_names[j]

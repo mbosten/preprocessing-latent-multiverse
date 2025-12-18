@@ -17,6 +17,11 @@ class Scaling(str, Enum):
     QUANTILE = "quantile"
 
 
+class LogTransform(str, Enum):
+    NONE = "none"
+    LOG1P = "log1p"
+
+
 class FeatureSubset(str, Enum):
     ALL = "all"
     WITHOUT_CONFOUNDERS = "without_confounders"
@@ -51,6 +56,7 @@ class Universe:
 
     # Preprocessing choices
     scaling: Scaling
+    log_transform: LogTransform
     feature_subset: FeatureSubset
     duplicate_handling: DuplicateHandling
     missingness: Missingness
@@ -69,6 +75,7 @@ class Universe:
         return (
             f"ds-{self.dataset_id}"
             f"_sc-{self.scaling.value}"
+            f"_log-{self.log_transform.value}"
             f"_fs-{self.feature_subset.value}"
             f"_dup-{self.duplicate_handling.value}"
             f"_miss-{self.missingness.value}"
@@ -89,6 +96,7 @@ def generate_multiverse() -> List[Universe]:
     Generate the multiverses
     """
     scalings = [Scaling.ZSCORE, Scaling.MINMAX, Scaling.QUANTILE]
+    log_transforms = [LogTransform.NONE, LogTransform.LOG1P]
     feature_subsets = [FeatureSubset.ALL, FeatureSubset.WITHOUT_CONFOUNDERS]
     duplicate_opts = [DuplicateHandling.KEEP, DuplicateHandling.DROP]
     missingness_opts = [Missingness.DROP_ROWS, Missingness.IMPUTE_MEDIAN]
@@ -98,20 +106,22 @@ def generate_multiverse() -> List[Universe]:
 
     for ds_id in DATASET_IDS:
         for sc in scalings:
-            for fs in feature_subsets:
-                for dup in duplicate_opts:
-                    for miss in missingness_opts:
-                        for sd in seeds:
-                            universes.append(
-                                Universe(
-                                    dataset_id=ds_id,
-                                    scaling=sc,
-                                    feature_subset=fs,
-                                    duplicate_handling=dup,
-                                    missingness=miss,
-                                    seed=sd,
+            for log_tr in log_transforms:
+                for fs in feature_subsets:
+                    for dup in duplicate_opts:
+                        for miss in missingness_opts:
+                            for sd in seeds:
+                                universes.append(
+                                    Universe(
+                                        dataset_id=ds_id,
+                                        scaling=sc,
+                                        log_transform=log_tr,
+                                        feature_subset=fs,
+                                        duplicate_handling=dup,
+                                        missingness=miss,
+                                        seed=sd,
+                                    )
                                 )
-                            )
     return universes
 
 

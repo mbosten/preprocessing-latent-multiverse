@@ -23,6 +23,7 @@ from preprolamu.io.storage import (
 from preprolamu.pipeline.universes import (
     DuplicateHandling,
     FeatureSubset,
+    LogTransform,
     Missingness,
     Scaling,
     Universe,
@@ -151,7 +152,9 @@ def apply_missingness(
 
     # Numeric columns only
     numeric_cols = [
-        c for c in df_train.select_dtypes(include="number").columns if c != label_col
+        c
+        for c in df_train.select_dtypes(include="number").columns
+        if c not in (label_col, "Label")
     ]
 
     if not numeric_cols:
@@ -210,8 +213,63 @@ def apply_missingness(
     raise ValueError(f"Unknown missingness setting: {universe.missingness}")
 
 
+def apply_log_transform(
+    df_train: pd.DataFrame,
+    df_val: pd.DataFrame,
+    df_test: pd.DataFrame,
+    universe: Universe,
+    ds_cfg,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    log1p transform for numeric features.
+    """
+    if universe.log_transform == LogTransform.NONE:
+        return df_train, df_val, df_test
+
+    label_col = ds_cfg.label_column
+    numeric_cols = [
+        c
+        for c in df_train.select_dtypes(include="number").columns
+        if c not in (label_col, "Label")
+    ]
+
+    if not numeric_cols:
+        return df_train, df_val, df_test
+
+    df_train = df_train.copy()
+    df_val = df_val.copy()
+    df_test = df_test.copy()
+
+    logger.info(
+        "[PREP] Applying %s transform to %d numeric columns.",
+        universe.log_transform.value,
+        len(numeric_cols),
+    )
+
+    for col in numeric_cols:
+        # train split motivates the choice for handling negatives
+        x_train = df_train[col].astype(float)
+        all_nonneg = (x_train >= 0).all()
+
+        if universe.log_transform == LogTransform.LOG1P:
+            if all_nonneg:
+                # log1p on non-negative features
+                for df_split in (df_train, df_val, df_test):
+                    df_split[col] = np.log1p(df_split[col].astype(float).clip(min=0.0))
+            else:
+                # signed log1p for features with negatives
+                logger.info(
+                    "[PREP] Feature '%s' contains negatives; using signed log1p.", col
+                )
+                for df_split in (df_train, df_val, df_test):
+                    x = df_split[col].astype(float)
+                    df_split[col] = np.sign(x) * np.log1p(np.abs(x))
+
+    return df_train, df_val, df_test
+
+
 def fit_scaler(df_train: pd.DataFrame, universe: Universe, ds_cfg):
-    # numeric features = numeric cols except label
+    # numeric features = numeric cols except label and 'Label' if present
     numeric_cols = [
         c
         for c in df_train.select_dtypes(include="number").columns
@@ -311,6 +369,15 @@ def preprocess_variant(
 
         _, df_test = apply_missingness(
             df_train,
+            df_test,
+            universe,
+            ds_cfg,
+        )
+
+        # Log transform
+        df_train, df_val, df_test = apply_log_transform(
+            df_train,
+            df_val,
             df_test,
             universe,
             ds_cfg,

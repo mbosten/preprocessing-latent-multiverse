@@ -13,6 +13,7 @@ from preprolamu.pipeline.autoencoder import (
     train_autoencoder_for_universe,
 )
 from preprolamu.pipeline.universes import Universe
+from preprolamu.tests.data_checks import log_feature_stats
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,9 @@ def get_or_compute_latent(
 
     # Feature matrix
     X, ds_cfg = get_feature_matrix_from_universe(universe, split=split)
+
+    log_feature_stats(X, split, universe)
+
     logger.info(
         "[Embedding] Retrieved feature matrix of shape %s for %s (%s split).",
         X.shape,

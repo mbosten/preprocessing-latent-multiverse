@@ -53,10 +53,9 @@ def log_feature_stats(
     )
 
     # Rough idea of scale per feature
-    sample = X[: min(100000, X.shape[0]), :]  # sample rows
-    feature_means = np.nanmean(sample, axis=0)
-    feature_stds = np.nanstd(sample, axis=0)
-    feature_max_abs = np.nanmax(np.abs(sample), axis=0)
+    feature_means = np.nanmean(X, axis=0)
+    feature_stds = np.nanstd(X, axis=0)
+    feature_max_abs = np.nanmax(np.abs(X), axis=0)
 
     # Log top-5 “worst” features by max abs value
     worst_idx = np.argsort(-feature_max_abs)[:5]

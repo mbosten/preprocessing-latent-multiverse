@@ -42,90 +42,9 @@ def get_clean_dataset_path(dataset_id: str, extension: str) -> Path:
     return BASE_DATA_DIR / "raw" / f"{dataset_id}_clean.{extension}"
 
 
-# def get_preprocessed_train_path(universe: Universe) -> Path:
-#     return (
-#         BASE_DATA_DIR
-#         / "processed"
-#         / "train"
-#         / f"{universe.to_id_string()}_preprocessed_train.parquet"
-#     )
-
-
-# def get_preprocessed_validation_path(universe: Universe) -> Path:
-#     return (
-#         BASE_DATA_DIR
-#         / "processed"
-#         / "validation"
-#         / f"{universe.to_id_string()}_preprocessed_validation.parquet"
-#     )
-
-
-# def get_preprocessed_test_path(universe: Universe) -> Path:
-#     return (
-#         BASE_DATA_DIR
-#         / "processed"
-#         / "test"
-#         / f"{universe.to_id_string()}_preprocessed_test.parquet"
-#     )
-
-
-# def get_preprocessing_status_path(universe: Universe) -> Path:
-#     return (
-#         BASE_DATA_DIR
-#         / "interim"
-#         / "preprocessing_status"
-#         / f"{universe.to_id_string()}.status"
-#     )
-
-
-# def get_ae_model_path(universe: Universe) -> Path:
-#     return (
-#         BASE_DATA_DIR / "interim" / "autoencoder" / f"{universe.to_id_string()}_ae.pt"
-#     )
-
-
 def get_latent_cache_path(universe: Universe) -> Path:
     root = ensure_dir(EXPERIMENTS_ROOT / "latent")
     return root / f"{universe.to_id_string()}_latent.npy"
-
-
-# def get_embedding_path(universe: Universe, split: str = "test") -> Path:
-#     """
-#     Path for the PCA-projected embedding used for TDA.
-#     """
-#     return (
-#         BASE_DATA_DIR
-#         / "interim"
-#         / "embeddings"
-#         / f"{universe.to_id_string()}_latent_{split}.npy"
-#     )
-
-
-# def get_persistence_path(universe: Universe, split: str = "test") -> Path:
-#     return (
-#         BASE_DATA_DIR
-#         / "interim"
-#         / "persistence"
-#         / f"{universe.to_id_string()}_persistence_{split}.npz"
-#     )
-
-
-# def get_landscapes_path(universe: Universe, split: str = "test") -> Path:
-#     return (
-#         BASE_DATA_DIR
-#         / "interim"
-#         / "landscapes"
-#         / f"{universe.to_id_string()}_landscapes_{split}.npz"
-#     )
-
-
-# def get_metrics_path(universe: Universe, split: str = "test") -> Path:
-#     return (
-#         BASE_DATA_DIR
-#         / "processed"
-#         / "metrics"
-#         / f"{universe.to_id_string()}_metrics_{split}.json"
-#     )
 
 
 # IO functions

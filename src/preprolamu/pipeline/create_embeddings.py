@@ -6,7 +6,7 @@ import logging
 import numpy as np
 import torch
 
-from preprolamu.io.storage import get_ae_model_path, get_embedding_path
+from preprolamu.io.storage import get_ae_model_path, get_embedding_path, load_embedding
 from preprolamu.pipeline.autoencoder import (
     get_feature_matrix_from_universe,
     load_autoencoder_for_universe,
@@ -35,16 +35,19 @@ def get_or_compute_latent(
       - otherwise: ensure AE trained, compute latent, save cache, return
     """
     # Specify split-specific file name depending on which dataset we retrieve the embedding space from.
-    latent_path = get_embedding_path(universe, split=split)
+    if not force_recompute:
+        try:
+            return load_embedding(
+                universe, split=split, force_recompute=force_recompute
+            )
+        except FileNotFoundError:
+            logger.info(
+                "[Embedding] No existing embedding (%s split) found for %s; will compute.",
+                split,
+                universe.to_id_string(),
+            )
 
-    if latent_path.exists() and not force_recompute:
-        logger.info(
-            "[Embedding] Loading cached latent (%s) from %s for %s",
-            split,
-            latent_path,
-            universe.to_id_string(),
-        )
-        return np.load(latent_path)
+    latent_path = get_embedding_path(universe, split=split)
 
     # Retrieve model path to see if a checkpoint exists.
     model_path = get_ae_model_path(universe)

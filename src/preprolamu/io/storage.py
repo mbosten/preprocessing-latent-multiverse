@@ -116,6 +116,32 @@ def get_latent_cache_path(universe: Universe) -> Path:
     return root / f"{universe.to_id_string()}_latent.npy"
 
 
+# IO functions
+
+
+def load_embedding(
+    universe: Universe,
+    split: str,
+    force_recompute: bool = False,
+):
+    """
+    Loads embedding from disk. If the file is not found or if force_recompute=True,
+    raises FileNotFoundError.
+    """
+    embed_path = get_embedding_path(universe, split=split)
+    if embed_path.exists() and not force_recompute:
+        logger.info(
+            "[Embedding] Loading cached latent (%s) from %s for %s",
+            split,
+            embed_path,
+            universe.to_id_string(),
+        )
+        return np.load(embed_path)
+    raise FileNotFoundError(
+        f"No embedding found at {embed_path} for {universe.to_id_string()}"
+    )
+
+
 def save_metrics_from_tda_output(
     universe: Universe,
     per_dim: dict[int, np.ndarray],

@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from preprolamu.io.storage import save_metrics_from_tda_output
-from preprolamu.pipeline.create_embeddings import get_or_compute_latent
+from preprolamu.io.storage import load_embedding, save_metrics_from_tda_output
 from preprolamu.pipeline.embeddings import from_latent_to_point_cloud
 from preprolamu.pipeline.landscapes import compute_landscapes
 from preprolamu.pipeline.metrics import compute_metrics_from_tda
@@ -14,7 +13,7 @@ from preprolamu.pipeline.universes import Universe
 logger = logging.getLogger(__name__)
 
 
-def run_tda_for_universe(universe: Universe):
+def run_tda_for_universe(universe: Universe, split: str = "test"):
     """
     Complete TDA step for a single universe, starting from latent embeddings.
     """
@@ -26,10 +25,17 @@ def run_tda_for_universe(universe: Universe):
     num_landscapes = tda_cfg.num_landscapes
     resolution = tda_cfg.resolution
 
-    # 1. Latent --> CHANGE TO CHECK WHETHER EMBEDDINGS EXIST.
-    latent = get_or_compute_latent(
-        universe, retrain_regardless=False, force_recompute=False
-    )
+    # 1. Read latent embedding, err if not found
+    try:
+        latent = load_embedding(universe, split=split, force_recompute=False)
+    except FileNotFoundError as e:
+        msg = (
+            f"[TDA] No embedding found for universe {universe.to_id_string()} "
+            f"(split='{split}'). Run the embedding step first."
+        )
+        logger.error(msg)
+        raise RuntimeError(msg) from e
+
     logger.info(
         "[TDA] Loaded latent for %s with shape %s",
         universe.to_id_string(),

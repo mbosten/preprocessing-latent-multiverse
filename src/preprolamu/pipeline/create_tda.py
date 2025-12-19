@@ -28,7 +28,7 @@ def run_tda_for_universe(universe: Universe):
 
     # 1. Latent --> CHANGE TO CHECK WHETHER EMBEDDINGS EXIST.
     latent = get_or_compute_latent(
-        universe, retrain_if_missing=True, force_recompute=False
+        universe, retrain_regardless=False, force_recompute=False
     )
     logger.info(
         "[TDA] Loaded latent for %s with shape %s",

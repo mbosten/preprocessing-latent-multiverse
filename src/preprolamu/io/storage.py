@@ -5,7 +5,7 @@ import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 import numpy as np
 
@@ -84,6 +84,11 @@ def get_ae_model_path(universe: Universe) -> Path:
     )
 
 
+def get_latent_cache_path(universe: Universe) -> Path:
+    root = ensure_dir(EXPERIMENTS_ROOT / "latent")
+    return root / f"{universe.to_id_string()}_latent.npy"
+
+
 def get_embedding_path(universe: Universe, split: str = "test") -> Path:
     """
     Path for the PCA-projected embedding used for TDA.
@@ -96,29 +101,34 @@ def get_embedding_path(universe: Universe, split: str = "test") -> Path:
     )
 
 
-def get_tda_result_path(universe: Universe) -> Path:
+def get_persistence_path(universe: Universe, split: str = "test") -> Path:
     return (
-        BASE_DATA_DIR / "interim" / "persistence" / f"{universe.to_id_string()}_tda.npz"
+        BASE_DATA_DIR
+        / "interim"
+        / "persistence"
+        / f"{universe.to_id_string()}_persistence_{split}.npz"
     )
 
 
-def get_metrics_path(universe: Universe) -> Path:
+def get_landscapes_path(universe: Universe, split: str = "test") -> Path:
+    return (
+        BASE_DATA_DIR
+        / "interim"
+        / "landscapes"
+        / f"{universe.to_id_string()}_landscapes_{split}.npz"
+    )
+
+
+def get_metrics_path(universe: Universe, split: str = "test") -> Path:
     return (
         BASE_DATA_DIR
         / "processed"
         / "metrics"
-        / f"{universe.to_id_string()}_metrics.json"
+        / f"{universe.to_id_string()}_metrics_{split}.json"
     )
 
 
-def get_latent_cache_path(universe: Universe) -> Path:
-    root = ensure_dir(EXPERIMENTS_ROOT / "latent")
-    return root / f"{universe.to_id_string()}_latent.npy"
-
-
 # IO functions
-
-
 def load_embedding(
     universe: Universe,
     split: str,
@@ -142,72 +152,105 @@ def load_embedding(
     )
 
 
-def save_metrics_from_tda_output(
-    universe: Universe,
-    per_dim: dict[int, np.ndarray],
-    landscapes: dict[int, np.ndarray | None],
-    metrics: dict[str, float],
-):
-    tda_path = get_tda_result_path(universe)
-    arrays_for_npz = {}
-    for d, arr in per_dim.items():
-        arrays_for_npz[f"dim{d}_intervals"] = arr
-    for d, ls in landscapes.items():
-        if ls is not None:
-            arrays_for_npz[f"dim{d}_landscapes"] = ls
-
-    save_tda_npz(tda_path, **arrays_for_npz)
-
-    metrics_path = get_metrics_path(universe)
-    metrics_dict = asdict(metrics)
-    save_json(metrics_path, metrics_dict)
-    logger.info(
-        "[TDA] Saved TDA results to %s and metrics to %s", tda_path, metrics_path
-    )
-
-
-def load_tda_output_for_universe(
-    universe: Universe,
-) -> Tuple[Dict[int, np.ndarray], Dict[int, np.ndarray | None]]:
-    """
-    Inverse of `save_metrics_from_tda_output`:
-    load per-dimension persistence intervals and landscapes for a universe.
-
-    Returns:
-        per_dim:    dim -> intervals array
-        landscapes: dim -> landscapes array (or None if not present)
-    """
-    tda_path = get_tda_result_path(universe)
-    raw = load_tda_npz(tda_path)  # dict[str, np.ndarray]
-
-    per_dim: Dict[int, np.ndarray] = {}
-    landscapes: Dict[int, np.ndarray | None] = {}
-
-    for key, arr in raw.items():
-        if key.startswith("dim") and key.endswith("_intervals"):
-            # key like "dim1_intervals" -> extract 1
-            dim_str = key[3:-10]  # strip "dim" and "_intervals"
-            dim = int(dim_str)
-            per_dim[dim] = arr
-        elif key.startswith("dim") and key.endswith("_landscapes"):
-            # key like "dim1_landscapes"
-            dim_str = key[3:-11]  # strip "dim" and "_landscapes"
-            dim = int(dim_str)
-            landscapes[dim] = arr
-
-    return per_dim, landscapes
-
-
 def save_tda_npz(path: Path, **arrays: np.ndarray) -> None:
     ensure_parent_dir(path)
-    logger.info(f"Saving TDA npz to {path} with keys {list(arrays.keys())}")
+    logger.info("Saving npz to %s with keys %s", path, list(arrays.keys()))
     np.savez(path, **arrays)
 
 
 def load_tda_npz(path: Path) -> Dict[str, np.ndarray]:
-    logger.info(f"Loading TDA npz from {path}")
+    logger.info("Loading npz from %s", path)
     with np.load(path) as data:
         return {k: data[k] for k in data.files}
+
+
+# ---------- Persistence ----------
+
+
+def save_persistence(
+    universe: Universe,
+    split: str,
+    per_dim: dict[int, np.ndarray],
+) -> None:
+    path = get_persistence_path(universe, split=split)
+    arrays = {f"dim{d}_intervals": arr for d, arr in per_dim.items()}
+    save_tda_npz(path, **arrays)
+
+
+def load_persistence(
+    universe: Universe,
+    split: str = "test",
+) -> dict[int, np.ndarray]:
+    path = get_persistence_path(universe, split=split)
+    raw = load_tda_npz(path)
+    per_dim: dict[int, np.ndarray] = {}
+    for key, arr in raw.items():
+        if key.startswith("dim") and key.endswith("_intervals"):
+            dim_str = key[3:-10]  # strip "dim" and "_intervals"
+            dim = int(dim_str)
+            per_dim[dim] = arr
+    if not per_dim:
+        raise FileNotFoundError(f"No persistence intervals found in {path}")
+    return per_dim
+
+
+# ---------- Landscapes ----------
+
+
+def save_landscapes(
+    universe: Universe,
+    split: str,
+    landscapes: dict[int, np.ndarray | None],
+) -> None:
+    path = get_landscapes_path(universe, split=split)
+    arrays = {
+        f"dim{d}_landscapes": arr for d, arr in landscapes.items() if arr is not None
+    }
+    save_tda_npz(path, **arrays)
+
+
+def load_landscapes(
+    universe: Universe,
+    split: str = "test",
+) -> dict[int, np.ndarray | None]:
+    path = get_landscapes_path(universe, split=split)
+    raw = load_tda_npz(path)
+    landscapes: dict[int, np.ndarray | None] = {}
+    for key, arr in raw.items():
+        if key.startswith("dim") and key.endswith("_landscapes"):
+            dim_str = key[3:-11]  # strip "dim" and "_landscapes"
+            dim = int(dim_str)
+            landscapes[dim] = arr
+    if not landscapes:
+        raise FileNotFoundError(f"No landscapes found in {path}")
+    return landscapes
+
+
+# ---------- Metrics ----------
+
+
+def save_metrics(
+    universe: Universe,
+    split: str,
+    metrics: Any,
+) -> None:
+    path = get_metrics_path(universe, split=split)
+    if hasattr(metrics, "__dataclass_fields__"):
+        payload = asdict(metrics)
+    else:
+        payload = dict(metrics)
+    save_json(path, payload)
+
+
+def load_metrics(
+    universe: Universe,
+    split: str = "test",
+) -> Dict[str, Any]:
+    path = get_metrics_path(universe, split=split)
+    return load_json(path)
+
+
+# ---------- JSON ----------
 
 
 def save_json(path: Path, payload: Dict[str, Any]) -> None:

@@ -85,15 +85,16 @@ def prepare_embeddings(
 @app.command("prepare-tda")
 def prepare_tda(
     universe_index: Annotated[int | None, typer.Option()] = None,
+    overwrite: Annotated[bool, typer.Option()] = False,
 ):
     if universe_index is None:
         universes = generate_multiverse()
 
         for u in universes:
-            run_tda_for_universe(u)
+            run_tda_for_universe(u, overwrite=overwrite)
     else:
         u = get_universe(universe_index)
-        run_tda_for_universe(u)
+        run_tda_for_universe(u, overwrite=overwrite)
 
     if universe_index is None:
         compute_presto_variance_across_universes(

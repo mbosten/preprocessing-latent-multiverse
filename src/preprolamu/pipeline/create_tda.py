@@ -21,7 +21,9 @@ from preprolamu.pipeline.universes import Universe
 logger = logging.getLogger(__name__)
 
 
-def run_tda_for_universe(universe: Universe, split: str = "test"):
+def run_tda_for_universe(
+    universe: Universe, split: str = "test", overwrite: bool = False
+):
     """
     Complete TDA step for a single universe, starting from latent embeddings.
     """
@@ -55,7 +57,7 @@ def run_tda_for_universe(universe: Universe, split: str = "test"):
     metrics_path = universe.metrics_path(split=split)
 
     # Check if persistence already exists
-    if persistence_path.exists():
+    if persistence_path.exists() and not overwrite:
         per_dim = load_persistence(universe, split)
         logger.info("[TDA] Loaded persistence from %s", persistence_path)
         return
@@ -78,7 +80,7 @@ def run_tda_for_universe(universe: Universe, split: str = "test"):
         logger.info("[TDA] Saved persistence to %s", persistence_path)
 
     # Check if landscapes already exist
-    if landscapes_path.exists():
+    if landscapes_path.exists() and not overwrite:
         landscapes = load_landscapes(universe, split)
         logger.info("[TDA] Landscapes already exist at %s.", landscapes_path)
     else:
@@ -94,7 +96,7 @@ def run_tda_for_universe(universe: Universe, split: str = "test"):
         logger.info("[TDA] Saved landscapes to %s", landscapes_path)
 
     # Check if metrics already exist
-    if metrics_path.exists():
+    if metrics_path.exists() and not overwrite:
         metrics = load_metrics(universe, split)
         logger.info("[TDA] Metrics already exist at %s.", metrics_path)
     else:

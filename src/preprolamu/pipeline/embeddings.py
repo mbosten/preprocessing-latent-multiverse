@@ -27,8 +27,18 @@ def normalize_space(X, diameter_iterations=1000, seed=42):
         distances = cdist([X[subset[-1]]], X).ravel()
         new_point = np.argmax(distances)
         subset.append(new_point)
+
     pairwise_distances = cdist(X[subset], X[subset])
     diameter = np.max(pairwise_distances)
+
+    eps = 1e-8
+    if not np.isfinite(diameter) or diameter < eps:
+        logger.info(
+            "[EMB] Computed diameter is non-finite or too small; defaulting to 1 (diameter=%s).",
+            diameter,
+        )
+        diameter = 1.0
+
     return X / diameter
 
 

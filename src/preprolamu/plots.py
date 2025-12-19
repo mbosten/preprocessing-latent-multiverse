@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import typer
 
-from preprolamu.io.storage import load_embedding
+from preprolamu.io.storage import load_projected
 from preprolamu.logging_config import setup_logging
-from preprolamu.pipeline.embeddings import from_latent_to_point_cloud
+from preprolamu.pipeline.embeddings import downsample_latent
 from preprolamu.pipeline.universes import get_universe
 
 # from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 (needed to enable 3D projection)
@@ -78,35 +78,21 @@ def plot_3d(
 
     # Load embedding (will raise FileNotFoundError if not present)
     try:
-        latent = load_embedding(universe, split=split, force_recompute=False)
+        projected = load_projected(universe, split)
     except FileNotFoundError as e:
         logger.error(
-            "Embedding for universe %s (split=%s) not found. Run embedding creation first. Error: %s",
+            "Projected point cloud for universe %s (split=%s) not found. Run embedding creation first. Error: %s",
             uid,
             split,
             e,
         )
         raise typer.Exit(code=2)
 
-    if latent.size == 0:
-        logger.error("Loaded embedding is empty. Nothing to plot.")
-        raise typer.Exit(code=3)
-
-    logger.info("Loaded latent with shape %s", latent.shape)
-
     # Determine target_size (subsample)
     if target_size is None:
         target_size = int(universe.tda_config.subsample_size)
 
-    # Use your existing helper to produce PCA-projected + downsampled point cloud
-    # Ensure we request 3 components (pca_dim=3)
-    points = from_latent_to_point_cloud(
-        X=latent,
-        pca_dim=3,
-        target_size=target_size,
-        seed=universe.seed,
-        normalize=True,
-    )
+    points = downsample_latent(projected, target_size=target_size, seed=universe.seed)
 
     if points.shape[1] != 3:
         logger.error(

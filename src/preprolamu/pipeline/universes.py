@@ -100,6 +100,14 @@ class Universe:
             BASE_DATA_DIR / "interim" / "embeddings" / f"{self.id}_latent_{split}.npy"
         )
 
+    def projected_path(self, split: str = "test") -> Path:
+        return (
+            BASE_DATA_DIR
+            / "interim"
+            / "projections"
+            / f"{self.id}_projected_{split}.npy"
+        )
+
     def persistence_path(self, split: str = "test") -> Path:
         return (
             BASE_DATA_DIR

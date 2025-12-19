@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 import numpy as np
 import torch
 from scipy.spatial.distance import cdist
 from sklearn.decomposition import PCA
 
+from preprolamu.io.storage import save_projected
 from preprolamu.pipeline.autoencoder import (
     get_feature_matrix_from_universe,
     load_autoencoder_for_universe,
@@ -60,12 +62,23 @@ def downsample_latent(X: np.ndarray, target_size: int, seed: int):
 
 
 def from_latent_to_point_cloud(
-    X: np.ndarray, pca_dim: int, target_size: int, seed: int, normalize: bool = True
+    X: np.ndarray,
+    pca_dim: int,
+    target_size: int,
+    seed: int,
+    normalize: bool = True,
+    save_projected_to: Optional[tuple[Universe, str]] = None,
+    dtype: type = np.float32,
 ):
     if normalize:
         X = normalize_space(X, diameter_iterations=1000, seed=42)
 
     X_pca = project_PCA(X, n_components=pca_dim)
+
+    if save_projected_to is not None:
+        universe, split = save_projected_to
+        to_save = X_pca.astype(dtype, copy=False)
+        save_projected(universe=universe, split=split, arr=to_save)
 
     if target_size < X_pca.shape[0]:
         X_pca_sample = downsample_latent(X_pca, target_size=target_size, seed=seed)

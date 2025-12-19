@@ -69,6 +69,7 @@ def run_tda_for_universe(
             target_size=m,
             seed=universe.seed,
             normalize=True,
+            save_projected_to=(universe, split),
         )
 
         per_dim = compute_alpha_complex_persistence(

@@ -81,6 +81,21 @@ def load_tda_npz(path: Path) -> Dict[str, np.ndarray]:
         return {k: data[k] for k in data.files}
 
 
+def save_projected(universe: Universe, split: str, arr: np.ndarray) -> None:
+    path = universe.projected_path(split=split)
+    ensure_parent_dir(path)
+    logger.info("[IO] Saving projected point cloud (%s) to %s", split, path)
+    np.save(path, arr)
+
+
+def load_projected(universe: Universe, split: str) -> np.ndarray:
+    path = universe.projected_path(split=split)
+    if path.exists():
+        logger.info("[IO] Loading projected point cloud (%s) from %s", split, path)
+        return np.load(path)
+    raise FileNotFoundError(f"No projected point cloud found at {path}")
+
+
 # ---------- Persistence ----------
 
 

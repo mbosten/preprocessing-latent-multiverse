@@ -8,7 +8,7 @@ from typing import Dict, Iterable, List, Optional
 
 import numpy as np
 
-from preprolamu.io.storage import load_tda_output_for_universe
+from preprolamu.io.storage import load_landscapes
 from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
@@ -82,15 +82,17 @@ def compute_landscape_norm_means(
 
 def compute_presto_variance(
     landscapes: List[Dict[int, np.ndarray]],
+    homology_dims: Iterable[int] | None = None,
 ) -> float:
 
     if not landscapes:
         raise ValueError("landscapes list is empty.")
 
-    N = len(landscapes)
-    homology_dims = range(max(landscapes[0]))
-
+    if homology_dims is None:
+        homology_dims = range(max(landscapes[0].keys()) + 1)
     homology_dims = list(homology_dims)
+
+    N = len(landscapes)
 
     mean_norms, norms_per_landscape = compute_landscape_norm_means(
         landscapes, return_norms=True
@@ -112,18 +114,19 @@ def compute_presto_variance(
 
 def compute_presto_variance_across_universes(
     universes: Iterable[Universe],
+    split: str = "test",
     homology_dims: Iterable[int] | None = (0, 1, 2),
 ) -> float:
     """
     Load landscapes for all given universes and compute PRESTO-style variance
     of landscape norms across them.
 
-    Each universe must already have TDA results saved via `save_metrics_from_tda_output`.
+    Each universe must already have TDA results saved.
     """
     landscapes_list: List[Dict[int, np.ndarray]] = []
 
     for u in universes:
-        _, landscapes = load_tda_output_for_universe(u)
+        landscapes = load_landscapes(u, split=split)
         landscapes_list.append(landscapes)
 
     var = compute_presto_variance(
@@ -131,8 +134,9 @@ def compute_presto_variance_across_universes(
         homology_dims=homology_dims,
     )
     logger.info(
-        "[TDA] Computed PRESTO variance across %d universes: %.6f",
+        "[TDA] Computed PRESTO variance across %d universes (split=%s): %.6f",
         len(landscapes_list),
+        split,
         var,
     )
     return var
@@ -141,7 +145,7 @@ def compute_presto_variance_across_universes(
 def compute_metrics_from_tda(
     persistence_per_dimension: Dict[int, np.ndarray],
     landscapes_per_dimension: Dict[int, Optional[np.ndarray]],
-):
+) -> MetricsResult:
     total_persistence_per_dim: Dict[int, float] = {}
     landscape_l2_per_dim: Dict[int, float] = {}
 

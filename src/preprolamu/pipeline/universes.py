@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import List, Tuple
 
 import typer
 
 logger = logging.getLogger(__name__)
+
+BASE_DATA_DIR = Path("data")
 
 
 class Scaling(str, Enum):
@@ -68,19 +71,85 @@ class Universe:
     # TDA config
     tda_config: TdaConfig = TdaConfig()
 
-    def to_id_string(self) -> str:
-        """
-        Short string encoding for filenames/logs.
-        """
-        return (
-            f"ds-{self.dataset_id}"
-            f"_sc-{self.scaling.value}"
-            f"_log-{self.log_transform.value}"
-            f"_fs-{self.feature_subset.value}"
-            f"_dup-{self.duplicate_handling.value}"
-            f"_miss-{self.missingness.value}"
-            f"_sd-{self.seed}"
+    # Parsed ID string
+    id: str = field(init=False)
+
+    def __post_init__(self):
+        # Compute once
+        object.__setattr__(
+            self,
+            "id",
+            (
+                f"ds-{self.dataset_id}"
+                f"_sc-{self.scaling.value}"
+                f"_log-{self.log_transform.value}"
+                f"_fs-{self.feature_subset.value}"
+                f"_dup-{self.duplicate_handling.value}"
+                f"_miss-{self.missingness.value}"
+                f"_sd-{self.seed}"
+            ),
         )
+
+    # Will likely be deprecated
+    def to_id_string(self) -> str:
+        return self.id
+
+    # Path functions
+    def embedding_path(self, split: str = "test") -> Path:
+        return (
+            BASE_DATA_DIR / "interim" / "embeddings" / f"{self.id}_latent_{split}.npy"
+        )
+
+    def persistence_path(self, split: str = "test") -> Path:
+        return (
+            BASE_DATA_DIR
+            / "interim"
+            / "persistence"
+            / f"{self.id}_persistence_{split}.npz"
+        )
+
+    def landscapes_path(self, split: str = "test") -> Path:
+        return (
+            BASE_DATA_DIR
+            / "interim"
+            / "landscapes"
+            / f"{self.id}_landscapes_{split}.npz"
+        )
+
+    def metrics_path(self, split: str = "test") -> Path:
+        return (
+            BASE_DATA_DIR / "processed" / "metrics" / f"{self.id}_metrics_{split}.json"
+        )
+
+    def ae_model_path(self) -> Path:
+        return BASE_DATA_DIR / "interim" / "autoencoder" / f"{self.id}_ae.pt"
+
+    def preprocessed_train_path(self) -> Path:
+        return (
+            BASE_DATA_DIR
+            / "processed"
+            / "train"
+            / f"{self.id}_preprocessed_train.parquet"
+        )
+
+    def preprocessed_validation_path(self) -> Path:
+        return (
+            BASE_DATA_DIR
+            / "processed"
+            / "validation"
+            / f"{self.id}_preprocessed_validation.parquet"
+        )
+
+    def preprocessed_test_path(self) -> Path:
+        return (
+            BASE_DATA_DIR
+            / "processed"
+            / "test"
+            / f"{self.id}_preprocessed_test.parquet"
+        )
+
+    def preprocessing_status_path(self) -> Path:
+        return BASE_DATA_DIR / "interim" / "preprocessing_status" / f"{self.id}.status"
 
 
 DATASET_IDS: List[str] = [

@@ -12,14 +12,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, QuantileTransformer, StandardScaler
 
 from preprolamu.config import load_dataset_config
-from preprolamu.io.storage import (
-    ensure_parent_dir,
-    get_clean_dataset_path,
-    get_preprocessed_test_path,
-    get_preprocessed_train_path,
-    get_preprocessed_validation_path,
-    get_preprocessing_status_path,
-)
+from preprolamu.io.storage import ensure_parent_dir, get_clean_dataset_path
 from preprolamu.pipeline.universes import (
     DuplicateHandling,
     FeatureSubset,
@@ -106,7 +99,7 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     if universe.feature_subset == FeatureSubset.ALL:
         return df
 
-    if universe.to_id_string().startswith(
+    if universe.id.startswith(
         ("ds-NF-ToN-IoT-v3", "ds-NF-UNSW-NB15-v3", "ds-NF-CICIDS2018-v3")
     ):  # These are NF-ToN-IoT-v3 specific
         special_features = [
@@ -115,14 +108,12 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
             "L4_SRC_PORT",
             "L4_DST_PORT",
         ]
-    elif universe.to_id_string().startswith(
+    elif universe.id.startswith(
         "ds-Merged"
     ):  # Just a dummy variable to keep the pipeline similar.
         special_features = ["Protocol Type"]
     else:
-        raise ValueError(
-            f"Unknown universe for feature subseting: {universe.to_id_string()}"
-        )
+        raise ValueError(f"Unknown universe for feature subseting: {universe.id}")
     logger.info(f"Dropping special features: {special_features}")
     return df.drop(columns=[c for c in special_features if c in df.columns])
 
@@ -137,7 +128,7 @@ def apply_duplicate_handling(df: pd.DataFrame, universe: Universe) -> pd.DataFra
     logger.info(
         "Dropped %d duplicate rows for universe %s",
         before - after,
-        universe.to_id_string(),
+        universe.id,
     )
     return df_nodup
 
@@ -314,17 +305,17 @@ def preprocess_variant(
     End-to-end preprocessing for one Universe.
     Returns path to preprocessed dataset.
     """
-    logger.info(f"Preprocessing dataset for universe={universe.to_id_string()}")
+    logger.info(f"Preprocessing dataset for universe={universe.id}")
 
-    path_train = get_preprocessed_train_path(universe)
-    path_val = get_preprocessed_validation_path(universe)
-    path_test = get_preprocessed_test_path(universe)
-    status_path = get_preprocessing_status_path(universe)
+    path_train = universe.preprocessed_train_path()
+    path_val = universe.preprocessed_validation_path()
+    path_test = universe.preprocessed_test_path()
+    status_path = universe.preprocessing_status_path()
 
     if not overwrite and path_train.exists() and path_test.exists():
         logger.info(
             "Preprocessed files for %s already exist at %s and %s. Skipping preprocessing.",
-            universe.to_id_string(),
+            universe.id,
             path_train,
             path_test,
         )
@@ -419,9 +410,7 @@ def preprocess_variant(
         return path_train, path_val, path_test
 
     except Exception:
-        logger.exception(
-            "Preprocessing failed for universe=%s", universe.to_id_string()
-        )
+        logger.exception("Preprocessing failed for universe=%s", universe.id)
         try:
             status_path.write_text("FAILED\n", encoding="utf-8")
         except OSError:

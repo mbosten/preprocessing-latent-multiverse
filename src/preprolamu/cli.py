@@ -108,7 +108,7 @@ def list_universes():
     """
     universes = generate_multiverse()
     for i, universe in enumerate(universes):
-        typer.echo(f"{i:3d}: {universe.to_id_string()}")
+        typer.echo(f"{i:3d}: {universe.id}")
 
 
 if __name__ == "__main__":

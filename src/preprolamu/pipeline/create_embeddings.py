@@ -6,7 +6,7 @@ import logging
 import numpy as np
 import torch
 
-from preprolamu.io.storage import get_ae_model_path, get_embedding_path, load_embedding
+from preprolamu.io.storage import load_embedding
 from preprolamu.pipeline.autoencoder import (
     get_feature_matrix_from_universe,
     load_autoencoder_for_universe,
@@ -44,13 +44,13 @@ def get_or_compute_latent(
             logger.info(
                 "[Embedding] No existing embedding (%s split) found for %s; will compute.",
                 split,
-                universe.to_id_string(),
+                universe.id,
             )
 
-    latent_path = get_embedding_path(universe, split=split)
+    latent_path = universe.embedding_path(split=split)
 
     # Retrieve model path to see if a checkpoint exists.
-    model_path = get_ae_model_path(universe)
+    model_path = universe.ae_model_path()
 
     # Feature matrix
     X, _, ds_cfg = get_feature_matrix_from_universe(universe, split=split)
@@ -58,7 +58,7 @@ def get_or_compute_latent(
     logger.info(
         "[Embedding] Retrieved feature matrix of shape %s for %s (%s split).",
         X.shape,
-        universe.to_id_string(),
+        universe.id,
         split,
     )
 

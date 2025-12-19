@@ -12,13 +12,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from preprolamu.config import DatasetConfig, load_dataset_config
-from preprolamu.io.storage import (
-    ensure_parent_dir,
-    get_ae_model_path,
-    get_preprocessed_test_path,
-    get_preprocessed_train_path,
-    get_preprocessed_validation_path,
-)
+from preprolamu.io.storage import ensure_parent_dir
 from preprolamu.pipeline.universes import Universe
 from preprolamu.tests.data_checks import log_feature_stats
 
@@ -122,11 +116,11 @@ def get_feature_matrix_from_universe(
     ds_cfg: DatasetConfig = load_dataset_config(universe.dataset_id)
 
     if split == "train":
-        path = get_preprocessed_train_path(universe)
+        path = universe.preprocessed_train_path()
     elif split == "val":
-        path = get_preprocessed_validation_path(universe)
+        path = universe.preprocessed_validation_path()
     elif split == "test":
-        path = get_preprocessed_test_path(universe)
+        path = universe.preprocessed_test_path()
     else:
         raise ValueError(f"Invalid split: {split}. Must be 'train', 'val', or 'test'.")
 
@@ -142,9 +136,9 @@ def get_feature_matrix_from_universe(
 def train_autoencoder_for_universe(universe: Universe) -> Path:
     """
     Train an autoencoder on the preprocessed data for this universe.
-    Also saves a checkpoint to get_ae_model_path(universe) and returns that path.
+    Also saves a checkpoint to universe.ae_model_path() and returns that path.
     """
-    logger.info(f"[AE] Training autoencoder for universe = {universe.to_id_string()}")
+    logger.info(f"[AE] Training autoencoder for universe = {universe.id}")
 
     X_train, feature_names, ds_cfg = get_feature_matrix_from_universe(
         universe, split="train"
@@ -280,7 +274,7 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
         )
 
     # Save model checkpoint
-    model_path = get_ae_model_path(universe)
+    model_path = universe.ae_model_path()
     ensure_parent_dir(model_path)
 
     checkpoint = {
@@ -290,7 +284,7 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
         "dropout": ae_cfg.dropout,
         "ae_regularization": ae_cfg.regularization,
         "model_state_dict": model.state_dict(),
-        "universe_id": universe.to_id_string(),
+        "universe_id": universe.id,
         "best_epoch": best_epoch,
         "best_val_loss": best_val_loss,
     }
@@ -316,7 +310,7 @@ def load_autoencoder_for_universe(
     """
     Load the trained autoencoder model for this universe from its checkpoint.
     """
-    model_path = get_ae_model_path(universe)
+    model_path = universe.ae_model_path()
     if not model_path.exists():
         raise FileNotFoundError(
             f"Autoencoder model checkpoint not found at {model_path}"

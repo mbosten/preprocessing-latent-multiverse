@@ -42,46 +42,46 @@ def get_clean_dataset_path(dataset_id: str, extension: str) -> Path:
     return BASE_DATA_DIR / "raw" / f"{dataset_id}_clean.{extension}"
 
 
-def get_preprocessed_train_path(universe: Universe) -> Path:
-    return (
-        BASE_DATA_DIR
-        / "processed"
-        / "train"
-        / f"{universe.to_id_string()}_preprocessed_train.parquet"
-    )
+# def get_preprocessed_train_path(universe: Universe) -> Path:
+#     return (
+#         BASE_DATA_DIR
+#         / "processed"
+#         / "train"
+#         / f"{universe.to_id_string()}_preprocessed_train.parquet"
+#     )
 
 
-def get_preprocessed_validation_path(universe: Universe) -> Path:
-    return (
-        BASE_DATA_DIR
-        / "processed"
-        / "validation"
-        / f"{universe.to_id_string()}_preprocessed_validation.parquet"
-    )
+# def get_preprocessed_validation_path(universe: Universe) -> Path:
+#     return (
+#         BASE_DATA_DIR
+#         / "processed"
+#         / "validation"
+#         / f"{universe.to_id_string()}_preprocessed_validation.parquet"
+#     )
 
 
-def get_preprocessed_test_path(universe: Universe) -> Path:
-    return (
-        BASE_DATA_DIR
-        / "processed"
-        / "test"
-        / f"{universe.to_id_string()}_preprocessed_test.parquet"
-    )
+# def get_preprocessed_test_path(universe: Universe) -> Path:
+#     return (
+#         BASE_DATA_DIR
+#         / "processed"
+#         / "test"
+#         / f"{universe.to_id_string()}_preprocessed_test.parquet"
+#     )
 
 
-def get_preprocessing_status_path(universe: Universe) -> Path:
-    return (
-        BASE_DATA_DIR
-        / "interim"
-        / "preprocessing_status"
-        / f"{universe.to_id_string()}.status"
-    )
+# def get_preprocessing_status_path(universe: Universe) -> Path:
+#     return (
+#         BASE_DATA_DIR
+#         / "interim"
+#         / "preprocessing_status"
+#         / f"{universe.to_id_string()}.status"
+#     )
 
 
-def get_ae_model_path(universe: Universe) -> Path:
-    return (
-        BASE_DATA_DIR / "interim" / "autoencoder" / f"{universe.to_id_string()}_ae.pt"
-    )
+# def get_ae_model_path(universe: Universe) -> Path:
+#     return (
+#         BASE_DATA_DIR / "interim" / "autoencoder" / f"{universe.to_id_string()}_ae.pt"
+#     )
 
 
 def get_latent_cache_path(universe: Universe) -> Path:
@@ -89,43 +89,43 @@ def get_latent_cache_path(universe: Universe) -> Path:
     return root / f"{universe.to_id_string()}_latent.npy"
 
 
-def get_embedding_path(universe: Universe, split: str = "test") -> Path:
-    """
-    Path for the PCA-projected embedding used for TDA.
-    """
-    return (
-        BASE_DATA_DIR
-        / "interim"
-        / "embeddings"
-        / f"{universe.to_id_string()}_latent_{split}.npy"
-    )
+# def get_embedding_path(universe: Universe, split: str = "test") -> Path:
+#     """
+#     Path for the PCA-projected embedding used for TDA.
+#     """
+#     return (
+#         BASE_DATA_DIR
+#         / "interim"
+#         / "embeddings"
+#         / f"{universe.to_id_string()}_latent_{split}.npy"
+#     )
 
 
-def get_persistence_path(universe: Universe, split: str = "test") -> Path:
-    return (
-        BASE_DATA_DIR
-        / "interim"
-        / "persistence"
-        / f"{universe.to_id_string()}_persistence_{split}.npz"
-    )
+# def get_persistence_path(universe: Universe, split: str = "test") -> Path:
+#     return (
+#         BASE_DATA_DIR
+#         / "interim"
+#         / "persistence"
+#         / f"{universe.to_id_string()}_persistence_{split}.npz"
+#     )
 
 
-def get_landscapes_path(universe: Universe, split: str = "test") -> Path:
-    return (
-        BASE_DATA_DIR
-        / "interim"
-        / "landscapes"
-        / f"{universe.to_id_string()}_landscapes_{split}.npz"
-    )
+# def get_landscapes_path(universe: Universe, split: str = "test") -> Path:
+#     return (
+#         BASE_DATA_DIR
+#         / "interim"
+#         / "landscapes"
+#         / f"{universe.to_id_string()}_landscapes_{split}.npz"
+#     )
 
 
-def get_metrics_path(universe: Universe, split: str = "test") -> Path:
-    return (
-        BASE_DATA_DIR
-        / "processed"
-        / "metrics"
-        / f"{universe.to_id_string()}_metrics_{split}.json"
-    )
+# def get_metrics_path(universe: Universe, split: str = "test") -> Path:
+#     return (
+#         BASE_DATA_DIR
+#         / "processed"
+#         / "metrics"
+#         / f"{universe.to_id_string()}_metrics_{split}.json"
+#     )
 
 
 # IO functions
@@ -138,18 +138,16 @@ def load_embedding(
     Loads embedding from disk. If the file is not found or if force_recompute=True,
     raises FileNotFoundError.
     """
-    embed_path = get_embedding_path(universe, split=split)
+    embed_path = universe.embedding_path(split=split)
     if embed_path.exists() and not force_recompute:
         logger.info(
             "[Embedding] Loading cached latent (%s) from %s for %s",
             split,
             embed_path,
-            universe.to_id_string(),
+            universe.id,
         )
         return np.load(embed_path)
-    raise FileNotFoundError(
-        f"No embedding found at {embed_path} for {universe.to_id_string()}"
-    )
+    raise FileNotFoundError(f"No embedding found at {embed_path} for {universe.id}")
 
 
 def save_tda_npz(path: Path, **arrays: np.ndarray) -> None:
@@ -172,7 +170,7 @@ def save_persistence(
     split: str,
     per_dim: dict[int, np.ndarray],
 ) -> None:
-    path = get_persistence_path(universe, split=split)
+    path = universe.persistence_path(split=split)
     arrays = {f"dim{d}_intervals": arr for d, arr in per_dim.items()}
     save_tda_npz(path, **arrays)
 
@@ -181,7 +179,7 @@ def load_persistence(
     universe: Universe,
     split: str = "test",
 ) -> dict[int, np.ndarray]:
-    path = get_persistence_path(universe, split=split)
+    path = universe.persistence_path(split=split)
     raw = load_tda_npz(path)
     per_dim: dict[int, np.ndarray] = {}
     for key, arr in raw.items():
@@ -202,7 +200,7 @@ def save_landscapes(
     split: str,
     landscapes: dict[int, np.ndarray | None],
 ) -> None:
-    path = get_landscapes_path(universe, split=split)
+    path = universe.landscapes_path(split=split)
     arrays = {
         f"dim{d}_landscapes": arr for d, arr in landscapes.items() if arr is not None
     }
@@ -213,7 +211,7 @@ def load_landscapes(
     universe: Universe,
     split: str = "test",
 ) -> dict[int, np.ndarray | None]:
-    path = get_landscapes_path(universe, split=split)
+    path = universe.landscapes_path(split=split)
     raw = load_tda_npz(path)
     landscapes: dict[int, np.ndarray | None] = {}
     for key, arr in raw.items():
@@ -234,7 +232,7 @@ def save_metrics(
     split: str,
     metrics: Any,
 ) -> None:
-    path = get_metrics_path(universe, split=split)
+    path = universe.metrics_path(split=split)
     if hasattr(metrics, "__dataclass_fields__"):
         payload = asdict(metrics)
     else:
@@ -246,7 +244,7 @@ def load_metrics(
     universe: Universe,
     split: str = "test",
 ) -> Dict[str, Any]:
-    path = get_metrics_path(universe, split=split)
+    path = universe.metrics_path(split=split)
     return load_json(path)
 
 

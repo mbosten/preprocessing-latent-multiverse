@@ -25,7 +25,7 @@ def log_feature_stats(
 
     logger.info(
         "[AE][%s][%s] global stats: n_total=%d, n_finite=%d, n_nan=%d, +inf=%d, -inf=%d",
-        universe.to_id_string(),
+        universe.id,
         split,
         n_total,
         n_finite,
@@ -35,16 +35,14 @@ def log_feature_stats(
     )
 
     if n_finite == 0:
-        logger.warning(
-            "[AE][%s][%s] no finite values in X!", universe.to_id_string(), split
-        )
+        logger.warning("[AE][%s][%s] no finite values in X!", universe.id, split)
         return
 
     X_finite = X[finite_mask]
 
     logger.info(
         "[AE][%s][%s] finite values: min=%.4e, max=%.4e, mean=%.4e, std=%.4e",
-        universe.to_id_string(),
+        universe.id,
         split,
         np.min(X_finite),
         np.max(X_finite),
@@ -67,7 +65,7 @@ def log_feature_stats(
         )
         logger.info(
             "[AE][%s][%s] feature %4d (%s): mean=%.4e, std=%.4e, max_abs=%.4e",
-            universe.to_id_string(),
+            universe.id,
             split,
             j,
             name,

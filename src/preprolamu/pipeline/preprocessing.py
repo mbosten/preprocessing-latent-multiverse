@@ -268,6 +268,7 @@ def fit_scaler(df_train: pd.DataFrame, universe: Universe, ds_cfg):
         for c in df_train.select_dtypes(include="number").columns
         if c != ds_cfg.label_column and c != "Label"
     ]
+    seed = universe.seed
 
     if not numeric_cols:
         return df_train
@@ -277,7 +278,7 @@ def fit_scaler(df_train: pd.DataFrame, universe: Universe, ds_cfg):
     elif universe.scaling == Scaling.MINMAX:
         scaler = MinMaxScaler()
     elif universe.scaling == Scaling.QUANTILE:
-        scaler = QuantileTransformer(output_distribution="normal")
+        scaler = QuantileTransformer(output_distribution="normal", random_state=seed)
     else:
         raise ValueError(f"Unknown scaling: {universe.scaling}")
 

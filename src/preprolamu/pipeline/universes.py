@@ -238,7 +238,7 @@ def generate_multiverse() -> List[Universe]:
     feature_subsets = [FeatureSubset.ALL, FeatureSubset.WITHOUT_CONFOUNDERS]
     duplicate_opts = [DuplicateHandling.KEEP, DuplicateHandling.DROP]
     missingness_opts = [Missingness.DROP_ROWS, Missingness.IMPUTE_MEDIAN]
-    seeds = [42, 420, 4200]
+    seeds = [42, 420, 4200, 42000]
 
     universes: List[Universe] = []
 

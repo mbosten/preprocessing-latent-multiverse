@@ -1,33 +1,39 @@
 daaset_id: NF-UNSW-NB15-v3
-
-raw_path: "data/raw/NF-UNSW-NB15-v3.csv"
-
+raw_path: data/raw/NF-UNSW-NB15-v3.csv
 non_numerical_columns:
-  - "IPV4_SRC_ADDR"
-  - "IPV4_DST_ADDR"
-
-features_to_exclude:
-
-label_column: "Attack"
-
-benign_label: "Benign"
-
+- IPV4_SRC_ADDR
+- IPV4_DST_ADDR
+features_to_exclude: null
+label_column: Attack
+benign_label: Benign
 label_classes:
-  - "Benign"
-  - "Exploits"
-  - "Fuzzers"
-  - "Generic"
-  - "Reconnaissance"
-  - "DoS"
-  - "Analysis"
-  - "Backdoor"
-  - "Shellcode"
-  - "Worms"
-
+- Benign
+- Exploits
+- Fuzzers
+- Generic
+- Reconnaissance
+- DoS
+- Analysis
+- Backdoor
+- Shellcode
+- Worms
 autoencoder:
   latent_dim: 19
-  hidden_dims: [43, 41]
+  hidden_dims:
+  - 43
+  - 41
   epochs: 50
   batch_size: 256
   dropout: 0.0717
   regularization: 0.0012
+dataset_invariants:
+  all:
+    has_duplicates: true
+    has_missing_numeric: true
+    n_rows: 2365424
+    n_cols: 55
+  without_confounders:
+    has_duplicates: true
+    has_missing_numeric: true
+    n_rows: 2365424
+    n_cols: 55

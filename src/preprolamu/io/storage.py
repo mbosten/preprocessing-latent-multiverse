@@ -5,11 +5,12 @@ import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 import numpy as np
 
-from preprolamu.pipeline.universes import Universe
+if TYPE_CHECKING:
+    from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 

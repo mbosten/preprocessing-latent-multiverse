@@ -42,9 +42,9 @@ def split_train_test(
     df: pd.DataFrame,
     label_col: str,
     benign_label: str,
+    seed: int,
     train_frac: float = 0.6,
     val_frac: float = 0.2,
-    seed: int = 42,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Random train/test split, stratified by 'Attack' if present,
@@ -346,7 +346,7 @@ def preprocess_variant(
             benign_label=ds_cfg.benign_label,
             train_frac=0.6,
             val_frac=0.2,
-            seed=42,
+            seed=universe.seed,
         )
 
         df = None  # free memory, just to be sure

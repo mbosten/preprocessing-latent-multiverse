@@ -38,7 +38,7 @@ def main(
 
 
 def approx_diameter_farthest_first(
-    X: np.ndarray, iters: int = 1000, seed: int = 42
+    X: np.ndarray, seed: int, iters: int = 1000
 ) -> Tuple[float, int]:
     """
     Re-implements your normalize_space() diameter estimate:
@@ -85,9 +85,7 @@ def summarize_array(name: str, A: np.ndarray) -> Dict[str, float]:
     return out
 
 
-def row_duplicate_fraction(
-    X: np.ndarray, max_rows: int = 200_000, seed: int = 42
-) -> float:
+def row_duplicate_fraction(X: np.ndarray, seed: int, max_rows: int = 200_000) -> float:
     """
     Approximate duplicate-row fraction by sampling up to max_rows rows.
     Exact unique over millions can be expensive; sampling is enough for diagnosis.
@@ -151,7 +149,7 @@ def check_geometry(
 
     # Recompute the approximate diameter you used for normalization
     diam, n_unique_subset = approx_diameter_farthest_first(
-        latent, iters=diameter_iters, seed=42
+        latent, iters=diameter_iters, seed=uni.seed
     )
     logger.info(
         "[normalize] approx diameter=%.6e (iters=%d), unique_in_subset=%d/%d",

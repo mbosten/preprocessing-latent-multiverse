@@ -103,7 +103,7 @@ def _pca_project(latent: np.ndarray, pca_dim: int, seed: int) -> np.ndarray:
     Normalize latent and project to pca_dim using PCA.
     """
     # diameter normalization
-    latent_norm = normalize_space(latent, diameter_iterations=1000, seed=42)
+    latent_norm = normalize_space(latent, diameter_iterations=1000, seed=seed)
 
     pca = PCA(n_components=pca_dim, random_state=seed)
     projected = pca.fit_transform(latent_norm)

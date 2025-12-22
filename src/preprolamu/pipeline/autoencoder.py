@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import random
 from pathlib import Path
 from typing import Tuple
 
@@ -88,6 +89,22 @@ def _get_device() -> torch.device:
     return device
 
 
+def _seed_everything(seed: int) -> torch.Generator:
+    logger.info("[AE] Seeding RNGs with seed=%d", seed)
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    # For dataloader shuffling
+    g = torch.Generator()
+    g.manual_seed(seed)
+    return g
+
+
 #
 def _get_feature_matrix_for_ae(df: pd.DataFrame, ds_cfg: DatasetConfig) -> np.ndarray:
     df_features = df.copy()
@@ -140,6 +157,9 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
     """
     logger.info(f"[AE] Training autoencoder for universe = {universe.id}")
 
+    seed = universe.seed
+    generator = _seed_everything(seed)
+
     X_train, feature_names, ds_cfg = get_feature_matrix_from_universe(
         universe, split="train"
     )
@@ -167,7 +187,11 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
     val_dataset = TensorDataset(tensor_X_val)
 
     train_loader = DataLoader(
-        train_dataset, batch_size=ae_cfg.batch_size, shuffle=True, drop_last=False
+        train_dataset,
+        batch_size=ae_cfg.batch_size,
+        shuffle=True,
+        drop_last=False,
+        generator=generator,
     )
 
     val_loader = DataLoader(

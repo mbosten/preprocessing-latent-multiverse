@@ -7,12 +7,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-import numpy as np
-import pandas as pd
 import typer
+import yaml
 
 from preprolamu.config import load_dataset_config
-from preprolamu.io.storage import get_clean_dataset_path
 
 logger = logging.getLogger(__name__)
 
@@ -192,92 +190,42 @@ DATASET_IDS: List[str] = [
 ]
 
 
-def _raw_df_for_dataset(dataset_id: str) -> pd.DataFrame:
-    path = get_clean_dataset_path(dataset_id, extension="parquet")
-    logger.info("[MV] Loading cleaned dataset for pruning from %s", path)
-    return pd.read_parquet(path)
+def dataset_invariants_for(universe: Universe) -> dict[str, Any]:
+    cfg = load_dataset_config(universe.dataset_id)
+    inv = cfg.raw_cfg.get("dataset_invariants")  # see note below
+    if inv is None:
+        raise RuntimeError(
+            f"dataset_invariants missing for {universe.dataset_id}. "
+            "Run `initiate` first."
+        )
+    return inv[universe.feature_subset.value]
 
 
-def _apply_feature_subset_to_df(
-    df: pd.DataFrame, dataset_id: str, feature_subset: FeatureSubset
-) -> pd.DataFrame:
-    if feature_subset == FeatureSubset.ALL:
-        return df
-
-    # mirror preprocessing.py logic, but only the minimal mapping
-    if dataset_id in ("NF-ToN-IoT-v3", "NF-UNSW-NB15-v3", "NF-CICIDS2018-v3"):
-        drop_cols = ["IPV4_SRC_ADDR", "IPV4_DST_ADDR", "L4_SRC_PORT", "L4_DST_PORT"]
-    elif dataset_id.startswith("Merged"):
-        drop_cols = ["Protocol Type"]
-    else:
-        raise ValueError(f"Unknown dataset_id for feature subset: {dataset_id}")
-
-    return df.drop(columns=[c for c in drop_cols if c in df.columns])
+def load_dataset_yaml(dataset_id: str) -> dict[str, Any]:
+    path = Path("config") / "datasets" / f"{dataset_id}.yml"
+    with path.open("r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
-def _dataset_invariants(
-    dataset_id: str, feature_subset: FeatureSubset
-) -> dict[str, bool]:
-    """
-    Compute whether a parameter can have any effect for this dataset (+ feature subset).
-    """
-    ds_cfg = load_dataset_config(dataset_id)
-    df = _raw_df_for_dataset(dataset_id)
-    df = _apply_feature_subset_to_df(df, dataset_id, feature_subset)
-
-    # duplicates
-    has_duplicates = bool(df.duplicated().any())
-
-    # missingness (numeric cols only, after inf->nan)
-    label_col = ds_cfg.label_column
-    numeric_cols = [
-        c
-        for c in df.select_dtypes(include="number").columns
-        if c not in (label_col, "Label")
-    ]
-    if numeric_cols:
-        x = df[numeric_cols].replace([np.inf, -np.inf], np.nan)
-        has_missing = bool(x.isna().any().any())
-    else:
-        has_missing = False
-
-    return {"has_duplicates": has_duplicates, "has_missing": has_missing}
-
-
-def prune_multiverse(universes: List[Universe]) -> List[Universe]:
-    """
-    Drop universes whose parameters are guaranteed to be no-ops for the dataset.
-
-    Canonical choices:
-      - if no duplicates exist -> keep dup=KEEP only
-      - if no missing values exist -> keep miss=IMPUTE_MEDIAN only (drop_rows is a no-op too)
-    """
-    cache: dict[tuple[str, FeatureSubset], dict[str, bool]] = {}
-    kept: List[Universe] = []
+def prune_multiverse(universes: list[Universe]) -> list[Universe]:
+    kept = []
+    cache: dict[str, dict[str, Any]] = {}
 
     for u in universes:
-        key = (u.dataset_id, u.feature_subset)
-        inv = cache.get(key)
-        if inv is None:
-            inv = _dataset_invariants(u.dataset_id, u.feature_subset)
-            cache[key] = inv
-            logger.info(
-                "[MV] Invariants for (%s,%s): %s",
-                u.dataset_id,
-                u.feature_subset.value,
-                inv,
-            )
+        if u.dataset_id not in cache:
+            yml = load_dataset_yaml(u.dataset_id)
+            cache[u.dataset_id] = yml["dataset_invariants"]
+
+        inv = cache[u.dataset_id][u.feature_subset.value]
 
         if not inv["has_duplicates"] and u.duplicate_handling == DuplicateHandling.DROP:
             continue
-
-        if not inv["has_missing"] and u.missingness == Missingness.DROP_ROWS:
-            # canonicalize to IMPUTE_MEDIAN when missingness is absent
+        if not inv["has_missing_numeric"] and u.missingness == Missingness.DROP_ROWS:
             continue
 
         kept.append(u)
 
-    logger.info("[MV] Pruned multiverse: %d -> %d universes", len(universes), len(kept))
+    logger.info("[MV] Pruned multiverse: %d -> %d", len(universes), len(kept))
     return kept
 
 

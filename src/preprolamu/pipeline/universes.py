@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import typer
 
@@ -158,6 +158,25 @@ class Universe:
 
     def preprocessing_status_path(self) -> Path:
         return BASE_DATA_DIR / "interim" / "preprocessing_status" / f"{self.id}.status"
+
+    def to_param_dict(self) -> Dict[str, Any]:
+        """
+        Flatten Universe into a dict of multiverse parameters used for grouping.
+        """
+        out: Dict[str, Any] = {
+            "dataset_id": self.dataset_id,
+            "scaling": getattr(self.scaling, "value", self.scaling),
+            "log_transform": getattr(self.log_transform, "value", self.log_transform),
+            "feature_subset": getattr(
+                self.feature_subset, "value", self.feature_subset
+            ),
+            "duplicate_handling": getattr(
+                self.duplicate_handling, "value", self.duplicate_handling
+            ),
+            "missingness": getattr(self.missingness, "value", self.missingness),
+            "seed": self.seed,
+        }
+        return out
 
 
 DATASET_IDS: List[str] = [

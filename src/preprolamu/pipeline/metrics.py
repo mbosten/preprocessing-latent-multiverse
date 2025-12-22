@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
+import pandas as pd
 
 from preprolamu.io.storage import load_landscapes
 from preprolamu.pipeline.universes import Universe
@@ -161,3 +162,63 @@ def compute_metrics_from_tda(
         total_persistence_per_dim=total_persistence_per_dim,
         landscape_l2_per_dim=landscape_l2_per_dim,
     )
+
+
+def build_landscape_norm_table(
+    universes: Iterable[Universe],
+    split: str = "test",
+    require_exists: bool = True,
+) -> pd.DataFrame:
+    rows: List[Dict[str, Any]] = []
+
+    for u in universes:
+        path = u.landscapes_path(split=split)
+        if require_exists and not path.exists():
+            continue
+
+        row = u.to_param_dict()
+        row["universe_id"] = getattr(u, "id", u.to_id_string())
+        row["split"] = split
+        row["landscapes_path"] = str(path)
+
+        try:
+            landscapes = load_landscapes(u, split=split)
+
+            if not landscapes:
+                row["landscape_status"] = "empty_landscapes"
+                row["failure_reason"] = (
+                    "load_landscapes returned no landscapes (empty dict)."
+                )
+                row["norm_aggregate"] = np.nan
+                row["norm_average"] = np.nan
+            else:
+                per_dim = compute_landscape_norm(landscapes, score_type="separate")
+                agg = compute_landscape_norm(landscapes, score_type="aggregate")
+                avg = compute_landscape_norm(
+                    landscapes, score_type="average"
+                )  # <-- NEW
+
+                row["landscape_status"] = "ok"
+                row["failure_reason"] = None
+                row["norm_aggregate"] = agg
+                row["norm_average"] = avg  # <-- NEW
+                for d, v in per_dim.items():
+                    row[f"norm_dim{d}"] = v
+
+        except FileNotFoundError as e:
+            row["landscape_status"] = "missing_landscapes"
+            row["failure_reason"] = str(e)
+            row["norm_aggregate"] = np.nan
+            row["norm_average"] = np.nan
+
+        except Exception as e:
+            row["landscape_status"] = "landscape_load_error"
+            row["failure_reason"] = f"{type(e).__name__}: {e}"
+            row["norm_aggregate"] = np.nan
+            row["norm_average"] = np.nan
+
+        rows.append(row)
+
+    if not rows:
+        raise RuntimeError(f"No landscape files found for split={split!r}.")
+    return pd.DataFrame(rows)

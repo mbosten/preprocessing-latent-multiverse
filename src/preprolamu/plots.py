@@ -88,6 +88,8 @@ def plot_3d(
         )
         raise typer.Exit(code=2)
 
+    logger.info("Loaded projected embedding with shape %s", projected.shape)
+
     # Determine target_size (subsample)
     if target_size is None:
         target_size = int(universe.tda_config.subsample_size)

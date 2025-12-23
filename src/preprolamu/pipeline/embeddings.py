@@ -19,7 +19,7 @@ from preprolamu.pipeline.universes import Universe
 logger = logging.getLogger(__name__)
 
 
-def normalize_space(X, diameter_iterations=1000, seed=42):
+def normalize_space(X, seed: int, diameter_iterations=1000):
     """
     Normalize a space based on an approximate diameter.
     """
@@ -41,11 +41,11 @@ def normalize_space(X, diameter_iterations=1000, seed=42):
         )
         diameter = 1.0
 
-    return X / diameter
+    return X / diameter, diameter
 
 
-def project_PCA(normalized_latent_space: np.ndarray, n_components: int):
-    pca = PCA(n_components=n_components)
+def project_PCA(normalized_latent_space: np.ndarray, n_components: int, seed: int):
+    pca = PCA(n_components=n_components, random_state=seed)
     projected = pca.fit_transform(normalized_latent_space)
     logger.info(f"[EMB] PCA projection shape: {projected.shape}")
     return projected
@@ -68,24 +68,35 @@ def from_latent_to_point_cloud(
     seed: int,
     normalize: bool = True,
     save_projected_to: Optional[tuple[Universe, str]] = None,
+    save_projected_raw_to: Optional[tuple[Universe, str]] = None,
     dtype: type = np.float32,
 ):
-    if normalize:
-        X = normalize_space(X, diameter_iterations=1000, seed=42)
+    # Store unnormalized PCA projection
+    if save_projected_raw_to is not None:
+        u, split = save_projected_raw_to
+        X_pca_raw = project_PCA(X, n_components=pca_dim, seed=seed)
+        save_projected(
+            universe=u, split=f"{split}_raw", arr=X_pca_raw.astype(dtype, copy=False)
+        )
 
-    X_pca = project_PCA(X, n_components=pca_dim)
+    diameter = None
+    if normalize:
+        X, diameter = normalize_space(X, diameter_iterations=1000, seed=seed)
+
+    X_pca = project_PCA(X, n_components=pca_dim, seed=seed)
 
     if save_projected_to is not None:
         universe, split = save_projected_to
-        to_save = X_pca.astype(dtype, copy=False)
-        save_projected(universe=universe, split=split, arr=to_save)
+        save_projected(
+            universe=universe, split=split, arr=X_pca.astype(dtype, copy=False)
+        )
 
     if target_size < X_pca.shape[0]:
         X_pca_sample = downsample_latent(X_pca, target_size=target_size, seed=seed)
     else:
         X_pca_sample = X_pca
 
-    return X_pca_sample
+    return X_pca_sample, diameter
 
 
 def compute_embeddings_for_universe(universe: Universe):

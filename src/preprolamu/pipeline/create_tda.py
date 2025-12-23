@@ -63,14 +63,16 @@ def run_tda_for_universe(
         return
     else:
         logger.info("[TDA] Computing persistence for %s", universe.id)
-        points_for_tda = from_latent_to_point_cloud(
+        points_for_tda, diameter = from_latent_to_point_cloud(
             X=latent,
             pca_dim=pca_dim,
             target_size=m,
             seed=universe.seed,
             normalize=True,
             save_projected_to=(universe, split),
+            save_projected_raw_to=(universe, split),
         )
+        logger.info("[TDA] normalization diameter: %s", diameter)
 
         per_dim = compute_alpha_complex_persistence(
             data=points_for_tda,

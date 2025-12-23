@@ -103,12 +103,13 @@ class Universe:
             BASE_DATA_DIR / "interim" / "embeddings" / f"{self.id}_latent_{split}.npy"
         )
 
-    def projected_path(self, split: str = "test") -> Path:
+    def projected_path(self, split: str = "test", normalized: bool = False) -> Path:
+        tag = "" if normalized else "_raw"
         return (
             BASE_DATA_DIR
             / "interim"
             / "projections"
-            / f"{self.id}_projected_{split}.npy"
+            / f"{self.id}_projected_{split}{tag}.npy"
         )
 
     def persistence_path(self, split: str = "test") -> Path:

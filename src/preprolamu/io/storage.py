@@ -89,10 +89,15 @@ def save_projected(universe: Universe, split: str, arr: np.ndarray) -> None:
     np.save(path, arr)
 
 
-def load_projected(universe: Universe, split: str) -> np.ndarray:
-    path = universe.projected_path(split=split)
+def load_projected(universe: Universe, split: str, normalized: bool) -> np.ndarray:
+    path = universe.projected_path(split=split, normalized=normalized)
     if path.exists():
-        logger.info("[IO] Loading projected point cloud (%s) from %s", split, path)
+        logger.info(
+            "[IO] Loading projection (split=%s, normalized=%s) from %s",
+            split,
+            normalized,
+            path,
+        )
         return np.load(path)
     raise FileNotFoundError(f"No projected point cloud found at {path}")
 

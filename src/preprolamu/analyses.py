@@ -3,11 +3,16 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Optional
 
+import pandas as pd
 import typer
 
 from preprolamu.logging_config import setup_logging
-from preprolamu.pipeline.metrics import build_landscape_norm_table
+from preprolamu.pipeline.metrics import (
+    build_landscape_norm_table,
+    compute_presto_variance_across_universes,
+)
 from preprolamu.pipeline.universes import generate_multiverse
 
 logger = logging.getLogger(__name__)
@@ -35,42 +40,108 @@ def main(
     logger.info("CLI started with verbose=%s", verbose)
 
 
-@app.command("summarize")
-def summarize(
-    split: str = typer.Option("test", help="Which split to analyze (train/val/test)."),
-    out_dir: Path = typer.Option(
-        Path("data/processed/analysis"), help="Where to write outputs."
+def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
+    # Keep only successful landscape loads
+    return df[df["landscape_status"] == "ok"].copy()
+
+
+@app.command("table")
+def make_table(
+    split: str = typer.Option("test", help="train/val/test"),
+    out: Path = typer.Option(Path("data/processed/analysis/landscape_norms.csv")),
+):
+    universes = generate_multiverse()
+    df = build_landscape_norm_table(universes, split=split, require_exists=True)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(out, index=False)
+    logger.info("Saved table to %s (rows=%d)", out, len(df))
+
+
+@app.command("dataset-summary")
+def dataset_summary(
+    split: str = typer.Option("test"),
+):
+    universes = generate_multiverse()
+    df = _ok_only(build_landscape_norm_table(universes, split=split))
+
+    # Example: compare distributions of norm_average across datasets
+    summary = (
+        df.groupby("dataset_id")["norm_average"]
+        .agg(["count", "mean", "median", "std", "min", "max"])
+        .sort_values("mean", ascending=False)
+    )
+    print(summary.to_string())
+
+
+@app.command("parameter-effect")
+def parameter_effect(
+    param: str = typer.Option(
+        ..., help="e.g. duplicate_handling, scaling, log_transform, missingness"
+    ),
+    split: str = typer.Option("test"),
+    dataset_id: Optional[str] = typer.Option(
+        None, help="Optional: restrict to one dataset"
     ),
 ):
     """
-    Build a tidy table of landscape norms (one row per universe), then print dataset summaries,
-    including mean aggregate norm and mean per homology dimension.
+    Compare distributions of norm_average between the settings of one parameter.
+    Minimal version: group summaries + a simple nonparametric test.
     """
-    out_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        from scipy.stats import kruskal, mannwhitneyu
+    except Exception:
+        raise typer.Exit(code=2)  # scipy missing; keep script minimal and fail early
 
     universes = generate_multiverse()
-    df = build_landscape_norm_table(universes, split=split, require_exists=True)
+    df = _ok_only(build_landscape_norm_table(universes, split=split))
 
-    # Save the tidy table
-    tidy_path = out_dir / f"landscape_norms_{split}.csv"
-    df.to_csv(tidy_path, index=False)
-    print(f"Wrote: {tidy_path}")
+    if dataset_id is not None:
+        df = df[df["dataset_id"] == dataset_id].copy()
 
-    # Only summarize successful rows
-    ok = df[df["landscape_status"] == "ok"].copy()
-
-    console_summ = (
-        ok.groupby("dataset_id")
-        .agg(
-            count=("norm_aggregate", "count"),
-            norm_aggregate_mean=("norm_aggregate", "mean"),
-            norm_aggregate_std=("norm_aggregate", "std"),
-            norm_average_mean=("norm_average", "mean"),
-            norm_average_std=("norm_average", "std"),
+    if param not in df.columns:
+        raise typer.BadParameter(
+            f"Unknown param {param!r}. Available: {list(df.columns)}"
         )
-        .reset_index()
-        .sort_values("dataset_id")
-    )
 
-    print("\n=== Summary by dataset (aggregate & average landscape norm) ===")
-    print(console_summ.to_string(index=False))
+    # summaries
+    grp = df.groupby(param)["norm_average"]
+    summ = grp.agg(["count", "mean", "median", "std"]).sort_values(
+        "median", ascending=False
+    )
+    print("\nSummary:\n", summ.to_string())
+
+    # stats: 2 groups => Mann–Whitney, >2 => Kruskal
+    groups = [g.dropna().to_numpy() for _, g in grp]
+    labels = list(grp.groups.keys())
+
+    if len(groups) == 2:
+        stat, p = mannwhitneyu(groups[0], groups[1], alternative="two-sided")
+        print(f"\nMann–Whitney U: {labels[0]} vs {labels[1]}: U={stat:.3g}, p={p:.3g}")
+    elif len(groups) > 2:
+        stat, p = kruskal(*groups)
+        print(f"\nKruskal–Wallis: H={stat:.3g}, p={p:.3g}")
+    else:
+        print("\nNot enough groups to test.")
+
+
+@app.command("presto-variance")
+def presto_variance(
+    split: str = typer.Option("test"),
+):
+    """
+    Reuse your existing compute_presto_variance_across_universes,
+    and report per dataset.
+    """
+    universes = generate_multiverse()
+
+    # by dataset
+    for ds in sorted({u.dataset_id for u in universes}):
+        ds_universes = [u for u in universes if u.dataset_id == ds]
+        v = compute_presto_variance_across_universes(
+            ds_universes, split=split, homology_dims=(0, 1, 2)
+        )
+        print(f"{ds}: presto_variance={v:.6g}")
+
+
+if __name__ == "__main__":
+    app()

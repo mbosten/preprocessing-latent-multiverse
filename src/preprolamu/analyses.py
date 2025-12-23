@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import pandas as pd
 import typer
+from typing_extensions import Annotated
 
 from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.metrics import (
@@ -42,6 +43,10 @@ def main(
 
 def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
     # Keep only successful landscape loads
+    logger.info(
+        "Dropping %d universes with landscape_status != 'ok'",
+        len(df) - df[df["landscape_status"] == "ok"].shape[0],
+    )
     return df[df["landscape_status"] == "ok"].copy()
 
 
@@ -75,12 +80,32 @@ def dataset_summary(
 
 @app.command("parameter-effect")
 def parameter_effect(
-    param: str = typer.Option(
-        ..., help="e.g. duplicate_handling, scaling, log_transform, missingness"
-    ),
-    split: str = typer.Option("test"),
+    param: Annotated[
+        Literal[
+            "scaling",
+            "log_transform",
+            "feature_subset",
+            "duplicate_handling",
+            "missingness",
+            "seed",
+        ],
+        typer.Option(
+            "--param",
+            help="Which multiverse parameter to compare?",
+            show_choices=True,
+        ),
+    ],
+    split: Annotated[
+        Literal["train", "val", "test"],
+        typer.Option(
+            "--split",
+            help="Dataset split to analyze",
+            show_choices=True,
+        ),
+    ] = "test",
     dataset_id: Optional[str] = typer.Option(
-        None, help="Optional: restrict to one dataset"
+        None,
+        help="Optional: restrict to one dataset ('NF-ToN-IoT-v3', 'NF-UNSW-NB15-v3', 'NF-CICIDS2018-v3')",
     ),
 ):
     """

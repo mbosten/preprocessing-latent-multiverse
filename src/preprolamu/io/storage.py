@@ -159,6 +159,8 @@ def load_landscapes(
             dim = int(dim_str)
             landscapes[dim] = arr
     if not landscapes:
+        print(raw)
+        print(landscapes)
         raise FileNotFoundError(f"No landscapes found in {path}")
     return landscapes
 

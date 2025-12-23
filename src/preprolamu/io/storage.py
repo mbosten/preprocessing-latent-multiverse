@@ -77,7 +77,6 @@ def save_tda_npz(path: Path, **arrays: np.ndarray) -> None:
 
 
 def load_tda_npz(path: Path) -> Dict[str, np.ndarray]:
-    logger.info("Loading npz from %s", path)
     with np.load(path) as data:
         return {k: data[k] for k in data.files}
 

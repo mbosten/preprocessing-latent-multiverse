@@ -33,6 +33,9 @@ Thumbs.db
 logs/
 *.log
 
+# notebook files
+.ipynb
+
 # Build outputs
 build/
 dist/

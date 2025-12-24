@@ -34,7 +34,7 @@ logs/
 *.log
 
 # notebook files
-.ipynb
+*.ipynb
 
 # Build outputs
 build/

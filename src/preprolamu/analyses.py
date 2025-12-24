@@ -41,6 +41,7 @@ def main(
     logger.info("CLI started with verbose=%s", verbose)
 
 
+# ----------- Helper functions ----------- #
 def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
     logger.info(
         "Dropping %d universes with metrics_status != 'ok'",
@@ -49,6 +50,43 @@ def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
     return df[df["metrics_status"] == "ok"].copy()
 
 
+def _filter_by_norm_threshold(
+    df: pd.DataFrame,
+    *,
+    threshold: float | None,
+    dim: int | None,
+) -> pd.DataFrame:
+    """
+    Keep only universes with norm <= threshold.
+
+    If threshold is None: return df unchanged.
+    If dim is None: uses average metric (l2_average).
+    """
+    if threshold is None:
+        return df
+
+    col = f"l2_dim{dim}" if dim is not None else "l2_average"
+
+    if col not in df.columns:
+        raise typer.BadParameter(
+            f"Requested threshold filtering on column {col!r}, but it does not exist. "
+            f"Available columns include: {list(df.columns)}"
+        )
+
+    before = len(df)
+    df2 = df[df[col] <= threshold].copy()
+    logger.info(
+        "Applied norm threshold: kept %d/%d universes where %s <= %.6g (dropped=%d)",
+        len(df2),
+        before,
+        col,
+        threshold,
+        before - len(df2),
+    )
+    return df2
+
+
+# ----------- CLI commands ----------- #
 @app.command("table")
 def make_table(
     split: str = typer.Option("test", help="train/val/test"),
@@ -64,9 +102,19 @@ def make_table(
 @app.command("dataset-summary")
 def dataset_summary(
     split: str = typer.Option("test"),
+    norm_threshold: Optional[float] = typer.Option(
+        None,
+        help="Only include universes with norm <= this threshold (for outlier-robust summaries).",
+    ),
+    norm_dim: Optional[int] = typer.Option(
+        None,
+        help="Which homology dimension to threshold on. If omitted, threshold uses average norm.",
+    ),
 ):
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split))
+
+    df = _filter_by_norm_threshold(df, threshold=norm_threshold, dim=norm_dim)
 
     # Example: compare distributions of l2_average across datasets
     summary = (
@@ -106,6 +154,14 @@ def parameter_effect(
         None,
         help="Optional: restrict to one dataset ('NF-ToN-IoT-v3', 'NF-UNSW-NB15-v3', 'NF-CICIDS2018-v3')",
     ),
+    norm_threshold: Optional[float] = typer.Option(
+        None,
+        help="Only include universes with norm <= this threshold (for outlier-robust comparisons).",
+    ),
+    norm_dim: Optional[int] = typer.Option(
+        None,
+        help="Which homology dimension to threshold on. If omitted, threshold uses average norm.",
+    ),
 ):
     """
     Compare distributions of l2_average between the settings of one parameter.
@@ -118,6 +174,12 @@ def parameter_effect(
 
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split))
+
+    df = _filter_by_norm_threshold(
+        df,
+        threshold=norm_threshold,
+        dim=norm_dim,
+    )
 
     if dataset_id is not None:
         df = df[df["dataset_id"] == dataset_id].copy()

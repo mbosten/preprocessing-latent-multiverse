@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from preprolamu.io.storage import load_landscapes
+from preprolamu.io.storage import load_landscapes, load_metrics
 from preprolamu.pipeline.universes import Universe
 from preprolamu.tests.landscape_checks import top_landscape_outliers
 
@@ -28,30 +27,32 @@ class MetricsResult:
     landscape_l2_per_dim: Dict[int, float]
 
 
-# Check whether landscape file is non-empty
-def npz_has_keys(path: Path) -> bool:
-    if not path.exists():
-        return False
-    with np.load(path) as data:
-        return len(data.files) > 0
-
-
 def load_landscapes_with_provenance(
     universes: Iterable[Universe],
     split: str = "test",
-    skip_empty: bool = True,
-) -> List[Tuple[Universe, dict[int, np.ndarray]]]:
+) -> tuple[List[Tuple[Universe, Dict[int, np.ndarray]]], int, int]:
     """
-    Load landscapes and keep the Universe object attached.
-    This prevents 'index in filtered list' confusion later.
+    Load landscapes for universes while preserving provenance (Universe object),
+    and keep the same robust missing/empty checks you already had.
     """
-    out: List[Tuple[Universe, dict[int, np.ndarray]]] = []
+    pairs: List[Tuple[Universe, Dict[int, np.ndarray]]] = []
+    skipped_missing = 0
+    skipped_empty = 0
+
     for u in universes:
-        L = load_landscapes(u, split=split)
-        if skip_empty and not L:
+        path = u.landscapes_path(split=split)
+        if not path.exists():
+            skipped_missing += 1
             continue
-        out.append((u, L))
-    return out
+
+        L = load_landscapes(u, split=split)
+        if not L:
+            skipped_empty += 1
+            continue
+
+        pairs.append((u, L))
+
+    return pairs, skipped_missing, skipped_empty
 
 
 def compute_total_persistence(intervals: np.ndarray) -> float:
@@ -156,44 +157,22 @@ def compute_presto_variance_across_universes(
     split: str = "test",
     homology_dims: Iterable[int] | None = (0, 1, 2),
 ) -> float:
-    """
-    Load landscapes for all given universes and compute PRESTO-style variance
-    of landscape norms across them.
+    pairs, skipped_missing, skipped_empty = load_landscapes_with_provenance(
+        universes, split=split
+    )
 
-    Each universe must already have TDA results saved.
-    """
-    landscapes_list: List[Dict[int, np.ndarray]] = []
-    skipped_missing = 0
-    skipped_empty = 0
-
-    for u in universes:
-        path = u.landscapes_path(split=split)
-        if not path.exists():
-            skipped_missing += 1
-            continue
-
-        # Empty NPZ => empty dict after load
-        if not npz_has_keys(path):
-            skipped_empty += 1
-            continue
-
-        landscapes = load_landscapes(u, split=split)
-        if not landscapes:
-            skipped_empty += 1
-            continue
-
-        landscapes_list.append(landscapes)
-
-    if not landscapes_list:
+    if not pairs:
         raise RuntimeError(
             f"No landscapes found (split={split}, skipped_missing={skipped_missing}, "
             f"skipped_empty={skipped_empty}). Cannot compute PRESTO variance."
         )
 
+    landscapes_list = [L for (_, L) in pairs]
+
     var = compute_presto_variance(
-        landscapes=landscapes_list,
-        homology_dims=homology_dims,
+        landscapes=landscapes_list, homology_dims=homology_dims
     )
+
     logger.info(
         "[TDA] PRESTO variance across %d universes (split=%s); skipped missing=%d, empty=%d; var=%.6g",
         len(landscapes_list),
@@ -227,61 +206,73 @@ def compute_metrics_from_tda(
     )
 
 
-def build_landscape_norm_table(
+def build_metrics_table(
     universes: Iterable[Universe],
     split: str = "test",
     require_exists: bool = True,
+    homology_dims: tuple[int, ...] = (0, 1, 2),
 ) -> pd.DataFrame:
+    """
+    One row per universe, using stored metrics JSON only.
+    Missing dims are treated as 0.0 (your earlier decision).
+    """
     rows: List[Dict[str, Any]] = []
 
     for u in universes:
-        path = u.landscapes_path(split=split)
+        path = u.metrics_path(split=split)
         if require_exists and not path.exists():
             continue
 
         row = u.to_param_dict()
-        row["universe_id"] = getattr(u, "id", u.to_id_string())
+        row["universe_id"] = u.id
         row["split"] = split
-        row["landscapes_path"] = str(path)
+        row["metrics_path"] = str(path)
 
         try:
-            landscapes = load_landscapes(u, split=split)
+            payload = load_metrics(u, split=split)  # <-- dict from JSON
+            if not payload:
+                row["metrics_status"] = "empty_metrics"
+                row["failure_reason"] = "metrics JSON is empty"
+                row["l2_aggregate"] = np.nan
+                row["l2_average"] = np.nan
+                rows.append(row)
+                continue
 
-            if not landscapes:
-                row["landscape_status"] = "empty_landscapes"
-                row["failure_reason"] = (
-                    "load_landscapes returned no landscapes (empty dict)."
-                )
-                row["norm_aggregate"] = np.nan
-                row["norm_average"] = np.nan
-            else:
-                per_dim = compute_landscape_norm(landscapes, score_type="separate")
-                agg = compute_landscape_norm(landscapes, score_type="aggregate")
-                avg = compute_landscape_norm(
-                    landscapes, score_type="average"
-                )  # <-- NEW
+            # keys may be strings in JSON: {"0": 1.23, "1": 4.56}
+            l2_raw = payload.get("landscape_l2_per_dim", {}) or {}
+            tp_raw = payload.get("total_persistence_per_dim", {}) or {}
 
-                row["landscape_status"] = "ok"
-                row["failure_reason"] = None
-                row["norm_aggregate"] = agg
-                row["norm_average"] = avg  # <-- NEW
-                for d, v in per_dim.items():
-                    row[f"norm_dim{d}"] = v
+            l2 = {int(k): float(v) for k, v in l2_raw.items()}
+            tp = {int(k): float(v) for k, v in tp_raw.items()}
+
+            row["metrics_status"] = "ok"
+            row["failure_reason"] = None
+
+            l2_vals: List[float] = []
+            for d in homology_dims:
+                v = float(l2.get(d, 0.0))
+                row[f"l2_dim{d}"] = v
+                l2_vals.append(v)
+
+                row[f"tp_dim{d}"] = float(tp.get(d, 0.0))
+
+            row["l2_aggregate"] = float(sum(l2_vals))
+            row["l2_average"] = float(sum(l2_vals) / max(len(l2_vals), 1))
 
         except FileNotFoundError as e:
-            row["landscape_status"] = "missing_landscapes"
+            row["metrics_status"] = "missing_metrics"
             row["failure_reason"] = str(e)
-            row["norm_aggregate"] = np.nan
-            row["norm_average"] = np.nan
+            row["l2_aggregate"] = np.nan
+            row["l2_average"] = np.nan
 
         except Exception as e:
-            row["landscape_status"] = "landscape_load_error"
+            row["metrics_status"] = "metrics_load_error"
             row["failure_reason"] = f"{type(e).__name__}: {e}"
-            row["norm_aggregate"] = np.nan
-            row["norm_average"] = np.nan
+            row["l2_aggregate"] = np.nan
+            row["l2_average"] = np.nan
 
         rows.append(row)
 
     if not rows:
-        raise RuntimeError(f"No landscape files found for split={split!r}.")
+        raise RuntimeError(f"No metrics files found for split={split!r}.")
     return pd.DataFrame(rows)

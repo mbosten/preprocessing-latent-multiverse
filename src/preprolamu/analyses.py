@@ -11,7 +11,7 @@ from typing_extensions import Annotated
 
 from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.metrics import (
-    build_landscape_norm_table,
+    build_metrics_table,
     compute_presto_variance_across_universes,
 )
 from preprolamu.pipeline.universes import generate_multiverse
@@ -42,21 +42,20 @@ def main(
 
 
 def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
-    # Keep only successful landscape loads
     logger.info(
-        "Dropping %d universes with landscape_status != 'ok'",
-        len(df) - df[df["landscape_status"] == "ok"].shape[0],
+        "Dropping %d universes with metrics_status != 'ok'",
+        len(df) - df[df["metrics_status"] == "ok"].shape[0],
     )
-    return df[df["landscape_status"] == "ok"].copy()
+    return df[df["metrics_status"] == "ok"].copy()
 
 
 @app.command("table")
 def make_table(
     split: str = typer.Option("test", help="train/val/test"),
-    out: Path = typer.Option(Path("data/processed/analysis/landscape_norms.csv")),
+    out: Path = typer.Option(Path("data/processed/analysis/metrics_table.csv")),
 ):
     universes = generate_multiverse()
-    df = build_landscape_norm_table(universes, split=split, require_exists=True)
+    df = build_metrics_table(universes, split=split, require_exists=True)
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out, index=False)
     logger.info("Saved table to %s (rows=%d)", out, len(df))
@@ -67,11 +66,11 @@ def dataset_summary(
     split: str = typer.Option("test"),
 ):
     universes = generate_multiverse()
-    df = _ok_only(build_landscape_norm_table(universes, split=split))
+    df = _ok_only(build_metrics_table(universes, split=split))
 
-    # Example: compare distributions of norm_average across datasets
+    # Example: compare distributions of l2_average across datasets
     summary = (
-        df.groupby("dataset_id")["norm_average"]
+        df.groupby("dataset_id")["l2_average"]
         .agg(["count", "mean", "median", "std", "min", "max"])
         .sort_values("mean", ascending=False)
     )
@@ -118,7 +117,7 @@ def parameter_effect(
         raise typer.Exit(code=2)  # scipy missing; keep script minimal and fail early
 
     universes = generate_multiverse()
-    df = _ok_only(build_landscape_norm_table(universes, split=split))
+    df = _ok_only(build_metrics_table(universes, split=split))
 
     if dataset_id is not None:
         df = df[df["dataset_id"] == dataset_id].copy()

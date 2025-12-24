@@ -108,7 +108,7 @@ def parameter_effect(
     ),
 ):
     """
-    Compare distributions of norm_average between the settings of one parameter.
+    Compare distributions of l2_average between the settings of one parameter.
     Minimal version: group summaries + a simple nonparametric test.
     """
     try:
@@ -128,7 +128,7 @@ def parameter_effect(
         )
 
     # summaries
-    grp = df.groupby(param)["norm_average"]
+    grp = df.groupby(param)["l2_average"]
     summ = grp.agg(["count", "mean", "median", "std"]).sort_values(
         "median", ascending=False
     )

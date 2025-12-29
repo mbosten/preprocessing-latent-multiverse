@@ -38,6 +38,142 @@ def main(
     logger.info("CLI started with verbose=%s", verbose)
 
 
+# ------- Multiverse index plot helpers ------- #
+def _build_index_grid(
+    df: pd.DataFrame,
+    *,
+    universes: list,
+) -> pd.DataFrame:
+    """
+    Build a grid with rows=(missingness, log_transform, duplicate_handling),
+    cols=(dataset_id, scaling, feature_subset),
+    values = list of universe indices in that cell (typically 4: one per seed).
+    """
+    if "universe_id" not in df.columns:
+        raise ValueError("Metrics table must include 'universe_id'.")
+
+    id_to_index = {u.id: i for i, u in enumerate(universes)}
+    df = df.copy()
+    df["universe_index"] = df["universe_id"].map(id_to_index)
+
+    df = df[df["metrics_status"] == "ok"].copy()
+
+    group_cols = [
+        "dataset_id",
+        "scaling",
+        "feature_subset",
+        "missingness",
+        "log_transform",
+        "duplicate_handling",
+    ]
+
+    grouped = (
+        df.groupby(group_cols, dropna=False)["universe_index"]
+        .apply(lambda s: sorted(int(x) for x in s.dropna().tolist()))
+        .reset_index()
+        .rename(columns={"universe_index": "indices"})
+    )
+
+    grid = grouped.pivot_table(
+        index=["missingness", "log_transform", "duplicate_handling"],
+        columns=["dataset_id", "scaling", "feature_subset"],
+        values="indices",
+        aggfunc="first",  # already unique per cell
+    )
+
+    grid = grid.sort_index(axis=1)
+    grid = _sort_multiindex_rows(grid)
+
+    # Optional: move fully-empty rows to bottom (same as your norm grid)
+    empty_mask = grid.isna().all(axis=1)
+    grid = pd.concat([grid.loc[~empty_mask], grid.loc[empty_mask]], axis=0)
+
+    return grid
+
+
+def _format_index_cell(idxs, mode: str) -> str:
+    if idxs is None or (isinstance(idxs, float) and np.isnan(idxs)):
+        return ""
+    if not isinstance(idxs, (list, tuple)) or len(idxs) == 0:
+        return ""
+    idxs = [int(x) for x in idxs]
+
+    if mode == "range":
+        if len(idxs) == 1:
+            return str(idxs[0])
+        return f"{min(idxs)}–{max(idxs)}"
+
+    if mode == "list":
+        # Put on two lines to avoid excessive width
+        if len(idxs) <= 4:
+            return "\n".join(str(x) for x in idxs)
+        return "\n".join(str(x) for x in idxs[:4]) + "\n..."
+
+    if mode == "both":
+        rng = f"{min(idxs)}–{max(idxs)} (n={len(idxs)})"
+        lst = ", ".join(str(x) for x in idxs[:6]) + ("…" if len(idxs) > 6 else "")
+        return f"{rng}\n{lst}"
+
+    raise ValueError("mode must be 'range', 'list', or 'both'")
+
+
+def _plot_multiverse_index_grid(
+    grid: pd.DataFrame,
+    *,
+    title: str,
+    out_path: Path,
+    mode: str = "range",
+    fontsize: int = 9,
+):
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    n_rows, n_cols = grid.shape
+
+    # blank background heatmap just to get the grid layout
+    fig = plt.figure(figsize=(max(16, n_cols * 0.95), max(7, n_rows * 0.55)))
+
+    ax_heat = fig.add_axes([0.06, 0.10, 0.78, 0.65])
+    ax_top = fig.add_axes([0.06, 0.75, 0.78, 0.18], sharex=ax_heat)
+    ax_right = fig.add_axes([0.85, 0.10, 0.12, 0.65], sharey=ax_heat)
+
+    fig.suptitle(title, y=0.995, fontsize=14)
+
+    ax_heat.set_xlim(-0.5, n_cols - 0.5)
+    ax_heat.set_ylim(n_rows - 0.5, -0.5)
+
+    # draw cell borders (helps readability in print)
+    ax_heat.set_xticks(np.arange(-0.5, n_cols, 1), minor=True)
+    ax_heat.set_yticks(np.arange(-0.5, n_rows, 1), minor=True)
+    ax_heat.grid(which="minor", linewidth=0.5)
+    ax_heat.tick_params(which="minor", bottom=False, left=False)
+
+    # cell text
+    for r in range(n_rows):
+        for c in range(n_cols):
+            txt = _format_index_cell(grid.iat[r, c], mode=mode)
+            if txt:
+                ax_heat.text(c, r, txt, ha="center", va="center", fontsize=fontsize)
+
+    _draw_brackets_top(
+        ax_top,
+        col_tuples=grid.columns.to_list(),
+        level_names=["dataset_id", "scaling", "feature_subset"],
+        fontsize=8,
+        color="0.25",
+    )
+    _draw_brackets_right(
+        ax_right,
+        row_tuples=grid.index.to_list(),
+        level_names=["missingness", "log_transform", "duplicate_handling"],
+        fontsize=8,
+        color="0.25",
+    )
+
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
+# ---------- 3D Scatter plot helpers ---------- #
 def _scatter_3d(
     ax, pts: np.ndarray, title: str, cmap: str, point_size: float, alpha: float
 ):
@@ -77,6 +213,7 @@ def _universe_meta_text(universe, split: str, n_points: int) -> str:
     return "\n".join(lines)
 
 
+# ---------- Norm table plot helpers ---------- #
 def _contiguous_spans(labels: list[str]) -> list[tuple[int, int, str]]:
     """
     Given a list of labels (ordered), return spans of identical consecutive labels.
@@ -200,7 +337,7 @@ def _draw_brackets_right(
 def _format_sci(x: float) -> str:
     if pd.isna(x):
         return ""
-    # 3 significant digits in scientific notation
+    # 2 significant digits in scientific notation
     return f"{x:.2e}"
 
 
@@ -223,7 +360,7 @@ def _build_norm_grid(
     Returns:
       - grid: pivot table with rows=(log_transform, duplicate_handling, missingness)
               cols=(dataset_id, scaling, feature_subset)
-              values=mean l2_dim{homology_dim} across seeds
+              values=median l2_dim{homology_dim} across seeds
       - grouped_df: the grouped/averaged table (useful for debugging)
     """
     dcol = f"l2_dim{homology_dim}"
@@ -244,16 +381,16 @@ def _build_norm_grid(
 
     grouped = (
         df.groupby(group_cols, dropna=False)[dcol]
-        .mean()
+        .median()
         .reset_index()
-        .rename(columns={dcol: "l2_mean_across_seeds"})
+        .rename(columns={dcol: "l2_median_across_seeds"})
     )
 
     grid = grouped.pivot_table(
         index=["missingness", "log_transform", "duplicate_handling"],
         columns=["dataset_id", "scaling", "feature_subset"],
-        values="l2_mean_across_seeds",
-        aggfunc="mean",
+        values="l2_median_across_seeds",
+        aggfunc="median",
     )
 
     # Ensure deterministic ordering
@@ -308,7 +445,7 @@ def _plot_multiverse_grid(
     if color_log10:
         # log10 compresses huge outliers while still showing structure.
         # add epsilon to avoid log(0)
-        eps = 1e-12
+        eps = 1e-30
         color_data = np.log10(np.maximum(color_data, eps))
 
     # Layout: top brackets, main heatmap, right brackets
@@ -393,6 +530,154 @@ def _short_label(x) -> str:
     return _LABEL_MAP.get(s, s)
 
 
+# ---------- Outlier plot helpers ---------- #
+def _parse_index_list(spec: str) -> set[int]:
+    """
+    Parse a comma-separated list of integers and/or ranges like:
+      "1,2,5-10,42"
+    Returns a set of indices.
+    """
+    spec = (spec or "").strip()
+    if not spec:
+        return set()
+
+    out: set[int] = set()
+    parts = [p.strip() for p in spec.split(",") if p.strip()]
+    for p in parts:
+        if "-" in p:
+            a, b = [t.strip() for t in p.split("-", 1)]
+            if not a or not b:
+                raise typer.BadParameter(f"Invalid range in --exclude: {p!r}")
+            try:
+                lo = int(a)
+                hi = int(b)
+            except ValueError as e:
+                raise typer.BadParameter(f"Non-integer in --exclude: {p!r}") from e
+            if hi < lo:
+                lo, hi = hi, lo
+            out.update(range(lo, hi + 1))
+        else:
+            try:
+                out.add(int(p))
+            except ValueError as e:
+                raise typer.BadParameter(f"Non-integer in --exclude: {p!r}") from e
+    return out
+
+
+def _aggregate_across_seeds(
+    df: pd.DataFrame,
+    *,
+    homology_dim: int,
+    agg: str = "median",
+) -> pd.DataFrame:
+    """
+    Collapse the 4 seeds into one value per multiverse config (excluding seed).
+
+    Returns a df with one row per configuration, including dataset_id and agg_norm.
+    """
+    dcol = f"l2_dim{homology_dim}"
+    if dcol not in df.columns:
+        raise ValueError(f"Missing column {dcol!r} in metrics table.")
+
+    df = df[df["metrics_status"] == "ok"].copy()
+
+    group_cols = [
+        "dataset_id",
+        "scaling",
+        "feature_subset",
+        "log_transform",
+        "duplicate_handling",
+        "missingness",
+    ]
+
+    if agg not in {"median", "mean"}:
+        raise ValueError("agg must be 'median' or 'mean'")
+
+    if agg == "median":
+        out = df.groupby(group_cols, dropna=False)[dcol].median().reset_index()
+    else:
+        out = df.groupby(group_cols, dropna=False)[dcol].mean().reset_index()
+
+    out = out.rename(columns={dcol: "agg_norm"})
+    return out
+
+
+def _iqr_bounds(x: np.ndarray, k: float = 1.5) -> tuple[float, float]:
+    x = x[np.isfinite(x)]
+    if x.size == 0:
+        return (np.nan, np.nan)
+    q1 = np.quantile(x, 0.25)
+    q3 = np.quantile(x, 0.75)
+    iqr = q3 - q1
+    return (q1 - k * iqr, q3 + k * iqr)
+
+
+def _mad_bounds(x: np.ndarray, k: float = 3.5) -> tuple[float, float]:
+    """
+    Median ± k * MAD (MAD = median(|x - median(x)|)).
+    k=3.5 is a common robust outlier threshold.
+    """
+    x = x[np.isfinite(x)]
+    if x.size == 0:
+        return (np.nan, np.nan)
+    med = np.median(x)
+    mad = np.median(np.abs(x - med))
+    if mad == 0:
+        # If MAD=0, everything equals the median OR there are many identical values.
+        # Fall back to "no bounds" except exact equality.
+        return (med, med)
+    return (med - k * mad, med + k * mad)
+
+
+def _compute_outlier_mask(
+    x: np.ndarray,
+    method: str,
+    k: float,
+) -> tuple[np.ndarray, float, float]:
+    """
+    Returns mask (True=outlier), lower_bound, upper_bound
+    """
+    x = np.asarray(x, dtype=float)
+    finite = np.isfinite(x)
+
+    if method == "iqr":
+        lo, hi = _iqr_bounds(x[finite], k=k)
+    elif method == "mad":
+        lo, hi = _mad_bounds(x[finite], k=k)
+    else:
+        raise ValueError("method must be 'iqr' or 'mad'")
+
+    # If bounds collapse (e.g., MAD=0), treat values different from the bound as outliers
+    if np.isfinite(lo) and np.isfinite(hi) and lo == hi:
+        mask = finite & (x != lo)
+    else:
+        mask = finite & ((x < lo) | (x > hi))
+    return mask, lo, hi
+
+
+def _maybe_log_transform(x: np.ndarray, yscale: str) -> tuple[np.ndarray, str]:
+    """
+    For visualization only. Keeps raw values in outlier computations.
+    """
+    if yscale == "linear":
+        return x, "norm"
+    if yscale == "log10":
+        eps = 1e-30  # allows log10(0) -> very negative
+        return np.log10(np.maximum(x, eps)), "log10(norm)"
+    if yscale == "symlog":
+        # useful if you ever get negatives; shouldn't happen for norms
+        return x, "norm (symlog)"
+    raise ValueError("yscale must be 'linear', 'log10', or 'symlog'")
+
+
+def _get_universe_level_norms(df: pd.DataFrame, homology_dim: int) -> pd.DataFrame:
+    dcol = f"l2_dim{homology_dim}"
+    if dcol not in df.columns:
+        raise ValueError(f"Missing column {dcol!r} in metrics table.")
+    df = df[df["metrics_status"] == "ok"].copy()
+    return df[["dataset_id", dcol]].rename(columns={dcol: "norm"})
+
+
 @app.command("multiverse-norm-grid")
 def multiverse_norm_grid(
     split: str = typer.Option("test", help="train/val/test"),
@@ -406,7 +691,7 @@ def multiverse_norm_grid(
     ),
 ):
     """
-    Steegen-style multiverse grid, but with cell values = mean landscape L2 norms
+    Steegen-style multiverse grid, but with cell values = median landscape L2 norms
     averaged across seeds (42,420,4200,42000).
 
     Columns: dataset_id / scaling / feature_subset
@@ -422,7 +707,7 @@ def multiverse_norm_grid(
         out_path = out_dir / f"multiverse_norm_grid_split-{split}_dim{d}.png"
         _plot_multiverse_grid(
             grid,
-            title=f"Multiverse grid: mean landscape L2 norms (split={split}, homology dim={d})",
+            title=f"Multiverse grid: median landscape L2 norms (split={split}, homology dim={d})",
             out_path=out_path,
             show_values=show_values,
             color_log10=color_log10,
@@ -525,6 +810,166 @@ def plot_3d(
     if show:
         plt.show()
     plt.close(fig)
+
+
+@app.command("norm-outlier-overview")
+def norm_outlier_overview_boxplot_only(
+    split: str = typer.Option("test", help="train/val/test"),
+    homology_dim: int = typer.Option(1, help="Homology dimension: 0, 1, or 2"),
+    whis: float = typer.Option(
+        1.5, help="Matplotlib whisker multiplier (default outlier rule)."
+    ),
+    max_labels: int = typer.Option(
+        30, help="Max outlier labels per panel (avoid clutter)."
+    ),
+    exclude: str = typer.Option(
+        "",
+        help="Universe indices to exclude, e.g. '56,57,60' or '48-63,120'.",
+    ),
+    out_dir: Path = typer.Option(Path("data/figures"), help="Output directory"),
+):
+    """
+    2x2 grid: ALL datasets + each dataset separately (first 3 datasets alphabetically).
+    Plot ONLY matplotlib's default boxplot; only fliers are shown as points.
+    Fliers are labeled with universe_index.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    universes = generate_multiverse()
+    df = build_metrics_table(universes, split=split, require_exists=True)
+
+    dcol = f"l2_dim{homology_dim}"
+    if dcol not in df.columns:
+        raise typer.BadParameter(f"Missing column {dcol!r} in metrics table.")
+    df = df[df["metrics_status"] == "ok"].copy()
+
+    if "universe_id" not in df.columns:
+        raise typer.BadParameter("Metrics table missing 'universe_id' column.")
+
+    id_to_index = {u.id: i for i, u in enumerate(universes)}
+    df["universe_index"] = df["universe_id"].map(id_to_index)
+
+    u_df = df[["dataset_id", "universe_index", dcol]].rename(columns={dcol: "norm"})
+    u_df = u_df[np.isfinite(u_df["norm"].to_numpy(dtype=float))].copy()
+
+    # Exclude indices if requested
+    exclude_set = _parse_index_list(exclude)
+    if exclude_set:
+        before = len(u_df)
+        u_df = u_df[~u_df["universe_index"].isin(exclude_set)].copy()
+        logger.info(
+            "Excluded %d universes by index (rows: %d -> %d)",
+            len(exclude_set),
+            before,
+            len(u_df),
+        )
+
+    if u_df.empty:
+        raise typer.BadParameter(
+            "No universes remain to plot (after filtering/exclusion)."
+        )
+
+    datasets = sorted(u_df["dataset_id"].dropna().unique().tolist())
+    per_ds = datasets[:3]
+    scopes: list[tuple[str, pd.DataFrame]] = [("ALL", u_df)]
+    scopes += [(ds, u_df[u_df["dataset_id"] == ds].copy()) for ds in per_ds]
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    axes_list = axes.ravel()
+
+    fig.suptitle(
+        f"Matplotlib boxplot fliers (split={split}, dim={homology_dim}, whis={whis})",
+        y=0.98,
+        fontsize=12,
+    )
+
+    for ax, (scope_name, sdf) in zip(axes_list, scopes):
+        # reset_index so position p aligns with arrays (important for labeling)
+        sdf = sdf.reset_index(drop=True)
+        x = sdf["norm"].to_numpy(dtype=float)
+        uidx = sdf["universe_index"].to_numpy(dtype=int)
+
+        # Boxplot ONLY (no scatter). Matplotlib draws fliers as points.
+        bp = ax.boxplot(
+            x,
+            positions=[1.0],
+            widths=0.45,
+            vert=True,
+            showfliers=True,
+            whis=whis,
+        )
+
+        ax.set_xlim(0.5, 1.5)
+        ax.set_xticks([])
+        ax.set_title(scope_name)
+        ax.set_ylabel("L2 norm (linear)")
+
+        # Extract fliers from matplotlib and label them
+        flier_line = bp["fliers"][0]  # only one box
+        flier_x = np.asarray(flier_line.get_xdata(), dtype=float)
+        flier_y = np.asarray(flier_line.get_ydata(), dtype=float)
+
+        # --- add slight horizontal jitter to fliers only ---
+        if flier_x.size > 0:
+            rng = np.random.default_rng(0)
+            jitter = rng.uniform(-0.12, 0.12, size=flier_x.size)
+            flier_x_jittered = flier_x + jitter
+            flier_line.set_xdata(flier_x_jittered)
+        else:
+            flier_x_jittered = flier_x
+
+        n_fliers = int(flier_y.size)
+
+        # Annotate up to max_labels most extreme fliers (by distance to median)
+        if n_fliers > 0:
+            med = float(np.median(x))
+            # indices of flier points sorted by extremeness
+            order = np.argsort(np.abs(flier_y - med))[::-1][:max_labels]
+
+            # Map each flier y-value back to a universe index.
+            # Use a tolerance for float comparison.
+            tol = max(1e-12, 1e-9 * float(np.nanmax(np.abs(x))) if len(x) else 1e-12)
+
+            for j in order:
+                y = flier_y[j]
+
+                # find matching original observations (can be multiple if ties)
+                matches = np.where(np.isclose(x, y, rtol=0.0, atol=tol))[0]
+                if matches.size == 0:
+                    continue
+
+                # label the first match (avoids clutter when duplicates exist)
+                p = int(matches[0])
+                ax.text(
+                    flier_x_jittered[j] + 0.02,
+                    y,
+                    str(int(uidx[p])),
+                    fontsize=7,
+                    ha="left",
+                    va="center",
+                )
+
+        ax.text(
+            0.02,
+            0.98,
+            f"n={len(x)}\nfliers={n_fliers}",
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=8,
+        )
+
+    # Turn off any unused panels
+    for j in range(len(scopes), 4):
+        axes_list[j].axis("off")
+
+    out_path = (
+        out_dir
+        / f"norm_outlier_overview_boxplot_only_split-{split}_dim{homology_dim}_whis{whis}_exclude{exclude}.png"
+    )
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Saved boxplot-only outlier figure to %s", out_path)
 
 
 if __name__ == "__main__":

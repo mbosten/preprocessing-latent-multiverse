@@ -530,6 +530,53 @@ def _short_label(x) -> str:
     return _LABEL_MAP.get(s, s)
 
 
+# ---------- Norm histogram plot helpers ---------- #
+def _parse_split_by(spec: str) -> list[str]:
+    """
+    Parse --split-by "dataset,scaling" into list of 1-2 normalized keys.
+    Allowed keys map to columns in the metrics table.
+    """
+    spec = (spec or "").strip()
+    if not spec:
+        return []
+
+    keys = [k.strip().lower() for k in spec.split(",") if k.strip()]
+    if len(keys) > 2:
+        raise typer.BadParameter(
+            "--split-by supports at most 2 keys (e.g., 'dataset' or 'dataset,scaling')."
+        )
+
+    alias = {
+        "dataset": "dataset_id",
+        "dataset_id": "dataset_id",
+        "scaling": "scaling",
+        "feature_subset": "feature_subset",
+        "features": "feature_subset",
+        "log_transform": "log_transform",
+        "log": "log_transform",
+        "duplicate_handling": "duplicate_handling",
+        "duplicates": "duplicate_handling",
+        "missingness": "missingness",
+    }
+    out = []
+    for k in keys:
+        if k not in alias:
+            raise typer.BadParameter(
+                f"Unknown split key {k!r}. Allowed: dataset, scaling, feature_subset, log_transform, duplicate_handling, missingness."
+            )
+        out.append(alias[k])
+    return out
+
+
+def _group_title(keys: list[str], values: tuple) -> str:
+    if not keys:
+        return "ALL"
+    parts = []
+    for k, v in zip(keys, values):
+        parts.append(f"{_short_label(k)}={_short_label(v)}")
+    return ",\n".join(parts)
+
+
 # ---------- Outlier plot helpers ---------- #
 def _parse_index_list(spec: str) -> set[int]:
     """
@@ -970,6 +1017,164 @@ def norm_outlier_overview_boxplot_only(
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     logger.info("Saved boxplot-only outlier figure to %s", out_path)
+
+
+@app.command("norm-distribution")
+def norm_distribution(
+    split: str = typer.Option("test", help="train/val/test"),
+    homology_dim: int = typer.Option(1, help="Homology dimension: 0, 1, or 2"),
+    split_by: str = typer.Option(
+        "",
+        help="Comma-separated grouping keys (max 2). Examples: 'dataset' or 'dataset,scaling'.",
+    ),
+    max_norm: float | None = typer.Option(
+        None,
+        help="If set, exclude universes with norm > max_norm before plotting (e.g. 100).",
+    ),
+    bins: int = typer.Option(30, help="Number of histogram bins."),
+    out_dir: Path = typer.Option(Path("data/figures"), help="Output directory"),
+):
+    """
+    Plot distributions of landscape L2 norms as histograms.
+    Uses default matplotlib histogram style.
+    Creates one subplot per group defined by --split-by (up to 2 keys).
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    universes = generate_multiverse()
+    df = build_metrics_table(universes, split=split, require_exists=True)
+
+    dcol = f"l2_dim{homology_dim}"
+    if dcol not in df.columns:
+        raise typer.BadParameter(f"Missing column {dcol!r} in metrics table.")
+
+    # Only OK metrics and finite values
+    df = df[df["metrics_status"] == "ok"].copy()
+    df = df[np.isfinite(df[dcol].to_numpy(dtype=float))].copy()
+
+    if max_norm is not None:
+        before = len(df)
+        df = df[df[dcol] <= max_norm].copy()
+        logger.info(
+            "Applied max_norm=%s filter (dropped %d rows)", max_norm, before - len(df)
+        )
+
+        if df.empty:
+            raise typer.BadParameter(
+                "After applying --max-norm, no data remains to plot."
+            )
+
+    keys = _parse_split_by(split_by)
+
+    # Ensure columns exist if requested
+    for k in keys:
+        if k not in df.columns:
+            raise typer.BadParameter(
+                f"--split-by key {k!r} not present in metrics table columns."
+            )
+
+    # Decide grouping
+    if not keys:
+        groups = [(("ALL",), df)]
+        nrows, ncols = 1, 1
+    elif len(keys) == 1:
+        k1 = keys[0]
+        levels = sorted(df[k1].dropna().unique().tolist(), key=lambda x: str(x))
+        groups = [((v,), df[df[k1] == v].copy()) for v in levels]
+        ncols = min(3, len(groups))
+        nrows = int(np.ceil(len(groups) / ncols)) if groups else 1
+    else:
+        k1, k2 = keys
+        lv1 = sorted(df[k1].dropna().unique().tolist(), key=lambda x: str(x))
+        lv2 = sorted(df[k2].dropna().unique().tolist(), key=lambda x: str(x))
+
+        # 2D grid: rows = k1, cols = k2 (stable, easy to read)
+        nrows, ncols = len(lv1), len(lv2)
+        groups = []
+        for v1 in lv1:
+            for v2 in lv2:
+                sdf = df[(df[k1] == v1) & (df[k2] == v2)].copy()
+                groups.append(((v1, v2), sdf))
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.0 * ncols, 3.2 * nrows))
+    # Normalize axes to 2D array for uniform indexing
+    if nrows == 1 and ncols == 1:
+        axes_arr = np.array([[axes]])
+    elif nrows == 1:
+        axes_arr = np.array([axes])
+    elif ncols == 1:
+        axes_arr = np.array([[ax] for ax in axes])
+    else:
+        axes_arr = axes
+
+    title_keys = ", ".join(keys) if keys else "none"
+    fig.suptitle(
+        f"Norm distributions (split={split}, dim={homology_dim}, split_by={title_keys})",
+        y=0.98,
+        fontsize=12,
+    )
+    fig.subplots_adjust(top=0.88, hspace=0.45)
+
+    # Plot
+    if len(keys) <= 1:
+        # Fill row-major
+        for i, (vals, sdf) in enumerate(groups):
+            r = i // ncols
+            c = i % ncols
+            ax = axes_arr[r, c]
+            x = sdf[dcol].to_numpy(dtype=float)
+            ax.hist(x, bins=bins)  # default matplotlib histogram
+            ax.set_title(_group_title(keys, vals))
+            ax.set_xlabel("L2 norm")
+            ax.set_ylabel("count")
+
+        # Turn off unused axes
+        total = nrows * ncols
+        for j in range(len(groups), total):
+            r = j // ncols
+            c = j % ncols
+            axes_arr[r, c].axis("off")
+    else:
+        # 2D grid: rows = lv1, cols = lv2
+        k1, k2 = keys
+        lv1 = sorted(df[k1].dropna().unique().tolist(), key=lambda x: str(x))
+        lv2 = sorted(df[k2].dropna().unique().tolist(), key=lambda x: str(x))
+
+        for ri, v1 in enumerate(lv1):
+            for ci, v2 in enumerate(lv2):
+                ax = axes_arr[ri, ci]
+                sdf = df[(df[k1] == v1) & (df[k2] == v2)]
+                x = sdf[dcol].to_numpy(dtype=float)
+                ax.hist(x, bins=bins)
+                ax.set_title(_group_title(keys, (v1, v2)))
+
+                # Keep labels minimal to reduce clutter
+                if ri == nrows - 1:
+                    ax.set_xlabel("L2 norm")
+                if ci == 0:
+                    ax.set_ylabel("count")
+
+                # If empty, make it visually clear but unobtrusive
+                if x.size == 0:
+                    ax.text(
+                        0.5,
+                        0.5,
+                        "empty",
+                        transform=ax.transAxes,
+                        ha="center",
+                        va="center",
+                        fontsize=10,
+                    )
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+
+    out_path = (
+        out_dir
+        / f"norm_distribution_split-{split}_dim{homology_dim}_splitby-{(split_by or 'none').replace(',', '-')}.png"
+    )
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Saved norm distribution figure to %s", out_path)
 
 
 if __name__ == "__main__":

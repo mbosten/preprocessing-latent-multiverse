@@ -12,9 +12,10 @@ from typing_extensions import Annotated
 from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.metrics import (
     build_metrics_table,
-    compute_presto_variance_across_universes,
+    compute_presto_variance_from_metrics_table,
 )
 from preprolamu.pipeline.universes import generate_multiverse
+from preprolamu.plots import _parse_split_by
 
 logger = logging.getLogger(__name__)
 
@@ -54,32 +55,37 @@ def _filter_by_norm_threshold(
     df: pd.DataFrame,
     *,
     threshold: float | None,
-    dim: int | None,
 ) -> pd.DataFrame:
     """
-    Keep only universes with norm <= threshold.
+    Keep only universes whose landscape L2 norms are <= threshold
+    for *all* available homology dimensions (l2_dim* columns).
 
     If threshold is None: return df unchanged.
-    If dim is None: uses average metric (l2_average).
     """
     if threshold is None:
         return df
 
-    col = f"l2_dim{dim}" if dim is not None else "l2_average"
-
-    if col not in df.columns:
+    # Find all l2_dim{d} columns present
+    dim_cols = sorted([c for c in df.columns if c.startswith("l2_dim")])
+    if not dim_cols:
         raise typer.BadParameter(
-            f"Requested threshold filtering on column {col!r}, but it does not exist. "
-            f"Available columns include: {list(df.columns)}"
+            "Requested norm threshold filtering, but no 'l2_dim*' columns exist in the table."
         )
 
     before = len(df)
-    df2 = df[df[col] <= threshold].copy()
+
+    # Keep universes where every dimension norm is <= threshold (NaNs treated as fail-safe drop)
+    mask = pd.Series(True, index=df.index)
+    for c in dim_cols:
+        mask &= df[c].notna() & (df[c] <= threshold)
+
+    df2 = df[mask].copy()
+
     logger.info(
-        "Applied norm threshold: kept %d/%d universes where %s <= %.6g (dropped=%d)",
+        "Applied norm threshold across dims: kept %d/%d where max(%s) <= %.6g (dropped=%d)",
         len(df2),
         before,
-        col,
+        ",".join(dim_cols),
         threshold,
         before - len(df2),
     )
@@ -106,15 +112,11 @@ def dataset_summary(
         None,
         help="Only include universes with norm <= this threshold (for outlier-robust summaries).",
     ),
-    norm_dim: Optional[int] = typer.Option(
-        None,
-        help="Which homology dimension to threshold on. If omitted, threshold uses average norm.",
-    ),
 ):
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split))
 
-    df = _filter_by_norm_threshold(df, threshold=norm_threshold, dim=norm_dim)
+    df = _filter_by_norm_threshold(df, threshold=norm_threshold)
 
     # Example: compare distributions of l2_average across datasets
     summary = (
@@ -158,10 +160,6 @@ def parameter_effect(
         None,
         help="Only include universes with norm <= this threshold (for outlier-robust comparisons).",
     ),
-    norm_dim: Optional[int] = typer.Option(
-        None,
-        help="Which homology dimension to threshold on. If omitted, threshold uses average norm.",
-    ),
 ):
     """
     Compare distributions of l2_average between the settings of one parameter.
@@ -178,7 +176,6 @@ def parameter_effect(
     df = _filter_by_norm_threshold(
         df,
         threshold=norm_threshold,
-        dim=norm_dim,
     )
 
     if dataset_id is not None:
@@ -213,20 +210,69 @@ def parameter_effect(
 @app.command("presto-variance")
 def presto_variance(
     split: str = typer.Option("test"),
+    split_by: str = typer.Option(
+        "dataset",
+        help="Comma-separated grouping keys (max 2). Examples: 'dataset' or 'dataset,scaling'.",
+    ),
+    norm_threshold: Optional[float] = typer.Option(
+        None,
+        help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
+    ),
 ):
     """
-    Reuse your existing compute_presto_variance_across_universes,
-    and report per dataset.
+    Compute PRESTO variance per group using precomputed norms from metrics JSON
+    (no landscape loading).
     """
-    universes = generate_multiverse()
+    # parse split_by (reuse your parsing logic / aliases)
+    keys = _parse_split_by(split_by)  # use the same alias parser you already wrote
 
-    # by dataset
-    for ds in sorted({u.dataset_id for u in universes}):
-        ds_universes = [u for u in universes if u.dataset_id == ds]
-        v = compute_presto_variance_across_universes(
-            ds_universes, split=split, homology_dims=(0, 1, 2)
+    universes = generate_multiverse()
+    df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
+
+    # NEW: threshold across dims (your updated _filter_by_norm_threshold)
+    df = _filter_by_norm_threshold(df, threshold=norm_threshold)
+
+    # Ensure required columns exist
+    needed = [f"l2_dim{d}" for d in (0, 1, 2)]
+    for c in needed:
+        if c not in df.columns:
+            raise typer.BadParameter(
+                f"Missing {c} in metrics table; cannot compute PRESTO variance."
+            )
+
+    # Group and compute
+    if not keys:
+        grouped = [(("ALL",), df)]
+    else:
+        grouped = list(df.groupby(keys, dropna=False))
+
+    rows = []
+    for group_key, gdf in grouped:
+        if not isinstance(group_key, tuple):
+            group_key = (group_key,)
+
+        if gdf.empty:
+            continue
+
+        v = compute_presto_variance_from_metrics_table(gdf, homology_dims=(0, 1, 2))
+
+        row = {"n": len(gdf), "presto_variance": v}
+        for k, val in zip(keys, group_key):
+            row[k] = val
+        rows.append(row)
+
+    if not rows:
+        raise typer.BadParameter("No groups had any rows after filtering.")
+
+    out = pd.DataFrame(rows)
+    if keys:
+        out = out.sort_values(
+            keys + ["presto_variance"], ascending=[True] * len(keys) + [False]
         )
-        print(f"{ds}: presto_variance={v:.6g}")
+    else:
+        out = out.sort_values("presto_variance", ascending=False)
+
+    print(out.to_string(index=False))
 
 
 if __name__ == "__main__":

@@ -152,6 +152,44 @@ def compute_presto_variance(
     return sse / N
 
 
+def compute_presto_variance_from_metrics_table(
+    df: pd.DataFrame,
+    *,
+    homology_dims: Iterable[int] = (0, 1, 2),
+) -> float:
+    """
+    Compute PRESTO variance using precomputed landscape L2 norms stored in a metrics table.
+
+    Expects df to contain columns l2_dim{d} for each d in homology_dims.
+    Uses the same definition as compute_presto_variance():
+      var = (1/N) * Σ_u Σ_d (n_{u,d} - μ_d)^2
+    where μ_d is the mean across universes for dimension d, and N is number of universes.
+    """
+    dims = list(homology_dims)
+
+    if df.empty:
+        raise ValueError("metrics table is empty.")
+
+    cols = [f"l2_dim{d}" for d in dims]
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing columns for PRESTO variance: {missing}")
+
+    X = df[cols].to_numpy(dtype=float)
+
+    # Treat non-finite as 0.0 (consistent with build_metrics_table's "missing dims -> 0.0" intent)
+    # If you prefer to drop rows with non-finite, we can do that instead.
+    X = np.where(np.isfinite(X), X, 0.0)
+
+    N = X.shape[0]
+    if N == 0:
+        raise ValueError("No rows available for PRESTO variance.")
+
+    mu = X.mean(axis=0)
+    sse = ((X - mu) ** 2).sum()
+    return float(sse / N)
+
+
 def compute_presto_variance_across_universes(
     universes: Iterable[Universe],
     split: str = "test",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -310,6 +311,41 @@ def build_metrics_table(
 
             # Per universe average of L2 norms across dims (so typically divide by 3)
             row["l2_average"] = float(sum(l2_vals) / max(len(l2_vals), 1))
+
+            # Load evaluation metrics if available
+            eval_path = u.eval_metrics_path(split=split)
+            if eval_path.exists():
+                try:
+                    with eval_path.open("r", encoding="utf-8") as f:
+                        eval_payload = json.load(f) or {}
+
+                    # Flatten a few keys into columns.
+                    # Keep names stable: recon_* for overall, recon_benign_*, recon_attack_*
+                    recon = eval_payload.get("recon", {}) or {}
+                    row["recon_n"] = recon.get("n")
+                    row["recon_mse_mean"] = recon.get("mse_mean")
+                    row["recon_mse_median"] = recon.get("mse_median")
+                    row["recon_mse_std"] = recon.get("mse_std")
+                    row["recon_mse_p95"] = recon.get("mse_p95")
+                    row["recon_mse_p99"] = recon.get("mse_p99")
+                    row["recon_mse_max"] = recon.get("mse_max")
+
+                    # Stratified (optional)
+                    row["recon_n_benign"] = eval_payload.get("n_benign")
+                    row["recon_n_attack"] = eval_payload.get("n_attack")
+
+                    rb = eval_payload.get("recon_benign", {}) or {}
+                    ra = eval_payload.get("recon_attack", {}) or {}
+
+                    row["recon_benign_mse_mean"] = rb.get("mse_mean")
+                    row["recon_benign_mse_median"] = rb.get("mse_median")
+                    row["recon_attack_mse_mean"] = ra.get("mse_mean")
+                    row["recon_attack_mse_median"] = ra.get("mse_median")
+
+                except Exception as e:
+                    logger.warning(
+                        "[METRICS] Failed to load eval metrics for %s: %s", u.id, e
+                    )
 
         except FileNotFoundError as e:
             row["metrics_status"] = "missing_metrics"

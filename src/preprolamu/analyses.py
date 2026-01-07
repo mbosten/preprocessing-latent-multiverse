@@ -12,12 +12,21 @@ import typer
 from typing_extensions import Annotated
 
 from preprolamu.logging_config import setup_logging
+from preprolamu.pipeline.evaluation import (
+    evaluate_autoencoder_reconstruction,
+    save_eval_metrics,
+)
 from preprolamu.pipeline.metrics import (
     build_metrics_table,
     compute_presto_variance_from_metrics_table,
 )
 from preprolamu.pipeline.universes import generate_multiverse
 from preprolamu.plots import _parse_split_by
+from preprolamu.utils_analyses_plots import (
+    _ok_only,
+    filter_by_norm_threshold,
+    filter_exclude_zero_norms,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,88 +53,88 @@ def main(
     logger.info("CLI started with verbose=%s", verbose)
 
 
-# ----------- Helper functions ----------- #
-def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
-    logger.info(
-        "Dropping %d universes with metrics_status != 'ok'",
-        len(df) - df[df["metrics_status"] == "ok"].shape[0],
-    )
-    return df[df["metrics_status"] == "ok"].copy()
+# # ----------- Helper functions ----------- #
+# def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
+#     logger.info(
+#         "Dropping %d universes with metrics_status != 'ok'",
+#         len(df) - df[df["metrics_status"] == "ok"].shape[0],
+#     )
+#     return df[df["metrics_status"] == "ok"].copy()
 
 
-def filter_by_norm_threshold(
-    df: pd.DataFrame,
-    *,
-    threshold: float | None,
-) -> pd.DataFrame:
-    """
-    Keep only universes whose landscape L2 norms are <= threshold
-    for *all* available homology dimensions (l2_dim* columns).
+# def filter_by_norm_threshold(
+#     df: pd.DataFrame,
+#     *,
+#     threshold: float | None,
+# ) -> pd.DataFrame:
+#     """
+#     Keep only universes whose landscape L2 norms are <= threshold
+#     for *all* available homology dimensions (l2_dim* columns).
 
-    If threshold is None: return df unchanged.
-    """
-    if threshold is None:
-        return df
+#     If threshold is None: return df unchanged.
+#     """
+#     if threshold is None:
+#         return df
 
-    # Find all l2_dim{d} columns present
-    dim_cols = sorted([c for c in df.columns if c.startswith("l2_dim")])
-    if not dim_cols:
-        raise typer.BadParameter(
-            "Requested norm threshold filtering, but no 'l2_dim*' columns exist in the table."
-        )
+#     # Find all l2_dim{d} columns present
+#     dim_cols = sorted([c for c in df.columns if c.startswith("l2_dim")])
+#     if not dim_cols:
+#         raise typer.BadParameter(
+#             "Requested norm threshold filtering, but no 'l2_dim*' columns exist in the table."
+#         )
 
-    before = len(df)
+#     before = len(df)
 
-    # Keep universes where every dimension norm is <= threshold (NaNs treated as fail-safe drop)
-    mask = pd.Series(True, index=df.index)
-    for c in dim_cols:
-        mask &= df[c].notna() & (df[c] <= threshold)
+#     # Keep universes where every dimension norm is <= threshold (NaNs treated as fail-safe drop)
+#     mask = pd.Series(True, index=df.index)
+#     for c in dim_cols:
+#         mask &= df[c].notna() & (df[c] <= threshold)
 
-    df2 = df[mask].copy()
+#     df2 = df[mask].copy()
 
-    logger.info(
-        "Applied norm threshold across dims: kept %d/%d where max(%s) <= %.6g (dropped=%d)",
-        len(df2),
-        before,
-        ",".join(dim_cols),
-        threshold,
-        before - len(df2),
-    )
-    return df2
+#     logger.info(
+#         "Applied norm threshold across dims: kept %d/%d where max(%s) <= %.6g (dropped=%d)",
+#         len(df2),
+#         before,
+#         ",".join(dim_cols),
+#         threshold,
+#         before - len(df2),
+#     )
+#     return df2
 
 
-def filter_exclude_zero_norms(df: pd.DataFrame, *, exclude_zero: bool) -> pd.DataFrame:
-    """
-    Optionally drop universes whose landscape L2 norms are all exactly zero
-    across all available homology dimensions (l2_dim* columns).
+# def filter_exclude_zero_norms(df: pd.DataFrame, *, exclude_zero: bool) -> pd.DataFrame:
+#     """
+#     Optionally drop universes whose landscape L2 norms are all exactly zero
+#     across all available homology dimensions (l2_dim* columns).
 
-    If exclude_zero is False: return df unchanged.
-    """
-    if not exclude_zero:
-        return df
+#     If exclude_zero is False: return df unchanged.
+#     """
+#     if not exclude_zero:
+#         return df
 
-    dim_cols = sorted([c for c in df.columns if c.startswith("l2_dim")])
-    if not dim_cols:
-        raise typer.BadParameter(
-            "Requested exclude_zero filtering, but no 'l2_dim*' columns exist in the table."
-        )
+#     dim_cols = sorted([c for c in df.columns if c.startswith("l2_dim")])
+#     if not dim_cols:
+#         raise typer.BadParameter(
+#             "Requested exclude_zero filtering, but no 'l2_dim*' columns exist in the table."
+#         )
 
-    before = len(df)
+#     before = len(df)
 
-    # Drop rows where ALL dimension norms are exactly 0.0
-    # (NaNs do not trigger dropping.)
-    is_all_zero = (df[dim_cols] == 0).all(axis=1)
+#     # Drop rows where ALL dimension norms are exactly 0.0
+#     # (NaNs do not trigger dropping.)
+#     is_all_zero = (df[dim_cols] == 0).all(axis=1)
 
-    df2 = df[~is_all_zero].copy()
+#     df2 = df[~is_all_zero].copy()
 
-    logger.info(
-        "Excluded all-zero norms across dims: kept %d/%d (dropped=%d) using cols=%s",
-        len(df2),
-        before,
-        before - len(df2),
-        ",".join(dim_cols),
-    )
-    return df2
+#     logger.info(
+#         "Excluded all-zero norms across dims: kept %d/%d (dropped=%d) using cols=%s",
+#         len(df2),
+#         before,
+#         before - len(df2),
+#         ",".join(dim_cols),
+#     )
+#     return df2
 
 
 _PRESTO_PARAMS: list[str] = [
@@ -605,6 +614,60 @@ def presto_global_sensitivity(
     out = pd.DataFrame(rows).sort_values("dataset_id")
     pd.set_option("display.float_format", lambda x: f"{x:.6g}")
     print(out.to_string(index=False))
+
+
+@app.command("ae-eval")
+def ae_eval(
+    split: str = typer.Option("test", help="val or test"),
+    batch_size: int = typer.Option(2048, help="Batch size for reconstruction eval"),
+    overwrite: bool = typer.Option(False, help="Overwrite existing eval json files"),
+    include_stratified: bool = typer.Option(
+        True, help="Also compute Benign vs Attack summaries (no thresholding)"
+    ),
+):
+    """
+    Evaluate trained autoencoders on a split and store reconstruction-error metrics per universe.
+    Writes: data/processed/eval_metrics/{universe_id}_eval_{split}.json
+    """
+    if split == "validation":
+        split = "val"
+    if split not in {"val", "test"}:
+        raise typer.BadParameter("split must be 'val' or 'test'")
+
+    universes = generate_multiverse()
+
+    n_done = 0
+    n_skipped = 0
+    n_missing_model = 0
+
+    for u in universes:
+        out_path = u.eval_metrics_path(split=split)
+
+        if out_path.exists() and not overwrite:
+            n_skipped += 1
+            continue
+
+        if not u.ae_model_path().exists():
+            n_missing_model += 1
+            continue
+
+        try:
+            payload = evaluate_autoencoder_reconstruction(
+                u,
+                split=split,
+                batch_size=batch_size,
+                include_stratified=include_stratified,
+            )
+            save_eval_metrics(payload, out_path)
+            n_done += 1
+        except FileNotFoundError as e:
+            logger.warning("[AE-EVAL] Missing file for %s: %s", u.id, e)
+        except Exception as e:
+            logger.exception("[AE-EVAL] Failed for %s: %s", u.id, e)
+
+    print(
+        f"AE eval done. wrote={n_done}, skipped_existing={n_skipped}, missing_model={n_missing_model}"
+    )
 
 
 if __name__ == "__main__":

@@ -13,9 +13,14 @@ import typer
 from preprolamu.io.storage import load_projected
 from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.embeddings import downsample_latent
-from preprolamu.pipeline.metrics import build_metrics_table
+from preprolamu.pipeline.metrics import (
+    build_metrics_table,
+    compute_presto_variance_from_metrics_table,
+)
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
 from preprolamu.utils_analyses_plots import (
+    _format_sci,
+    _ok_only,
     filter_by_norm_threshold,
     filter_exclude_zero_norms,
 )
@@ -341,11 +346,11 @@ def _draw_brackets_right(
     ax.axis("off")
 
 
-def _format_sci(x: float) -> str:
-    if pd.isna(x):
-        return ""
-    # 2 significant digits in scientific notation
-    return f"{x:.2e}"
+# def _format_sci(x: float) -> str:
+#     if pd.isna(x):
+#         return ""
+#     # 2 significant digits in scientific notation
+#     return f"{x:.2e}"
 
 
 def _best_contrast_text_color(norm_value: float) -> str:
@@ -818,6 +823,69 @@ def _sqdev_long_for_dataset(gdf: pd.DataFrame, *, dims: list[int]) -> pd.DataFra
     return out
 
 
+# ----------- Individual sensitivity helpers ---------- #
+
+PARAMS = [
+    "scaling",
+    "log_transform",
+    "feature_subset",
+    "duplicate_handling",
+    "missingness",
+    "seed",
+]
+
+
+def _individual_sensitivities_for_param(
+    df: pd.DataFrame,
+    *,
+    param: str,
+    homology_dims=(0, 1, 2),
+) -> tuple[np.ndarray, dict]:
+    """
+    Returns:
+      values: individual sensitivities for all equivalence classes Q of `param`
+      meta: small diagnostics (n classes, singletons, mean size)
+    """
+    if param not in df.columns:
+        raise ValueError(f"Param {param} not in df columns.")
+
+    # Fix all OTHER params => equivalence class
+    fixed_cols = [c for c in PARAMS if c != param]
+
+    if len(df) == 0:
+        return np.array([], dtype=float), {
+            "q": 0,
+            "singletons": 0,
+            "mean_class_size": np.nan,
+        }
+
+    grouped = df.groupby(fixed_cols, dropna=False)
+
+    vals = []
+    sizes = []
+    singletons = 0
+
+    for _, g in grouped:
+        # equivalence class size = how many universes share the same "other parameters"
+        m = len(g)
+        sizes.append(m)
+        if m < 2:
+            singletons += 1
+            # PV of a singleton is 0 -> sensitivity 0
+            vals.append(0.0)
+            continue
+
+        pv = compute_presto_variance_from_metrics_table(g, homology_dims=homology_dims)
+        vals.append(float(np.sqrt(max(pv, 0.0))))
+
+    vals = np.asarray(vals, dtype=float)
+    return vals, {
+        "q": int(len(vals)),
+        "singletons": int(singletons),
+        "mean_class_size": float(np.mean(sizes)) if sizes else np.nan,
+    }
+
+
 # ---------- CLI Commands ---------- #
 @app.command("multiverse-norm-grid")
 def multiverse_norm_grid(
@@ -1271,179 +1339,6 @@ def norm_distribution(
     logger.info("Saved norm distribution figure to %s", out_path)
 
 
-# @app.command("presto-variance-violin")
-# def presto_variance_violin(
-#     split: str = typer.Option("test", help="train/val/test"),
-#     dims: str = typer.Option("0,1,2", help="Comma-separated homology dims, e.g. '0,1,2'"),
-#     out_dir: Path = typer.Option(Path("data/figures"), help="Output directory"),
-#     show: bool = typer.Option(False, help="Show interactive window after saving."),
-#     norm_threshold: Optional[float] = typer.Option(
-#         None,
-#         help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
-#     ),
-#     exclude_zero_norms: bool = typer.Option(
-#         False,
-#         help="Exclude universes where all l2_dim* norms are exactly zero.",
-#     ),
-#     separate_dims: bool = typer.Option(
-#         False,
-#         "--separate-dims",
-#         help="If set, split dims"
-#              "Otherwise, plot one violin per dataset.",
-#     ),
-#     inner: Optional[str] = typer.Option(
-#         None,
-#         help="Violin interior: 'quartile', 'box', 'point', or 'None'.",
-#     ),
-#     cut: float = typer.Option(
-#         0.0,
-#         help="Seaborn violin 'cut' parameter (0 keeps violins within data range).",
-#     ),
-# ):
-#     """
-#     Faceted violin plots: one panel per dataset, one violin per homology dimension.
-#     Values are per-dimension absolute deviations |n_{u,d} - mu_d| within each dataset.
-#     """
-#     out_dir.mkdir(parents=True, exist_ok=True)
-
-#     dims_list = [int(x.strip()) for x in dims.split(",") if x.strip()]
-#     if not dims_list:
-#         raise typer.BadParameter("No dims provided. Example: --dims '0,1,2'.")
-
-#     universes = generate_multiverse()
-#     df = build_metrics_table(universes, split=split, require_exists=True)
-#     df = df[df["metrics_status"] == "ok"].copy()
-#     if df.empty:
-#         raise typer.BadParameter("No 'ok' rows found in metrics table for this split.")
-
-#     # Ensure required columns exist
-#     needed = [f"l2_dim{d}" for d in dims_list]
-#     missing = [c for c in needed if c not in df.columns]
-#     if missing:
-#         raise typer.BadParameter(f"Missing required columns in metrics table: {missing}")
-
-#     # Apply your filters (from your utils file)
-#     df = filter_by_norm_threshold(df, threshold=norm_threshold)
-#     df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
-#     if df.empty:
-#         raise typer.BadParameter("No rows remain after filtering.")
-
-#     if separate_dims:
-#         parts = []
-#         for _, gdf in df.groupby("dataset_id", dropna=False):
-#             parts.append(_absdev_long_for_dataset(gdf, dims=dims_list))
-#         df_plot = pd.concat(parts, ignore_index=True)
-
-#         df_plot = df_plot[np.isfinite(df_plot["abs_dev"].to_numpy(dtype=float))].copy()
-#         if df_plot.empty:
-#             raise typer.BadParameter("No finite absolute deviations to plot.")
-
-#         g = sns.catplot(
-#             data=df_plot,
-#             x="dataset_id",
-#             y="abs_dev",
-#             kind="violin",
-#             color=".9",
-#             inner=inner,
-#             cut=cut,
-#             sharey=False,
-#             height=5.4,
-#             aspect=1.6,
-#         )
-
-#         ds_order = [ds for ds in g.col_names]
-#         for ax, ds in zip(g.axes.flatten(), ds_order):
-#             sdf = df_plot[df_plot["dataset_id"] == ds]
-#             # sns.stripplot(
-#             #     data=sdf,
-#             #     x="dimension",
-#             #     y="abs_dev",
-#             #     ax=ax,
-#             #     jitter=0.13,
-#             #     size=4.0,
-#             #     alpha=0.5,
-#             #     dodge=False,
-#             #     color="yellowgreen",
-#             # )
-#             sns.swarmplot(
-#             data=sdf,
-#             x="dimension",
-#             y="abs_dev",
-#             ax=ax,
-#             size=2.0,
-#             alpha=0.5,
-#             dodge=False,
-#         )
-
-#         g.set_axis_labels("", r"$|n_{u,d}-\mu_d|$  (absolute deviation)")
-#         title = (
-#             "Per-dataset absolute deviations of landscape norms by homology dimension\n"
-#             f"(split={split}, dims={dims}, threshold={norm_threshold}, exclude_zero={exclude_zero_norms})"
-#         )
-#         out_path = out_dir / (
-#             f"presto_absdev_by_dim_violin_split-{split}"
-#             f"_dims-{dims.replace(',', '-')}"
-#             f"_thr-{norm_threshold}_zero-{exclude_zero_norms}.png"
-#         )
-#     else:
-#         parts = []
-#         for _, g in df.groupby("dataset_id", dropna=False):
-#             parts.append(_absdev_sum_for_dataset(g, dims=dims_list))
-#         df_plot = pd.concat(parts, ignore_index=True)
-
-#         df_plot = df_plot[np.isfinite(df_plot["abs_dev"].to_numpy(dtype=float))].copy()
-#         if df_plot.empty:
-#             raise typer.BadParameter("No finite combined absolute deviations to plot.")
-
-#         df_plot = df_plot.copy()
-#         df_plot["all"] = "ALL"
-
-#         g = sns.catplot(
-#             data=df_plot,
-#             x="all",
-#             y="abs_dev",
-#             col="dataset_id",
-#             kind="violin",
-#             color=".9",
-#             inner=inner,
-#             cut=cut,
-#             sharey=False,
-#             height=5.4,
-#             aspect=1.6,
-#         )
-
-#         # overlay points
-#         sns.swarmplot(
-#             data=df_plot,
-#             x="dataset_id",
-#             y="abs_dev",
-#             ax=g.axes,
-#             size=2.0,
-#             alpha=0.5,
-#             dodge=False,
-#         )
-
-#         g.set_axis_labels("", r"$\sum_d |n_{u,d}-\mu_d|$  (sum abs deviation)")
-#         title = (
-#             "Per-dataset combined absolute deviation of landscape norms\n"
-#             f"(split={split}, dims={dims}, threshold={norm_threshold}, exclude_zero={exclude_zero_norms})"
-#         )
-#         out_path = out_dir / (
-#             f"presto_absdev_combined_violin_split-{split}"
-#             f"_dims-{dims.replace(',', '-')}"
-#             f"_thr-{norm_threshold}_zero-{exclude_zero_norms}.png"
-#         )
-
-#     g.figure.subplots_adjust(top=0.80)
-#     g.figure.suptitle(title, y=0.98, fontsize=12)
-#     g.figure.savefig(out_path, dpi=300, bbox_inches="tight")
-#     logger.info("Saved Presto variance violin plot to %s", out_path)
-
-#     if show:
-#         plt.show()
-#     plt.close(g.figure)
-
-
 @app.command("presto-variance-violin")
 def presto_variance_violin(
     split: str = typer.Option("test", help="train/val/test"),
@@ -1540,6 +1435,146 @@ def presto_variance_violin(
     if show:
         plt.show()
     plt.close(ax.figure)
+
+
+@app.command("presto-individual-violin")
+def presto_individual_violin(
+    dataset: str = typer.Option(
+        "all",
+        help="Dataset id (e.g. 'NF-ToN-IoT-v3') or 'all' to pool across datasets.",
+    ),
+    split: str = typer.Option("test"),
+    norm_threshold: float | None = typer.Option(None),
+    exclude_zero_norms: bool = typer.Option(False),
+    show: bool = typer.Option(False, help="Show interactive window after saving."),
+    out_dir: Path = typer.Option(Path("data/figures")),
+):
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    universes = generate_multiverse()
+    df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+
+    if dataset.lower() != "all":
+        df = df[df["dataset_id"] == dataset].copy()
+        if df.empty:
+            raise typer.BadParameter(
+                f"No rows for dataset={dataset!r} after filtering."
+            )
+
+    rows = []
+    plot_params = []
+
+    for p in PARAMS:
+        n_unique = df[p].nunique(dropna=False) if p in df.columns else 0
+        if n_unique >= 2:
+            plot_params.append(p)
+
+    for p in plot_params:
+        vals, meta = _individual_sensitivities_for_param(
+            df, param=p, homology_dims=(0, 1, 2)
+        )
+        for v in vals:
+            rows.append(
+                {
+                    "dataset": dataset if dataset != "all" else "ALL",
+                    "param": p,
+                    "individual_sensitivity": v,
+                }
+            )
+
+    plot_df = pd.DataFrame(rows)
+    if plot_df.empty:
+        raise typer.BadParameter("No individual sensitivities to plot.")
+
+    plt.figure(figsize=(9, 4.5))
+    sns.violinplot(
+        data=plot_df,
+        x="param",
+        y="individual_sensitivity",
+        inner="box",  # shows median + IQR
+        cut=0,
+        linewidth=1,
+    )
+
+    plt.ylabel("Individual PRESTO sensitivity (√PV)")
+    plt.xlabel("Preprocessing parameter")
+    scope = dataset if dataset != "all" else "ALL datasets pooled"
+    plt.title(f"Individual PRESTO sensitivity distributions ({scope}, split={split})")
+    plt.xticks(rotation=20, ha="right")
+
+    out_path = out_dir / f"presto_individual_violin_split-{split}_dataset-{dataset}.png"
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=300)
+    if show:
+        plt.show()
+    plt.close()
+
+    print(f"Saved: {out_path}")
+
+
+@app.command("norms-stripplot")
+def norms_stripplot(
+    split: str = typer.Option("test", help="train/val/test"),
+    column: str = typer.Option(
+        "l2_average",
+        help="Norm column to plot (e.g. l2_average, l2_dim0, l2_dim1, l2_dim2).",
+    ),
+    norm_threshold: float | None = typer.Option(
+        None,
+        help="Exclude universes where any l2_dim* exceeds this threshold.",
+    ),
+    exclude_zero_norms: bool = typer.Option(
+        False,
+        help="Exclude universes where all l2_dim* norms are exactly zero.",
+    ),
+    out_dir: Path = typer.Option(Path("data/figures"), help="Output directory"),
+):
+    """
+    Stripplot of persistence landscape norms by dataset.
+    Each point corresponds to one universe (multiverse outcome).
+    """
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    universes = generate_multiverse()
+    df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+
+    if column not in df.columns:
+        raise typer.BadParameter(
+            f"Column {column!r} not found. Available: {list(df.columns)}"
+        )
+
+    plot_df = df[["dataset_id", column]].dropna()
+    if plot_df.empty:
+        raise typer.BadParameter("No data left to plot after filtering.")
+
+    plt.figure(figsize=(7, 4.5))
+    sns.stripplot(
+        data=plot_df,
+        x="dataset_id",
+        y=column,
+        jitter=True,
+        size=4,  # keep marker size readable
+        alpha=0.8,
+    )
+
+    plt.ylabel(column)
+    plt.xlabel("Dataset")
+    plt.title(f"Landscape norm distributions by dataset (split={split})")
+
+    # Optional but often helpful for heavy-tailed norms:
+    # plt.yscale("log")
+
+    plt.tight_layout()
+    out_path = out_dir / f"norms_stripplot_split-{split}_{column}.png"
+    plt.savefig(out_path, dpi=300)
+    plt.close()
+
+    print(f"Saved: {out_path}")
 
 
 if __name__ == "__main__":

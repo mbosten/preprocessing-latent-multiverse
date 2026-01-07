@@ -136,6 +136,14 @@ class Universe:
     def ae_model_path(self) -> Path:
         return BASE_DATA_DIR / "interim" / "autoencoder" / f"{self.id}_ae.pt"
 
+    def eval_metrics_path(self, split: str = "test") -> Path:
+        return (
+            BASE_DATA_DIR
+            / "processed"
+            / "eval_metrics"
+            / f"{self.id}_eval_{split}.json"
+        )
+
     def preprocessed_train_path(self) -> Path:
         return (
             BASE_DATA_DIR

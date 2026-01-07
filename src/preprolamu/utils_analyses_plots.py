@@ -9,6 +9,23 @@ import typer
 logger = logging.getLogger(__name__)
 
 
+# Keep only universes with metrics_status == 'ok'
+def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
+    logger.info(
+        "Dropping %d universes with metrics_status != 'ok'",
+        len(df) - df[df["metrics_status"] == "ok"].shape[0],
+    )
+    return df[df["metrics_status"] == "ok"].copy()
+
+
+# Format a float in scientific notation with 2 significant digits, or empty string if NaN.
+def _format_sci(x: float) -> str:
+    if pd.isna(x):
+        return ""
+    # 2 significant digits in scientific notation
+    return f"{x:.2e}"
+
+
 # Cap the L2 norm dataframe to exclude norms above a certain threshold.
 def filter_by_norm_threshold(
     df: pd.DataFrame,

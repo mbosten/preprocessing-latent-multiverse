@@ -175,17 +175,24 @@ def compute_presto_variance_from_metrics_table(
     if missing:
         raise ValueError(f"Missing columns for PRESTO variance: {missing}")
 
+    # Separate only those 3 L2 norm columns per universe.
     X = df[cols].to_numpy(dtype=float)
 
-    # Treat non-finite as 0.0 (consistent with build_metrics_table's "missing dims -> 0.0" intent)
-    # If you prefer to drop rows with non-finite, we can do that instead.
-    X = np.where(np.isfinite(X), X, 0.0)
+    # Treat non-finite as 0.0
+    if any(~np.isfinite(X.flatten())):
+        X = np.where(np.isfinite(X), X, 0.0)
+        logger.warning(
+            "[TDA] Non-finite L2 norms found; treating as 0.0 for PRESTO variance. Potential data issue."
+        )
 
+    # Number of universes
     N = X.shape[0]
     if N == 0:
         raise ValueError("No rows available for PRESTO variance.")
 
+    # Compute mean L2 norm per dim across universes
     mu = X.mean(axis=0)
+
     sse = ((X - mu) ** 2).sum()
     return float(sse / N)
 
@@ -253,6 +260,9 @@ def build_metrics_table(
     """
     One row per universe, using stored metrics JSON only.
     Missing dims are treated as 0.0 (your earlier decision).
+    This function mostly puts the individual json files into a single DataFrame
+    to facilitate downstream analyses.
+    Also computes per-universe l2 average and sum across dims.
     """
     rows: List[Dict[str, Any]] = []
 
@@ -267,7 +277,7 @@ def build_metrics_table(
         row["metrics_path"] = str(path)
 
         try:
-            payload = load_metrics(u, split=split)  # <-- dict from JSON
+            payload = load_metrics(u, split=split)
             if not payload:
                 row["metrics_status"] = "empty_metrics"
                 row["failure_reason"] = "metrics JSON is empty"
@@ -276,7 +286,7 @@ def build_metrics_table(
                 rows.append(row)
                 continue
 
-            # keys may be strings in JSON: {"0": 1.23, "1": 4.56}
+            # Retrieve metrics stored as json dicts
             l2_raw = payload.get("landscape_l2_per_dim", {}) or {}
             tp_raw = payload.get("total_persistence_per_dim", {}) or {}
 
@@ -294,7 +304,10 @@ def build_metrics_table(
 
                 row[f"tp_dim{d}"] = float(tp.get(d, 0.0))
 
+            # Sum of L2 norms across dims per universe
             row["l2_aggregate"] = float(sum(l2_vals))
+
+            # Per universe average of L2 norms across dims (so typically divide by 3)
             row["l2_average"] = float(sum(l2_vals) / max(len(l2_vals), 1))
 
         except FileNotFoundError as e:

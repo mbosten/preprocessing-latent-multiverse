@@ -7,6 +7,7 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import typer
 
 from preprolamu.io.storage import load_projected
@@ -14,6 +15,10 @@ from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.embeddings import downsample_latent
 from preprolamu.pipeline.metrics import build_metrics_table
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
+from preprolamu.utils_analyses_plots import (
+    filter_by_norm_threshold,
+    filter_exclude_zero_norms,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +74,9 @@ def _build_index_grid(
 
     grouped = (
         df.groupby(group_cols, dropna=False)["universe_index"]
-        .apply(lambda s: sorted(int(x) for x in s.dropna().tolist()))
+        .apply(
+            lambda s: sorted(int(x) for x in s.dropna().tolist()),
+        )
         .reset_index()
         .rename(columns={"universe_index": "indices"})
     )
@@ -725,6 +732,93 @@ def _get_universe_level_norms(df: pd.DataFrame, homology_dim: int) -> pd.DataFra
     return df[["dataset_id", dcol]].rename(columns={dcol: "norm"})
 
 
+# ---------- PV dataset contribution helpers ---------- #
+def _compute_pv_contrib_per_group(gdf: pd.DataFrame, *, dims: list[int]) -> pd.Series:
+    """
+    Given a grouped df (e.g. one dataset), compute per-universe PV contribution:
+      c_u = sum_d (n_{u,d} - mu_d)^2
+    where mu_d is the mean within the group for each dim.
+    Returns a Series aligned with gdf.index.
+    """
+    cols = [f"l2_dim{d}" for d in dims]
+    X = gdf[cols].to_numpy(dtype=float)
+    X = np.where(np.isfinite(X), X, 0.0)  # keep consistent with PV-from-table
+
+    mu = X.mean(axis=0)
+    contrib = ((X - mu) ** 2).sum(axis=1)
+    return pd.Series(contrib, index=gdf.index, name="pv_contrib")
+
+
+def _absdev_long_for_dataset(gdf: pd.DataFrame, *, dims: list[int]) -> pd.DataFrame:
+    """
+    For a dataset group, return long df with per-dimension absolute deviations:
+      abs_dev_{u,d} = |n_{u,d} - mu_d|
+    """
+    cols = [f"l2_dim{d}" for d in dims]
+    X = gdf[cols].to_numpy(dtype=float)
+    X = np.where(np.isfinite(X), X, 0.0)
+
+    mu = X.mean(axis=0)  # per-dimension means within this dataset
+    abs_dev = np.abs(X - mu)  # <-- ONLY change vs squared version
+
+    out = pd.DataFrame(
+        {
+            "dataset_id": np.repeat(gdf["dataset_id"].to_numpy(), len(dims)),
+            "dimension": np.tile([f"dim {d}" for d in dims], X.shape[0]),
+            "abs_dev": abs_dev.reshape(-1),
+        }
+    )
+    return out
+
+
+def _absdev_sum_for_dataset(gdf: pd.DataFrame, *, dims: list[int]) -> pd.DataFrame:
+    """
+    For one dataset group, compute per-universe combined absolute deviation:
+      abs_dev_sum_u = sum_d |n_{u,d} - mu_d|
+    Returns a df with one row per universe.
+    """
+    cols = [f"l2_dim{d}" for d in dims]
+    X = gdf[cols].to_numpy(dtype=float)
+    X = np.where(np.isfinite(X), X, 0.0)
+
+    mu = X.mean(axis=0)
+    abs_dev_sum = np.abs(X - mu).sum(axis=1)  # <-- combine across dims
+
+    return pd.DataFrame(
+        {
+            "dataset_id": gdf["dataset_id"].to_numpy(),
+            "abs_dev": abs_dev_sum,
+        }
+    )
+
+
+# Deprecated but kept for bugfixing original PV code comparison
+# Reason: Using squared deviation makes distribution graphs difficult to interpret
+# Therefore the absolute deviation version is preferred,
+# which keeps the relative ordering and distribution information.
+def _sqdev_long_for_dataset(gdf: pd.DataFrame, *, dims: list[int]) -> pd.DataFrame:
+    """
+    For a dataset group, return long df with per-dimension squared deviations:
+      sq_dev_{u,d} = (n_{u,d} - mu_d)^2
+    """
+    cols = [f"l2_dim{d}" for d in dims]
+    X = gdf[cols].to_numpy(dtype=float)
+    X = np.where(np.isfinite(X), X, 0.0)
+    mu = X.mean(axis=0)  # per-dimension means within this dataset
+
+    sq = (X - mu) ** 2  # shape (N, D)
+
+    out = pd.DataFrame(
+        {
+            "dataset_id": np.repeat(gdf["dataset_id"].to_numpy(), len(dims)),
+            "dimension": np.tile([f"dim {d}" for d in dims], X.shape[0]),
+            "sq_dev": sq.reshape(-1),
+        }
+    )
+    return out
+
+
+# ---------- CLI Commands ---------- #
 @app.command("multiverse-norm-grid")
 def multiverse_norm_grid(
     split: str = typer.Option("test", help="train/val/test"),
@@ -1175,6 +1269,277 @@ def norm_distribution(
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     logger.info("Saved norm distribution figure to %s", out_path)
+
+
+# @app.command("presto-variance-violin")
+# def presto_variance_violin(
+#     split: str = typer.Option("test", help="train/val/test"),
+#     dims: str = typer.Option("0,1,2", help="Comma-separated homology dims, e.g. '0,1,2'"),
+#     out_dir: Path = typer.Option(Path("data/figures"), help="Output directory"),
+#     show: bool = typer.Option(False, help="Show interactive window after saving."),
+#     norm_threshold: Optional[float] = typer.Option(
+#         None,
+#         help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
+#     ),
+#     exclude_zero_norms: bool = typer.Option(
+#         False,
+#         help="Exclude universes where all l2_dim* norms are exactly zero.",
+#     ),
+#     separate_dims: bool = typer.Option(
+#         False,
+#         "--separate-dims",
+#         help="If set, split dims"
+#              "Otherwise, plot one violin per dataset.",
+#     ),
+#     inner: Optional[str] = typer.Option(
+#         None,
+#         help="Violin interior: 'quartile', 'box', 'point', or 'None'.",
+#     ),
+#     cut: float = typer.Option(
+#         0.0,
+#         help="Seaborn violin 'cut' parameter (0 keeps violins within data range).",
+#     ),
+# ):
+#     """
+#     Faceted violin plots: one panel per dataset, one violin per homology dimension.
+#     Values are per-dimension absolute deviations |n_{u,d} - mu_d| within each dataset.
+#     """
+#     out_dir.mkdir(parents=True, exist_ok=True)
+
+#     dims_list = [int(x.strip()) for x in dims.split(",") if x.strip()]
+#     if not dims_list:
+#         raise typer.BadParameter("No dims provided. Example: --dims '0,1,2'.")
+
+#     universes = generate_multiverse()
+#     df = build_metrics_table(universes, split=split, require_exists=True)
+#     df = df[df["metrics_status"] == "ok"].copy()
+#     if df.empty:
+#         raise typer.BadParameter("No 'ok' rows found in metrics table for this split.")
+
+#     # Ensure required columns exist
+#     needed = [f"l2_dim{d}" for d in dims_list]
+#     missing = [c for c in needed if c not in df.columns]
+#     if missing:
+#         raise typer.BadParameter(f"Missing required columns in metrics table: {missing}")
+
+#     # Apply your filters (from your utils file)
+#     df = filter_by_norm_threshold(df, threshold=norm_threshold)
+#     df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+#     if df.empty:
+#         raise typer.BadParameter("No rows remain after filtering.")
+
+#     if separate_dims:
+#         parts = []
+#         for _, gdf in df.groupby("dataset_id", dropna=False):
+#             parts.append(_absdev_long_for_dataset(gdf, dims=dims_list))
+#         df_plot = pd.concat(parts, ignore_index=True)
+
+#         df_plot = df_plot[np.isfinite(df_plot["abs_dev"].to_numpy(dtype=float))].copy()
+#         if df_plot.empty:
+#             raise typer.BadParameter("No finite absolute deviations to plot.")
+
+#         g = sns.catplot(
+#             data=df_plot,
+#             x="dataset_id",
+#             y="abs_dev",
+#             kind="violin",
+#             color=".9",
+#             inner=inner,
+#             cut=cut,
+#             sharey=False,
+#             height=5.4,
+#             aspect=1.6,
+#         )
+
+#         ds_order = [ds for ds in g.col_names]
+#         for ax, ds in zip(g.axes.flatten(), ds_order):
+#             sdf = df_plot[df_plot["dataset_id"] == ds]
+#             # sns.stripplot(
+#             #     data=sdf,
+#             #     x="dimension",
+#             #     y="abs_dev",
+#             #     ax=ax,
+#             #     jitter=0.13,
+#             #     size=4.0,
+#             #     alpha=0.5,
+#             #     dodge=False,
+#             #     color="yellowgreen",
+#             # )
+#             sns.swarmplot(
+#             data=sdf,
+#             x="dimension",
+#             y="abs_dev",
+#             ax=ax,
+#             size=2.0,
+#             alpha=0.5,
+#             dodge=False,
+#         )
+
+#         g.set_axis_labels("", r"$|n_{u,d}-\mu_d|$  (absolute deviation)")
+#         title = (
+#             "Per-dataset absolute deviations of landscape norms by homology dimension\n"
+#             f"(split={split}, dims={dims}, threshold={norm_threshold}, exclude_zero={exclude_zero_norms})"
+#         )
+#         out_path = out_dir / (
+#             f"presto_absdev_by_dim_violin_split-{split}"
+#             f"_dims-{dims.replace(',', '-')}"
+#             f"_thr-{norm_threshold}_zero-{exclude_zero_norms}.png"
+#         )
+#     else:
+#         parts = []
+#         for _, g in df.groupby("dataset_id", dropna=False):
+#             parts.append(_absdev_sum_for_dataset(g, dims=dims_list))
+#         df_plot = pd.concat(parts, ignore_index=True)
+
+#         df_plot = df_plot[np.isfinite(df_plot["abs_dev"].to_numpy(dtype=float))].copy()
+#         if df_plot.empty:
+#             raise typer.BadParameter("No finite combined absolute deviations to plot.")
+
+#         df_plot = df_plot.copy()
+#         df_plot["all"] = "ALL"
+
+#         g = sns.catplot(
+#             data=df_plot,
+#             x="all",
+#             y="abs_dev",
+#             col="dataset_id",
+#             kind="violin",
+#             color=".9",
+#             inner=inner,
+#             cut=cut,
+#             sharey=False,
+#             height=5.4,
+#             aspect=1.6,
+#         )
+
+#         # overlay points
+#         sns.swarmplot(
+#             data=df_plot,
+#             x="dataset_id",
+#             y="abs_dev",
+#             ax=g.axes,
+#             size=2.0,
+#             alpha=0.5,
+#             dodge=False,
+#         )
+
+#         g.set_axis_labels("", r"$\sum_d |n_{u,d}-\mu_d|$  (sum abs deviation)")
+#         title = (
+#             "Per-dataset combined absolute deviation of landscape norms\n"
+#             f"(split={split}, dims={dims}, threshold={norm_threshold}, exclude_zero={exclude_zero_norms})"
+#         )
+#         out_path = out_dir / (
+#             f"presto_absdev_combined_violin_split-{split}"
+#             f"_dims-{dims.replace(',', '-')}"
+#             f"_thr-{norm_threshold}_zero-{exclude_zero_norms}.png"
+#         )
+
+#     g.figure.subplots_adjust(top=0.80)
+#     g.figure.suptitle(title, y=0.98, fontsize=12)
+#     g.figure.savefig(out_path, dpi=300, bbox_inches="tight")
+#     logger.info("Saved Presto variance violin plot to %s", out_path)
+
+#     if show:
+#         plt.show()
+#     plt.close(g.figure)
+
+
+@app.command("presto-variance-violin")
+def presto_variance_violin(
+    split: str = typer.Option("test", help="train/val/test"),
+    dims: str = typer.Option(
+        "0,1,2", help="Comma-separated homology dims, e.g. '0,1,2'"
+    ),
+    out_dir: Path = typer.Option(Path("data/figures"), help="Output directory"),
+    show: bool = typer.Option(False, help="Show interactive window after saving."),
+    norm_threshold: Optional[float] = typer.Option(
+        None,
+        help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
+    ),
+    exclude_zero_norms: bool = typer.Option(
+        False,
+        help="Exclude universes where all l2_dim* norms are exactly zero.",
+    ),
+):
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    dims_list = [int(x.strip()) for x in dims.split(",") if x.strip()]
+    if not dims_list:
+        raise typer.BadParameter("No dims provided. Example: --dims '0,1,2'.")
+
+    universes = generate_multiverse()
+    df = build_metrics_table(universes, split=split, require_exists=True)
+    df = df[df["metrics_status"] == "ok"].copy()
+    if df.empty:
+        raise typer.BadParameter("No 'ok' rows found in metrics table for this split.")
+
+    # Ensure required columns exist
+    needed = [f"l2_dim{d}" for d in dims_list]
+    missing = [c for c in needed if c not in df.columns]
+    if missing:
+        raise typer.BadParameter(
+            f"Missing required columns in metrics table: {missing}"
+        )
+
+    # Apply filters
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+    if df.empty:
+        raise typer.BadParameter("No rows remain after filtering.")
+
+    # Build combined absolute deviation per universe
+    parts = []
+    for _, gdf in df.groupby("dataset_id", dropna=False):
+        parts.append(_absdev_sum_for_dataset(gdf, dims=dims_list))
+    df_plot = pd.concat(parts, ignore_index=True)
+
+    df_plot = df_plot[df_plot["dataset_id"].notna()].copy()
+    df_plot = df_plot[np.isfinite(df_plot["abs_dev"].to_numpy(dtype=float))].copy()
+    if df_plot.empty:
+        raise typer.BadParameter("No finite combined absolute deviations to plot.")
+
+    sns.set_theme(style="whitegrid")
+
+    # fig, ax = plt.subplots(figsize=(10, 6))
+
+    # One axis, shared y-scale
+    ax = sns.violinplot(
+        data=df_plot,
+        x="dataset_id",
+        y="abs_dev",
+        color=".9",
+        width=0.9,
+        inner=None,
+        cut=0.0,
+    )
+
+    # Overlay swarm points (defaults)
+    sns.swarmplot(
+        data=df_plot,
+        x="dataset_id",
+        y="abs_dev",
+        ax=ax,
+        size=2.0,
+        alpha=0.5,
+    )
+
+    ax.set_xlabel("")
+    ax.set_ylabel(
+        r"$\sum^h_{x=0}|\|L\|_p-\mu_{\mathcal{L}^x}|$  (summed absolute norm deviation)"
+    )
+
+    out_path = out_dir / (
+        f"presto_absdev_combined_violin_split-{split}"
+        f"_dims-{dims.replace(',', '-')}"
+        f"_thr-{norm_threshold}_zero-{exclude_zero_norms}.png"
+    )
+    ax.figure.savefig(out_path, dpi=300, bbox_inches="tight")
+    logger.info("Saved Presto variance violin plot to %s", out_path)
+
+    if show:
+        plt.show()
+    plt.close(ax.figure)
 
 
 if __name__ == "__main__":

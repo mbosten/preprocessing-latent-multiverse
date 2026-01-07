@@ -92,6 +92,40 @@ def _filter_by_norm_threshold(
     return df2
 
 
+def _filter_exclude_zero_norms(df: pd.DataFrame, *, exclude_zero: bool) -> pd.DataFrame:
+    """
+    Optionally drop universes whose landscape L2 norms are all exactly zero
+    across all available homology dimensions (l2_dim* columns).
+
+    If exclude_zero is False: return df unchanged.
+    """
+    if not exclude_zero:
+        return df
+
+    dim_cols = sorted([c for c in df.columns if c.startswith("l2_dim")])
+    if not dim_cols:
+        raise typer.BadParameter(
+            "Requested exclude_zero filtering, but no 'l2_dim*' columns exist in the table."
+        )
+
+    before = len(df)
+
+    # Drop rows where ALL dimension norms are exactly 0.0
+    # (NaNs do not trigger dropping.)
+    is_all_zero = (df[dim_cols] == 0).all(axis=1)
+
+    df2 = df[~is_all_zero].copy()
+
+    logger.info(
+        "Excluded all-zero norms across dims: kept %d/%d (dropped=%d) using cols=%s",
+        len(df2),
+        before,
+        before - len(df2),
+        ",".join(dim_cols),
+    )
+    return df2
+
+
 # ----------- CLI commands ----------- #
 @app.command("table")
 def make_table(
@@ -112,11 +146,16 @@ def dataset_summary(
         None,
         help="Only include universes with norm <= this threshold (for outlier-robust summaries).",
     ),
+    exclude_zero_norms: bool = typer.Option(
+        False,
+        help="Exclude universes where all l2_dim* norms are exactly zero.",
+    ),
 ):
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split))
 
     df = _filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = _filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
 
     # Example: compare distributions of l2_average across datasets
     summary = (
@@ -160,6 +199,10 @@ def parameter_effect(
         None,
         help="Only include universes with norm <= this threshold (for outlier-robust comparisons).",
     ),
+    exclude_zero_norms: bool = typer.Option(
+        False,
+        help="Exclude universes where all l2_dim* norms are exactly zero.",
+    ),
 ):
     """
     Compare distributions of l2_average between the settings of one parameter.
@@ -177,6 +220,7 @@ def parameter_effect(
         df,
         threshold=norm_threshold,
     )
+    df = _filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
 
     if dataset_id is not None:
         df = df[df["dataset_id"] == dataset_id].copy()
@@ -212,11 +256,16 @@ def presto_variance(
     split: str = typer.Option("test"),
     split_by: str = typer.Option(
         "dataset",
-        help="Comma-separated grouping keys (max 2). Examples: 'dataset' or 'dataset,scaling'.",
+        help="Comma-separated grouping keys (max 2). Examples: 'dataset' or 'dataset,scaling'."
+        'Use two double quotes ("") for no grouping (all universes together).',
     ),
     norm_threshold: Optional[float] = typer.Option(
         None,
         help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
+    ),
+    exclude_zero_norms: bool = typer.Option(
+        False,
+        help="Exclude universes where all l2_dim* norms are exactly zero.",
     ),
 ):
     """
@@ -229,8 +278,10 @@ def presto_variance(
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
 
-    # NEW: threshold across dims (your updated _filter_by_norm_threshold)
+    # threshold across dims (your updated _filter_by_norm_threshold)
     df = _filter_by_norm_threshold(df, threshold=norm_threshold)
+
+    df = _filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
 
     # Ensure required columns exist
     needed = [f"l2_dim{d}" for d in (0, 1, 2)]
@@ -248,6 +299,11 @@ def presto_variance(
 
     rows = []
     for group_key, gdf in grouped:
+        logger.info(
+            "Computing PRESTO variance for group %s with %d universes",
+            group_key,
+            len(gdf),
+        )
         if not isinstance(group_key, tuple):
             group_key = (group_key,)
 

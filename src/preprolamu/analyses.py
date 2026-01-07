@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Literal, Optional
 
+import numpy as np
 import pandas as pd
 import typer
 from typing_extensions import Annotated
@@ -51,7 +53,7 @@ def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
     return df[df["metrics_status"] == "ok"].copy()
 
 
-def _filter_by_norm_threshold(
+def filter_by_norm_threshold(
     df: pd.DataFrame,
     *,
     threshold: float | None,
@@ -92,7 +94,7 @@ def _filter_by_norm_threshold(
     return df2
 
 
-def _filter_exclude_zero_norms(df: pd.DataFrame, *, exclude_zero: bool) -> pd.DataFrame:
+def filter_exclude_zero_norms(df: pd.DataFrame, *, exclude_zero: bool) -> pd.DataFrame:
     """
     Optionally drop universes whose landscape L2 norms are all exactly zero
     across all available homology dimensions (l2_dim* columns).
@@ -126,6 +128,170 @@ def _filter_exclude_zero_norms(df: pd.DataFrame, *, exclude_zero: bool) -> pd.Da
     return df2
 
 
+_PRESTO_PARAMS: list[str] = [
+    "scaling",
+    "log_transform",
+    "feature_subset",
+    "duplicate_handling",
+    "missingness",
+    "seed",
+]
+
+
+def _presto_local_sensitivity_from_metrics_table(
+    df_ds: pd.DataFrame,
+    *,
+    param: str,
+    homology_dims: tuple[int, ...] = (0, 1, 2),
+) -> dict:
+    """
+    Wayland-style LOCAL PRESTO sensitivity for one parameter i, within ONE dataset.
+    Uses equivalence classes defined by equality on all other parameters (j != i).
+
+    Returns dict with:
+      - local_sensitivity (sqrt of avg PV over classes)
+      - avg_pv_over_classes
+      - q (number of equivalence classes)
+      - n (rows)
+      - singleton_classes (classes of size 1)
+      - mean_class_size
+    """
+    if df_ds.empty:
+        return {
+            "local_sensitivity": float("nan"),
+            "avg_pv_over_classes": float("nan"),
+            "q": 0,
+            "n": 0,
+            "singleton_classes": 0,
+            "mean_class_size": float("nan"),
+        }
+
+    if param not in df_ds.columns:
+        raise typer.BadParameter(
+            f"Parameter {param!r} not found in metrics table columns."
+        )
+
+    # Equivalence classes: fix everything except param
+    other_cols = [c for c in _PRESTO_PARAMS if c != param]
+    missing = [c for c in other_cols if c not in df_ds.columns]
+    if missing:
+        raise typer.BadParameter(
+            f"Cannot form equivalence classes for {param!r}: missing columns {missing}."
+        )
+
+    # Group into equivalence classes Q in Q_i
+    grouped = list(df_ds.groupby(other_cols, dropna=False))
+    q = len(grouped)
+
+    # Compute PV(L[Q]) for each class Q and average
+    pvs: list[float] = []
+    sizes: list[int] = []
+    singletons = 0
+
+    for key, g in grouped:
+        sizes.append(len(g))
+        if len(g) <= 1:
+            logger.debug(
+                f" Equivalence class {key} is a singleton for dataset with length {q}."
+            )
+            singletons += 1
+            pvs.append(0.0)
+            continue
+
+        pv = compute_presto_variance_from_metrics_table(g, homology_dims=homology_dims)
+        pvs.append(float(pv))
+
+    avg_pv = float(sum(pvs) / q) if q else float("nan")
+    local = (
+        math.sqrt(avg_pv)
+        if (q and np.isfinite(avg_pv) and avg_pv >= 0)
+        else float("nan")
+    )
+
+    return {
+        "local_sensitivity": local,
+        "avg_pv_over_classes": avg_pv,
+        "q": q,
+        "n": int(len(df_ds)),
+        "singleton_classes": int(singletons),
+        "mean_class_size": float(np.mean(sizes)) if sizes else float("nan"),
+    }
+
+
+def _presto_global_sensitivity_from_metrics_table(
+    df_ds: pd.DataFrame,
+    *,
+    params: list[str] | None = None,
+    homology_dims: tuple[int, ...] = (0, 1, 2),
+) -> dict:
+    """
+    Wayland-style GLOBAL PRESTO sensitivity within ONE dataset:
+      sqrt( (1/c) * sum_i (1/q_i) * sum_Q PV(L[Q]) )
+    which equals:
+      sqrt( average over parameters of (average PV over equivalence classes for that param) )
+
+    Returns dict with:
+      - global_sensitivity
+      - avg_pv_across_params   (the quantity under sqrt)
+      - c (#params)
+      - n (rows)
+    """
+    if df_ds.empty:
+        return {
+            "global_sensitivity": float("nan"),
+            "avg_pv_across_params": float("nan"),
+            "c": 0,
+            "n": 0,
+            "active_params": [],
+        }
+
+    use_params = params or _PRESTO_PARAMS
+
+    active_params: list[str] = []
+    avg_pvs: list[float] = []
+
+    for p in use_params:
+        if p not in df_ds.columns:
+            logger.warning(
+                f"Parameter {p!r} not found in metrics table columns; skipping."
+            )
+            continue
+
+        n_unique = df_ds[p].nunique(dropna=False)
+        if n_unique <= 1:
+            continue
+
+        res = _presto_local_sensitivity_from_metrics_table(
+            df_ds, param=p, homology_dims=homology_dims
+        )
+        avg_pv = float(res["avg_pv_over_classes"])
+        if np.isfinite(avg_pv):
+            active_params.append(p)
+            avg_pvs.append(avg_pv)
+
+    c = len(avg_pvs)
+
+    if c == 0:
+        return {
+            "global_sensitivity": float("nan"),
+            "avg_pv_across_params": float("nan"),
+            "c": 0,
+            "n": int(len(df_ds)),
+            "active_params": [],
+        }
+
+    avg_pv_across = float(np.mean(avg_pvs))
+    global_ps = math.sqrt(avg_pv_across) if avg_pv_across >= 0 else float("nan")
+
+    return {
+        "global_sensitivity": global_ps,
+        "avg_pv_across_params": avg_pv_across,
+        "c": c,
+        "n": int(len(df_ds)),
+        "active_params": active_params,
+    }
+
+
 # ----------- CLI commands ----------- #
 @app.command("table")
 def make_table(
@@ -154,8 +320,8 @@ def dataset_summary(
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split))
 
-    df = _filter_by_norm_threshold(df, threshold=norm_threshold)
-    df = _filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
 
     # Example: compare distributions of l2_average across datasets
     summary = (
@@ -216,11 +382,11 @@ def parameter_effect(
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split))
 
-    df = _filter_by_norm_threshold(
+    df = filter_by_norm_threshold(
         df,
         threshold=norm_threshold,
     )
-    df = _filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
 
     if dataset_id is not None:
         df = df[df["dataset_id"] == dataset_id].copy()
@@ -278,10 +444,10 @@ def presto_variance(
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
 
-    # threshold across dims (your updated _filter_by_norm_threshold)
-    df = _filter_by_norm_threshold(df, threshold=norm_threshold)
+    # threshold across dims (your updated filter_by_norm_threshold)
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
 
-    df = _filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
 
     # Ensure required columns exist
     needed = [f"l2_dim{d}" for d in (0, 1, 2)]
@@ -328,6 +494,116 @@ def presto_variance(
     else:
         out = out.sort_values("presto_variance", ascending=False)
 
+    print(out.to_string(index=False))
+
+
+@app.command("presto-local-sensitivity")
+def presto_local_sensitivity(
+    split: str = typer.Option("test"),
+    param: str = typer.Option(
+        "all",
+        help="One of: scaling, log_transform, feature_subset, duplicate_handling, missingness, seed, or 'all'.",
+    ),
+    norm_threshold: Optional[float] = typer.Option(
+        None,
+        help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
+    ),
+    exclude_zero_norms: bool = typer.Option(
+        False,
+        help="Exclude universes where all l2_dim* norms are exactly zero.",
+    ),
+):
+    """
+    Compute LOCAL PRESTO sensitivity per dataset from the metrics table only.
+    If param='all', prints one row per parameter per dataset.
+    """
+    allowed = set(_PRESTO_PARAMS + ["all"])
+    if param not in allowed:
+        raise typer.BadParameter(f"--param must be one of {sorted(allowed)}")
+
+    universes = generate_multiverse()
+    df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+
+    datasets = sorted(df["dataset_id"].dropna().unique().tolist())
+    if not datasets:
+        raise typer.BadParameter("No datasets found after filtering.")
+
+    params_to_run = _PRESTO_PARAMS if param == "all" else [param]
+
+    rows: list[dict] = []
+    for ds in datasets:
+        df_ds = df[df["dataset_id"] == ds].copy()
+        for p in params_to_run:
+            res = _presto_local_sensitivity_from_metrics_table(
+                df_ds, param=p, homology_dims=(0, 1, 2)
+            )
+            rows.append(
+                {
+                    "dataset_id": ds,
+                    "param": p,
+                    "n": res["n"],
+                    "q": res["q"],
+                    "singletons": res["singleton_classes"],
+                    "mean_class_size": res["mean_class_size"],
+                    "local_presto_sensitivity": res["local_sensitivity"],
+                }
+            )
+
+    out = pd.DataFrame(rows)
+
+    # nicer ordering for paper tables
+    out["param"] = pd.Categorical(out["param"], categories=_PRESTO_PARAMS, ordered=True)
+    out = out.sort_values(["dataset_id", "param"])
+
+    # pretty numeric formatting
+    pd.set_option("display.float_format", lambda x: f"{x:.6g}")
+    print(out.to_string(index=False))
+
+
+@app.command("presto-global-sensitivity")
+def presto_global_sensitivity(
+    split: str = typer.Option("test"),
+    norm_threshold: Optional[float] = typer.Option(
+        None,
+        help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
+    ),
+    exclude_zero_norms: bool = typer.Option(
+        False,
+        help="Exclude universes where all l2_dim* norms are exactly zero.",
+    ),
+):
+    """
+    Compute GLOBAL PRESTO sensitivity per dataset from the metrics table only.
+    Global = sqrt( average over parameters of (average PV over equivalence classes for that param) ).
+    """
+    universes = generate_multiverse()
+    df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+
+    datasets = sorted(df["dataset_id"].dropna().unique().tolist())
+    if not datasets:
+        raise typer.BadParameter("No datasets found after filtering.")
+
+    rows: list[dict] = []
+    for ds in datasets:
+        df_ds = df[df["dataset_id"] == ds].copy()
+        res = _presto_global_sensitivity_from_metrics_table(
+            df_ds, params=_PRESTO_PARAMS, homology_dims=(0, 1, 2)
+        )
+        rows.append(
+            {
+                "dataset_id": ds,
+                "n": res["n"],
+                "c": res["c"],
+                "global_presto_sensitivity": res["global_sensitivity"],
+            }
+        )
+
+    out = pd.DataFrame(rows).sort_values("dataset_id")
+    pd.set_option("display.float_format", lambda x: f"{x:.6g}")
     print(out.to_string(index=False))
 
 

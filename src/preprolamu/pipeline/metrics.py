@@ -180,9 +180,10 @@ def compute_presto_variance_from_metrics_table(
 
     # Treat non-finite as 0.0
     if any(~np.isfinite(X.flatten())):
-        X = np.where(np.isfinite(X), X, 0.0)
+        finite_mask = np.isfinite(X).all(axis=1)
+        X = X[finite_mask]
         logger.warning(
-            "[TDA] Non-finite L2 norms found; treating as 0.0 for PRESTO variance. Potential data issue."
+            "[TDA] Non-finite L2 norms found; Dropping these rows for PRESTO variance. Potential data issue."
         )
 
     # Number of universes

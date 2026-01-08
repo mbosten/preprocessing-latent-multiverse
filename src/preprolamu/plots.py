@@ -23,6 +23,7 @@ from preprolamu.utils_analyses_plots import (
     _ok_only,
     filter_by_norm_threshold,
     filter_exclude_zero_norms,
+    spearmanr_permutation,
 )
 
 logger = logging.getLogger(__name__)
@@ -893,6 +894,14 @@ def multiverse_norm_grid(
     dims: str = typer.Option(
         "0,1,2", help="Comma-separated homology dims, e.g. '0,1,2'"
     ),
+    norm_threshold: Optional[float] = typer.Option(
+        None,
+        help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
+    ),
+    exclude_zero_norms: bool = typer.Option(
+        False,
+        help="Exclude universes where all l2_dim* norms are exactly zero.",
+    ),
     out_dir: Path = typer.Option(Path("data/figures"), help="Output directory"),
     show_values: bool = typer.Option(True, help="Draw numeric values in each cell"),
     color_log10: bool = typer.Option(
@@ -911,9 +920,18 @@ def multiverse_norm_grid(
     universes = generate_multiverse()
     df = build_metrics_table(universes, split=split, require_exists=True)
 
+    # Apply filters
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+    if df.empty:
+        raise typer.BadParameter("No rows remain after filtering.")
+
     for d in dims_list:
         grid, _ = _build_norm_grid(df, homology_dim=d)
-        out_path = out_dir / f"multiverse_norm_grid_split-{split}_dim{d}.png"
+        out_path = (
+            out_dir
+            / f"multiverse_norm_grid_split-{split}_dim{d}_thr-{norm_threshold}_zero-{exclude_zero_norms}.png"
+        )
         _plot_multiverse_grid(
             grid,
             title=f"Multiverse grid: median landscape L2 norms (split={split}, homology dim={d})",
@@ -1493,16 +1511,16 @@ def presto_individual_violin(
         data=plot_df,
         x="param",
         y="individual_sensitivity",
-        inner="box",  # shows median + IQR
+        inner="box",
         cut=0,
         linewidth=1,
     )
 
-    plt.ylabel("Individual PRESTO sensitivity (√PV)")
+    plt.ylabel("Individual PRESTO sensitivity")
     plt.xlabel("Preprocessing parameter")
     scope = dataset if dataset != "all" else "ALL datasets pooled"
-    plt.title(f"Individual PRESTO sensitivity distributions ({scope}, split={split})")
-    plt.xticks(rotation=20, ha="right")
+    plt.title(f"{scope}")
+    plt.xticks(ha="center")
 
     out_path = out_dir / f"presto_individual_violin_split-{split}_dataset-{dataset}.png"
     plt.tight_layout()
@@ -1575,6 +1593,283 @@ def norms_stripplot(
     plt.close()
 
     print(f"Saved: {out_path}")
+
+
+# Violin plots of Median MSE per dataset
+@app.command("performance-summary")
+def performance_summary_plot(
+    split: str = typer.Option("test"),
+    out_dir: Path = typer.Option(Path("data/figures")),
+    perf_col: str = typer.Option("recon_mse_mean"),
+    norm_threshold: Optional[float] = typer.Option(
+        None,
+        help="Exclude universes where any l2_dim* exceeds this threshold (optional).",
+    ),
+    exclude_zero_norms: bool = typer.Option(
+        False, help="Exclude universes with all-zero l2_dim* (optional)."
+    ),
+    show: bool = typer.Option(False, help="Show interactive window after saving."),
+):
+    """
+    Minimal descriptive plot: reconstruction error distribution per dataset,
+    with one subplot per dataset (independent y-axes).
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    universes = generate_multiverse()
+    df = build_metrics_table(universes, split=split, require_exists=True)
+    df = df[df["metrics_status"] == "ok"].copy()
+
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+
+    if perf_col not in df.columns:
+        raise typer.BadParameter(f"Missing {perf_col!r} in metrics table.")
+
+    df = df[np.isfinite(df[perf_col].to_numpy(dtype=float))].copy()
+
+    g = sns.FacetGrid(
+        df,
+        col="dataset_id",
+        sharey=False,
+        height=3,
+        aspect=0.9,
+    )
+
+    g.map_dataframe(
+        sns.violinplot,
+        y=perf_col,
+        inner="box",
+        cut=0,
+        linewidth=1,
+    )
+
+    g.set_axis_labels("", "Mean MSE", fontsize=14)
+    g.set_titles(col_template="{col_name}", size=14)
+
+    for ax in g.axes.flat:
+        ax.tick_params(axis="both", which="major", labelsize=12)
+
+    out_path = out_dir / f"perf_violin_facet_split-{split}_eval-{perf_col}.png"
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+
+    if show:
+        plt.show()
+    plt.close()
+    logger.info("Saved performance summary plot to %s", out_path)
+
+
+# Scatter plot of Median MSE vs L2-norm average, per dataset
+@app.command("topology-vs-performance")
+def topology_vs_performance_plot(
+    split: str = typer.Option("test"),
+    out_dir: Path = typer.Option(Path("data/figures")),
+    topo_col: str = typer.Option("l2_average"),
+    perf_col: str = typer.Option("recon_mse_median"),
+    log_topology: bool = typer.Option(
+        False, help="If set, plot log10(topo_col) for readability."
+    ),
+    norm_threshold: Optional[float] = typer.Option(
+        None,
+        help="Exclude universes where any l2_dim* exceeds this threshold (optional).",
+    ),
+    exclude_zero_norms: bool = typer.Option(
+        False, help="Exclude universes with all-zero l2_dim* (optional)."
+    ),
+    show: bool = typer.Option(False, help="Show interactive window after saving."),
+):
+    """
+    Scatter plot of topology scalar vs reconstruction error, faceted by dataset.
+    Annotates Spearman correlation per dataset.
+    """
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    universes = generate_multiverse()
+    df = build_metrics_table(universes, split=split, require_exists=True)
+    df = df[df["metrics_status"] == "ok"].copy()
+
+    # Optional: match exclusions
+    from preprolamu.analyses import filter_by_norm_threshold, filter_exclude_zero_norms
+
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+
+    for c in [topo_col, perf_col, "dataset_id"]:
+        if c not in df.columns:
+            raise typer.BadParameter(f"Missing required column {c!r} in metrics table.")
+
+    df = df.copy()
+    df = df[np.isfinite(df[topo_col].to_numpy(dtype=float))]
+    df = df[np.isfinite(df[perf_col].to_numpy(dtype=float))]
+
+    if log_topology:
+        eps = 1e-30
+        df["_topo_x"] = np.log10(np.maximum(df[topo_col].to_numpy(dtype=float), eps))
+        if topo_col == "l2_average":
+            xlab = r"$\log_{10}($mean $L_2)$"
+
+    else:
+        df["_topo_x"] = df[topo_col].to_numpy(dtype=float)
+        if topo_col == "l2_average":
+            xlab = r"Average $L_2$"
+
+    datasets = sorted(df["dataset_id"].dropna().unique().tolist())
+    n = len(datasets)
+    if n == 0:
+        raise typer.BadParameter("No datasets available after filtering.")
+
+    fig, axes = plt.subplots(1, n, figsize=(5.5 * n, 4.5), sharey=False)
+    if n == 1:
+        axes = [axes]
+
+    for ax, ds in zip(axes, datasets):
+        sdf = df[df["dataset_id"] == ds].copy()
+
+        sns.scatterplot(
+            data=sdf,
+            x="_topo_x",
+            y=perf_col,
+            ax=ax,
+            s=18,
+            alpha=0.65,
+            linewidth=0,
+        )
+
+        # Spearman annotation
+        x = sdf["_topo_x"].to_numpy(dtype=float)
+        y = sdf[perf_col].to_numpy(dtype=float)
+
+        if len(x) >= 3:
+            r, p = spearmanr_permutation(x, y)
+            txt = f"Spearman r={r:.2g}\nperm p={p:.2g}\nn={len(x)}"
+        else:
+            txt = f"n={len(x)}"
+
+        ax.text(
+            0.96,
+            0.98,
+            txt,
+            transform=ax.transAxes,
+            ha="right",
+            va="top",
+            fontsize=12,
+        )
+
+        ax.tick_params(axis="both", which="major", labelsize=12)
+        ax.set_title(ds, fontsize=16)
+        ax.set_xlabel(xlab, fontsize=14)
+        ax.set_ylabel(
+            "Reconstruction error (median MSE)" if ax is axes[0] else "", fontsize=14
+        )
+
+    out_path = (
+        out_dir
+        / f"topo_vs_perf_split-{split}_logtopo-{int(log_topology)}_topocol-{topo_col}_perfeval-{perf_col}.png"
+    )
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    plt.close(fig)
+    logger.info("Saved topology-vs-performance plot to %s", out_path)
+
+
+# Same scatter plot of Median MSE vs L2-norm average, but overall (not faceted)
+@app.command("topology-vs-performance-overall")
+def topology_vs_performance_overall_plot(
+    split: str = typer.Option("test"),
+    out_dir: Path = typer.Option(Path("data/figures")),
+    topo_col: str = typer.Option("l2_average"),
+    perf_col: str = typer.Option("recon_mse_median"),
+    log_topology: bool = typer.Option(
+        False, help="If set, plot log10(topo_col) for readability."
+    ),
+    norm_threshold: Optional[float] = typer.Option(
+        None,
+        help="Exclude universes where any l2_dim* exceeds this threshold (optional).",
+    ),
+    exclude_zero_norms: bool = typer.Option(
+        False, help="Exclude universes with all-zero l2_dim* (optional)."
+    ),
+    show: bool = typer.Option(False, help="Show interactive window after saving."),
+):
+    """
+    Overall (not faceted) scatter plot: topology scalar vs reconstruction error.
+    Annotates Spearman correlation + permutation-test p-value.
+    """
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    universes = generate_multiverse()
+    df = build_metrics_table(universes, split=split, require_exists=True)
+    df = df[df["metrics_status"] == "ok"].copy()
+
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+
+    for c in [topo_col, perf_col]:
+        if c not in df.columns:
+            raise typer.BadParameter(f"Missing required column {c!r} in metrics table.")
+
+    df = df[np.isfinite(df[topo_col].to_numpy(dtype=float))].copy()
+    df = df[np.isfinite(df[perf_col].to_numpy(dtype=float))].copy()
+
+    if log_topology:
+        eps = 1e-30
+        df["_topo_x"] = np.log10(np.maximum(df[topo_col].to_numpy(dtype=float), eps))
+        xlab = (
+            r"$\log_{10}($Average $L_2)$"
+            if topo_col == "l2_average"
+            else f"log10({topo_col})"
+        )
+    else:
+        df["_topo_x"] = df[topo_col].to_numpy(dtype=float)
+        xlab = r"Average $L_2$" if topo_col == "l2_average" else topo_col
+
+    x = df["_topo_x"].to_numpy(dtype=float)
+    y = df[perf_col].to_numpy(dtype=float)
+
+    # Spearman r + permutation p-value (pairings)
+    if len(x) >= 3:
+        r, p = spearmanr_permutation(x, y)
+        txt = f"Spearman r={r:.2g}\nperm p={p:.2g}\nn={len(x)}"
+    else:
+        txt = f"n={len(x)}"
+
+    plt.figure(figsize=(6.2, 4.8))
+    ax = sns.scatterplot(
+        data=df,
+        x="_topo_x",
+        y=perf_col,
+        s=18,
+        alpha=0.65,
+        linewidth=0,
+    )
+
+    ax.text(
+        0.98,
+        0.98,
+        txt,
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=12,
+    )
+
+    ax.set_title("Topology vs performance (overall)", fontsize=16)
+    ax.set_xlabel(xlab, fontsize=14)
+    ax.set_ylabel(perf_col, fontsize=14)
+    ax.tick_params(axis="both", which="major", labelsize=12)
+
+    out_path = out_dir / (
+        f"topo_vs_perf_overall_split-{split}_logtopo-{int(log_topology)}"
+        f"_topocol-{topo_col}_perfeval-{perf_col}_all_data.png"
+    )
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    plt.close()
+    logger.info("Saved overall topology-vs-performance plot to %s", out_path)
 
 
 if __name__ == "__main__":

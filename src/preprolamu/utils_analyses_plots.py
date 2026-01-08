@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import logging
 
+import numpy as np
 import pandas as pd
 import typer
+from scipy.stats import permutation_test, spearmanr
 
 logger = logging.getLogger(__name__)
 
@@ -101,3 +103,22 @@ def filter_exclude_zero_norms(df: pd.DataFrame, *, exclude_zero: bool) -> pd.Dat
         ",".join(dim_cols),
     )
     return df2
+
+
+def spearmanr_permutation(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+
+    rs = spearmanr(x, y).statistic
+
+    # Permutation test on Spearman's rs directly (simplest + matches intent).
+    def spearmanr_statistic(x_perm):
+        return spearmanr(x_perm, y).statistic
+
+    res = permutation_test(
+        (x,),
+        spearmanr_statistic,
+        alternative="two-sided",
+        permutation_type="pairings",
+        n_resamples=50000,
+        random_state=0,
+    )
+    return float(rs), float(res.pvalue)

@@ -217,6 +217,103 @@ def _presto_global_sensitivity_from_metrics_table(
     }
 
 
+def _universes_for_equivalence_class(
+    df: pd.DataFrame,
+    *,
+    fixed_cols: list[str],
+    fixed_vals: tuple,
+) -> pd.DataFrame:
+    mask = pd.Series(True, index=df.index)
+    for c, v in zip(fixed_cols, fixed_vals):
+        mask &= df[c] == v
+    return df.loc[mask].copy()
+
+
+def _individual_sensitivity_table_for_param(
+    df: pd.DataFrame,
+    *,
+    param: str,
+    homology_dims=(0, 1, 2),
+) -> pd.DataFrame:
+    """
+    Build a table with one row per equivalence class Q for `param`.
+    Each equivalence class is defined by fixing all other _PRESTO_PARAMS (and dataset_id).
+    """
+    if param not in df.columns:
+        raise ValueError(f"Param {param!r} not in df columns.")
+
+    # Define context = all OTHER params (plus dataset_id for safety)
+    fixed_cols = ["dataset_id"] + [
+        c for c in _PRESTO_PARAMS if c != param and c in df.columns
+    ]
+
+    if df.empty:
+        return pd.DataFrame(
+            columns=fixed_cols + ["class_size", "pv", "individual_sensitivity"]
+        )
+
+    grouped = df.groupby(fixed_cols, dropna=False)
+
+    rows = []
+    for fixed_key, g in grouped:
+        if not isinstance(fixed_key, tuple):
+            fixed_key = (fixed_key,)
+
+        m = int(len(g))
+        if m < 2:
+            pv = 0.0
+            ind = 0.0
+        else:
+            pv = float(
+                compute_presto_variance_from_metrics_table(
+                    g, homology_dims=homology_dims
+                )
+            )
+            ind = float(np.sqrt(max(pv, 0.0)))
+
+        row = {col: val for col, val in zip(fixed_cols, fixed_key)}
+        row["class_size"] = m
+        row["pv"] = pv
+        row["individual_sensitivity"] = ind
+        rows.append(row)
+
+    out = pd.DataFrame(rows)
+    return out
+
+
+def _value_enrichment_table(
+    stable_df: pd.DataFrame,
+    unstable_df: pd.DataFrame,
+    col: str,
+) -> pd.DataFrame:
+    """
+    Compare distributions of a fixed parameter value in stable vs unstable regions.
+    Returns a small table with proportions and difference.
+    """
+    s = stable_df[col].astype("object").value_counts(normalize=True, dropna=False)
+    u = unstable_df[col].astype("object").value_counts(normalize=True, dropna=False)
+    out = pd.concat(
+        [s.rename("stable_prop"), u.rename("unstable_prop")], axis=1
+    ).fillna(0.0)
+    out["diff_unstable_minus_stable"] = out["unstable_prop"] - out["stable_prop"]
+    return out.sort_values("diff_unstable_minus_stable", ascending=False)
+
+
+def _print_top_contexts_with_universes(
+    *,
+    label: str,
+    ds_df: pd.DataFrame,
+    top_ctx: pd.DataFrame,
+    fixed_cols: list[str],
+    sort_universes_by: str = "l2_average",
+    max_universes_per_context: int | None = None,
+):
+    print(f"\n{label} contexts (equivalence classes):")
+    cols_show = fixed_cols + ["class_size", "individual_sensitivity"]
+    cols_show = [c for c in cols_show if c in top_ctx.columns]
+    print(top_ctx[cols_show].to_string(index=False))
+
+
 # ----------- CLI commands ----------- #
 @app.command("table")
 def make_table(
@@ -585,6 +682,181 @@ def ae_eval(
     print(
         f"AE eval done. wrote={n_done}, skipped_existing={n_skipped}, missing_model={n_missing_model}"
     )
+
+
+@app.command("presto-stability-regions")
+def presto_stability_regions(
+    split: str = typer.Option("test"),
+    param: str = typer.Option(
+        "all",
+        help="One of: scaling, log_transform, feature_subset, duplicate_handling, missingness, seed, or 'all'.",
+    ),
+    q_low: float = typer.Option(
+        0.2, help="Lower quantile for 'stable' equivalence classes."
+    ),
+    q_high: float = typer.Option(
+        0.8, help="Upper quantile for 'unstable' equivalence classes."
+    ),
+    top_k: int = typer.Option(
+        10, help="How many stable/unstable contexts to print per dataset+param."
+    ),
+    norm_threshold: float | None = typer.Option(
+        None,
+        help="Exclude universes where any l2_dim* exceeds this threshold (optional).",
+    ),
+    exclude_zero_norms: bool = typer.Option(
+        False, help="Exclude universes where all l2_dim* norms are exactly zero."
+    ),
+    drop_nonvarying_params: bool = typer.Option(
+        True,
+        help="If True, skip params with <2 unique values within a dataset (e.g. collapsed missingness).",
+    ),
+    max_universes_per_context: int = typer.Option(
+        20,
+        help="How many universes to print per context (stable/unstable).",
+    ),
+):
+    """
+    Stable vs unstable regions via *individual PRESTO sensitivity* (sqrt(PV) per equivalence class).
+    Prints BOTH top stable and top unstable contexts per dataset + param,
+    and prints the universes contained in each context.
+    """
+    if not (0.0 < q_low < q_high < 1.0):
+        raise typer.BadParameter("Require 0 < q_low < q_high < 1.")
+
+    universes = generate_multiverse()
+    df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
+
+    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+
+    # Determine params to run
+    if param != "all":
+        if param not in _PRESTO_PARAMS:
+            raise typer.BadParameter(f"param must be one of {_PRESTO_PARAMS} or 'all'.")
+        params_to_run = [param]
+    else:
+        params_to_run = _PRESTO_PARAMS.copy()
+
+    datasets = sorted(df["dataset_id"].dropna().unique().tolist())
+    if not datasets:
+        raise typer.BadParameter("No datasets available after filtering.")
+
+    for ds in datasets:
+        ds_df = df[df["dataset_id"] == ds].copy()
+        if ds_df.empty:
+            continue
+
+        print("\n" + "=" * 100)
+        print(f"DATASET: {ds} | split={split} | n_universes={len(ds_df)}")
+        print("=" * 100)
+
+        for p in params_to_run:
+            if p not in ds_df.columns:
+                continue
+
+            # Skip collapsed params (e.g. missingness in datasets without missing values)
+            if drop_nonvarying_params and ds_df[p].nunique(dropna=False) < 2:
+                print(f"\n[param={p}] skipped (non-varying within dataset; nunique<2).")
+                continue
+
+            # One row per equivalence class (context defined by all OTHER params)
+            ind = _individual_sensitivity_table_for_param(
+                ds_df, param=p, homology_dims=(0, 1, 2)
+            )
+
+            # Drop singleton equivalence classes (uninformative: sensitivity forced to 0)
+            before_classes = len(ind)
+            ind = ind[ind["class_size"] >= 2].copy()
+            dropped = before_classes - len(ind)
+            if dropped > 0:
+                logger.info(
+                    "[stability-regions] Dropped %d/%d singleton equivalence classes for ds=%s param=%s",
+                    dropped,
+                    before_classes,
+                    ds,
+                    p,
+                )
+
+            if ind.empty:
+                print(f"\n[param={p}] no equivalence classes after filtering.")
+                continue
+
+            x = ind["individual_sensitivity"].to_numpy(dtype=float)
+            x = x[np.isfinite(x)]
+            if x.size == 0:
+                print(f"\n[param={p}] no finite sensitivity values.")
+                continue
+
+            lo = float(np.quantile(x, q_low))
+            hi = float(np.quantile(x, q_high))
+
+            stable = ind[ind["individual_sensitivity"] <= lo].copy()
+            unstable = ind[ind["individual_sensitivity"] >= hi].copy()
+
+            top_stable = stable.sort_values(
+                "individual_sensitivity", ascending=True
+            ).head(top_k)
+            top_unstable = unstable.sort_values(
+                "individual_sensitivity", ascending=False
+            ).head(top_k)
+
+            print("\n" + "-" * 100)
+            print(f"param={p}")
+            print(
+                f"equiv_classes={len(ind)} | "
+                f"stable<=Q{int(q_low*100)} (thr={lo:.6g}) -> {len(stable)} | "
+                f"unstable>=Q{int(q_high*100)} (thr={hi:.6g}) -> {len(unstable)}"
+            )
+
+            # These columns define the context and are used to retrieve universes
+            # fixed_cols = _fixed_cols_for_param(ds_df, param=p)
+            fixed_cols = ["dataset_id"] + [
+                c for c in _PRESTO_PARAMS if c != p and c in ds_df.columns
+            ]
+
+            # Print top unstable + universes
+            if not top_unstable.empty:
+                _print_top_contexts_with_universes(
+                    label="Top UNSTABLE",
+                    ds_df=ds_df,
+                    top_ctx=top_unstable,
+                    fixed_cols=fixed_cols,
+                    sort_universes_by="l2_average",
+                    max_universes_per_context=max_universes_per_context,
+                )
+            else:
+                print("\nTop UNSTABLE contexts: none (after filtering/thresholding).")
+
+            # Print top stable + universes
+            if not top_stable.empty:
+                _print_top_contexts_with_universes(
+                    label="Top STABLE",
+                    ds_df=ds_df,
+                    top_ctx=top_stable,
+                    fixed_cols=fixed_cols,
+                    sort_universes_by="l2_average",
+                    max_universes_per_context=max_universes_per_context,
+                )
+            else:
+                print("\nTop STABLE contexts: none (after filtering/thresholding).")
+
+            # Optional quick “what characterizes instability?” enrichment table
+            # (kept minimal: only show for params with >=2 unique values)
+            fixed_cols_no_ds = [c for c in fixed_cols if c != "dataset_id"]
+            if fixed_cols_no_ds and len(stable) > 0 and len(unstable) > 0:
+                print(
+                    "\nEnrichment (unstable minus stable) by fixed setting (top 5 each):"
+                )
+                for c in fixed_cols_no_ds:
+                    if (
+                        stable[c].nunique(dropna=False) < 2
+                        and unstable[c].nunique(dropna=False) < 2
+                    ):
+                        continue
+                    enr = _value_enrichment_table(stable, unstable, c)
+                    print(f"\n  {c}:")
+                    print(enr.head(5).to_string())
 
 
 if __name__ == "__main__":

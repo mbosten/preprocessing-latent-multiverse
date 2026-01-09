@@ -477,7 +477,7 @@ def _plot_multiverse_grid(
     # lock heatmap coordinates so every axis uses the same [col,row] geometry
     ax_heat.set_xlim(-0.5, n_cols - 0.5)
     ax_heat.set_ylim(n_rows - 0.5, -0.5)  # invert rows to match imshow default
-    fig.suptitle(title, y=0.98, fontsize=14)
+    # fig.suptitle(title, y=0.98, fontsize=14)
 
     # Remove left and bottom tick labels
     ax_heat.set_xticks([])

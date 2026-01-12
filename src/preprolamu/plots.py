@@ -10,6 +10,7 @@ import pandas as pd
 import seaborn as sns
 import typer
 
+from preprolamu.example_plots import plot_example_figures
 from preprolamu.io.storage import load_projected
 from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.embeddings import downsample_latent
@@ -888,6 +889,13 @@ def _individual_sensitivities_for_param(
 
 
 # ---------- CLI Commands ---------- #
+@app.command("example-plots")
+def example_plots(
+    out_dir: Path = typer.Option(Path("data/figures"), help="Output directory"),
+):
+    plot_example_figures(out_dir=out_dir)
+
+
 @app.command("multiverse-norm-grid")
 def multiverse_norm_grid(
     split: str = typer.Option("test", help="train/val/test"),

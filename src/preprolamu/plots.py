@@ -535,11 +535,11 @@ def topology_vs_performance_plot(
 
         ax.text(
             0.96,
-            0.98,
+            0.50,
             txt,
             transform=ax.transAxes,
             ha="right",
-            va="center",
+            va="top",
             fontsize=12,
         )
 

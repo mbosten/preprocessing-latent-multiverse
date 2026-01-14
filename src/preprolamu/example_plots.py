@@ -1,28 +1,4 @@
-"""
-Persistent homology example plots on a simple circle point cloud
-using the **Alpha complex** (GUDHI), with accurate 1- and 2-simplices.
-
-Why Alpha complex:
-- In 2D it’s a subcomplex of the Delaunay triangulation.
-- SimplexTree filtration values are derived from the radius of the smallest
-  empty circumscribed ball (circumradius) needed to include the simplex.
-
-Important note on the filtration parameter:
-- In GUDHI, AlphaComplex filtration values are commonly interpreted as an
-  "alpha^2"-type parameter (squared radius). To visualize balls, we draw
-  circles of radius r = sqrt(alpha_value).
-
-Figures:
-Figure 1: 3 snapshots (same point cloud), showing points + balls (r = sqrt(alpha)),
-         plus edges and filled triangles present at that alpha.
-Figure 2: Barcode plot (H0 + H1) for the same data (custom matplotlib).
-Figure 3: Persistence diagram (H0 + H1) using persim.
-Figure 4: Persistence landscape (H1) using persim.
-
-Dependencies:
-  pip install numpy matplotlib gudhi persim
-"""
-
+# src/preprolamu/example_plots.py
 from __future__ import annotations
 
 import os

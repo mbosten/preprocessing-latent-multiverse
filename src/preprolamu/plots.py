@@ -1422,33 +1422,22 @@ def presto_variance_violin(
 
     sns.set_theme(style="whitegrid")
 
-    # fig, ax = plt.subplots(figsize=(10, 6))
-
     # One axis, shared y-scale
     ax = sns.violinplot(
         data=df_plot,
         x="dataset_id",
         y="abs_dev",
-        color=".9",
-        width=0.9,
-        inner=None,
+        inner="box",
         cut=0.0,
+        linewidth=1,
     )
 
-    # Overlay swarm points (defaults)
-    sns.swarmplot(
-        data=df_plot,
-        x="dataset_id",
-        y="abs_dev",
-        ax=ax,
-        size=2.0,
-        alpha=0.5,
-    )
-
-    ax.set_xlabel("")
+    ax.set_xlabel("", fontsize=14)
     ax.set_ylabel(
-        r"$\sum^h_{x=0}|\|L\|_p-\mu_{\mathcal{L}^x}|$  (summed absolute norm deviation)"
+        r"$\sum^h_{x=0}|\|L\|_p-\mu_{\mathcal{L}^x}|$  (summed absolute norm deviation)",
+        fontsize=14,
     )
+    ax.tick_params(labelsize=12)
 
     out_path = out_dir / (
         f"presto_absdev_combined_violin_split-{split}"
@@ -1514,7 +1503,7 @@ def presto_individual_violin(
     if plot_df.empty:
         raise typer.BadParameter("No individual sensitivities to plot.")
 
-    plt.figure(figsize=(9, 4.5))
+    plt.figure(figsize=(9, 3.4))
     sns.violinplot(
         data=plot_df,
         x="param",
@@ -1524,11 +1513,30 @@ def presto_individual_violin(
         linewidth=1,
     )
 
-    plt.ylabel("Individual PRESTO sensitivity")
-    plt.xlabel("Preprocessing parameter")
+    # modify duplicates tick text to ensure readability
+    x_ticks = plt.gca().get_xticks()
+    if "UNSW" in dataset:
+        x_labels = [
+            "Scaling",
+            "Log transform",
+            "Feature subset",
+            "Duplicates",
+            "Missing",
+            "Seed",
+        ]
+    else:
+        x_labels = ["Scaling", "Log transform", "Feature subset", "Duplicates", "Seed"]
+
+    # set axes labels to empty string to reproduce the combination figure in the paper
+    # plt.ylabel("", fontsize=1)
+    plt.xlabel("", fontsize=1)
+    plt.ylabel("Individual PRESTO sensitivity", fontsize=14)
+    # plt.xlabel("Preprocessing parameter", fontsize=14)
+
     scope = dataset if dataset != "all" else "ALL datasets pooled"
-    plt.title(f"{scope}")
-    plt.xticks(ha="center")
+    plt.title(f"{scope}", fontsize=14)
+    plt.xticks(ticks=x_ticks, labels=x_labels, ha="center", fontsize=12)
+    plt.yticks(fontsize=12)
 
     out_path = out_dir / f"presto_individual_violin_split-{split}_dataset-{dataset}.png"
     plt.tight_layout()
@@ -1540,6 +1548,7 @@ def presto_individual_violin(
     print(f"Saved: {out_path}")
 
 
+# UNUSED
 @app.command("norms-stripplot")
 def norms_stripplot(
     split: str = typer.Option("test", help="train/val/test"),
@@ -1715,21 +1724,22 @@ def topology_vs_performance_plot(
         eps = 1e-30
         df["_topo_x"] = np.log10(np.maximum(df[topo_col].to_numpy(dtype=float), eps))
         if topo_col == "l2_average":
-            xlab = r"$\log_{10}($mean $L_2)$"
+            xlab = r"$\log_{10}($mean $L^2)$"
 
     else:
         df["_topo_x"] = df[topo_col].to_numpy(dtype=float)
         if topo_col == "l2_average":
-            xlab = r"Average $L_2$"
+            xlab = r"Average $L^2$"
 
     datasets = sorted(df["dataset_id"].dropna().unique().tolist())
     n = len(datasets)
     if n == 0:
         raise typer.BadParameter("No datasets available after filtering.")
 
-    fig, axes = plt.subplots(1, n, figsize=(5.5 * n, 4.5), sharey=False)
+    fig, axes = plt.subplots(n, 1, figsize=(5.5, 4 * n), sharey=False)
     if n == 1:
         axes = [axes]
+    fig.tight_layout(pad=3.6)
 
     for ax, ds in zip(axes, datasets):
         sdf = df[df["dataset_id"] == ds].copy()
@@ -1766,10 +1776,8 @@ def topology_vs_performance_plot(
 
         ax.tick_params(axis="both", which="major", labelsize=12)
         ax.set_title(ds, fontsize=16)
-        ax.set_xlabel(xlab, fontsize=14)
-        ax.set_ylabel(
-            "Reconstruction error (median MSE)" if ax is axes[0] else "", fontsize=14
-        )
+        ax.set_xlabel(xlab if ax is axes[-1] else "", fontsize=14)
+        ax.set_ylabel("Median MSE", fontsize=14)
 
     out_path = (
         out_dir
@@ -1826,13 +1834,13 @@ def topology_vs_performance_overall_plot(
         eps = 1e-30
         df["_topo_x"] = np.log10(np.maximum(df[topo_col].to_numpy(dtype=float), eps))
         xlab = (
-            r"$\log_{10}($Average $L_2)$"
+            r"$\log_{10}($Average $L^2)$"
             if topo_col == "l2_average"
             else f"log10({topo_col})"
         )
     else:
         df["_topo_x"] = df[topo_col].to_numpy(dtype=float)
-        xlab = r"Average $L_2$" if topo_col == "l2_average" else topo_col
+        xlab = r"Average $L^2$" if topo_col == "l2_average" else topo_col
 
     x = df["_topo_x"].to_numpy(dtype=float)
     y = df[perf_col].to_numpy(dtype=float)

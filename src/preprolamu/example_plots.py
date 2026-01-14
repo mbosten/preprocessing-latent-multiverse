@@ -132,8 +132,8 @@ def plot_alpha_panel(
 ):
     ax.scatter(X[:, 0], X[:, 1])
     ax.set_aspect("equal", adjustable="box")
-    ax.set_title(title, fontsize=14)
-    ax.tick_params(axis="both", labelsize=12)
+    ax.set_title(title, fontsize=16)
+    ax.tick_params(axis="both", labelsize=14)
 
     edges, tris = simplices_at_alpha(st, alpha)
 
@@ -208,12 +208,12 @@ def plot_barcode(
 
         y += 1  # gap between dimensions
 
-    ax.set_xlabel("filtration value (alpha)", fontsize=12)
+    ax.set_xlabel("filtration value (alpha)", fontsize=16)
     ax.set_yticks(yticks)
     ax.set_yticklabels(yticklabels)
     ax.set_ylim(-0.5, y + 0.5)
     ax.set_xlim(0.0, xmax)
-    ax.tick_params(axis="both", labelsize=12)
+    ax.tick_params(axis="both", labelsize=14)
 
     # Simple legend
     handles = [
@@ -222,7 +222,7 @@ def plot_barcode(
         if intervals.get(d, np.empty((0, 2))).size > 0
     ]
     if handles:
-        ax.legend(handles=handles, loc="lower right")
+        ax.legend(handles=handles, loc="lower right", fontsize=14)
 
 
 # -----------------------------
@@ -299,10 +299,10 @@ def plot_persistence_diagram_gudhi(
     ax.set_xlim(lo, hi)
     ax.set_ylim(lo, hi)
     ax.set_aspect("equal", adjustable="box")
-    ax.set_xlabel("birth", fontsize=12)
-    ax.set_ylabel("death", fontsize=12)
-    ax.tick_params(axis="both", labelsize=12)
-    ax.legend(loc="best")
+    ax.set_xlabel("birth", fontsize=16)
+    ax.set_ylabel("death", fontsize=16)
+    ax.tick_params(axis="both", labelsize=14)
+    ax.legend(loc="best", fontsize=14)
 
 
 # -----------------------------
@@ -341,11 +341,11 @@ def plot_landscape_gudhi(
     for k in range(k_levels):
         ax.plot(xs, vals[k], label=f"$\\lambda_{{{k+1}}}$")
 
-    ax.set_title(title, fontsize=14)
-    ax.set_xlabel("filtration value (alpha)", fontsize=12)
-    ax.set_ylabel("landscape value", fontsize=12)
-    ax.tick_params(axis="both", labelsize=12)
-    ax.legend(loc="best")
+    ax.set_title(title, fontsize=16)
+    ax.set_xlabel("filtration value (alpha)", fontsize=16)
+    ax.set_ylabel("landscape value", fontsize=16)
+    ax.tick_params(axis="both", labelsize=14)
+    ax.legend(loc="best", fontsize=14)
 
 
 def plot_both_landscapes(

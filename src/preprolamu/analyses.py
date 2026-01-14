@@ -329,6 +329,19 @@ def make_table(
 
 @app.command("dataset-summary")
 def dataset_summary(
+    param: Annotated[
+        Literal[
+            "l2_dim0",
+            "l2_dim1",
+            "l2_dim2",
+            "l2_average",
+        ],
+        typer.Option(
+            "--param",
+            help="For which homology dimension should L2-norms be compared across datasets?",
+            show_choices=True,
+        ),
+    ] = "l2_average",
     split: str = typer.Option("test"),
     norm_threshold: Optional[float] = typer.Option(
         None,
@@ -347,7 +360,7 @@ def dataset_summary(
 
     # Example: compare distributions of l2_average across datasets
     summary = (
-        df.groupby("dataset_id")["l2_average"]
+        df.groupby("dataset_id")[param]
         .agg(["count", "mean", "median", "std", "min", "max"])
         .sort_values("mean", ascending=False)
     )

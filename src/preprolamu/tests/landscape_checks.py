@@ -1,4 +1,3 @@
-# src/preprolamu/tests/landscape_checks.py
 from __future__ import annotations
 
 import logging

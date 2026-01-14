@@ -1,4 +1,3 @@
-# src/preprolamu/pipeline/embeddings.py
 from __future__ import annotations
 
 import logging
@@ -19,10 +18,8 @@ from preprolamu.pipeline.universes import Universe
 logger = logging.getLogger(__name__)
 
 
+# Normalize embedding space by approximate diameter
 def normalize_space(X, seed: int, diameter_iterations=1000):
-    """
-    Normalize a space based on an approximate diameter.
-    """
     rng = np.random.default_rng(seed)
     subset = [rng.choice(len(X))]
     for _ in range(diameter_iterations - 1):

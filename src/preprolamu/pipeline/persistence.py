@@ -1,4 +1,3 @@
-# src/preprolamu/pipeline/persistence.py
 from __future__ import annotations
 
 import logging
@@ -17,9 +16,7 @@ def mask_infinities(array: np.ndarray) -> np.ndarray:
 
 
 def build_alpha_complex_simplex_tree(points: np.ndarray) -> gd.SimplexTree:
-    """
-    Build an alpha complex from the point cloud and return the simplex tree.
-    """
+
     logger.info(f"Computing alpha complex persistence for data of shape {points.shape}")
     alpha_complex = gd.AlphaComplex(points=points, precision="fast")
     simplex_tree = alpha_complex.create_simplex_tree()
@@ -30,9 +27,6 @@ def build_alpha_complex_simplex_tree(points: np.ndarray) -> gd.SimplexTree:
 def compute_alpha_complex_persistence(
     data: np.ndarray, homology_dimensions: list[int] = [0, 1, 2]
 ):
-    """
-    Compute persistence from alpha complex and return per-dimension persistence intervals.
-    """
 
     st = build_alpha_complex_simplex_tree(data)
 

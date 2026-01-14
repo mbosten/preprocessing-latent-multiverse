@@ -1,4 +1,3 @@
-# src/preprolamu/pipeline/create_embeddings.py
 from __future__ import annotations
 
 import logging
@@ -23,18 +22,7 @@ def get_or_compute_latent(
     retrain_regardless: bool = False,
     force_recompute: bool = False,
 ) -> np.ndarray:
-    """
-    Canonical function for:
-      Universe -> latent embeddings (full dataset, no PCA, no subsampling).
 
-    - retrain_regardless: Should a new AE be trained, regardless of existing saved checkpoints?
-    - force_recompute: Should the AE be trained/evaluated again, regardless of an existing embedding space?
-
-    Behavior:s
-      - if cached latent exists and not force_recompute: load and return
-      - otherwise: ensure AE trained, compute latent, save cache, return
-    """
-    # Specify split-specific file name depending on which dataset we retrieve the embedding space from.
     if not force_recompute:
         try:
             return load_embedding(

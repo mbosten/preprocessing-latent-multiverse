@@ -1,5 +1,3 @@
-# src/preprolamu/pipeline/metrics.py
-
 from __future__ import annotations
 
 import json
@@ -17,12 +15,9 @@ from preprolamu.tests.landscape_checks import top_landscape_outliers
 logger = logging.getLogger(__name__)
 
 
+# Slightly redundant class to hold metrics results
 @dataclass
 class MetricsResult:
-    """
-    Simple scalar summaries of TDA, per homology dimension.
-    Extend this as needed.
-    """
 
     total_persistence_per_dim: Dict[int, float]
     landscape_l2_per_dim: Dict[int, float]
@@ -32,10 +27,7 @@ def load_landscapes_with_provenance(
     universes: Iterable[Universe],
     split: str = "test",
 ) -> tuple[List[Tuple[Universe, Dict[int, np.ndarray]]], int, int]:
-    """
-    Load landscapes for universes while preserving provenance (Universe object),
-    and keep the same robust missing/empty checks you already had.
-    """
+
     pairs: List[Tuple[Universe, Dict[int, np.ndarray]]] = []
     skipped_missing = 0
     skipped_empty = 0
@@ -57,10 +49,7 @@ def load_landscapes_with_provenance(
 
 
 def compute_total_persistence(intervals: np.ndarray) -> float:
-    """
-    Sum of (death - birth) over all finite intervals.
-    intervals: array of shape (k, 2)
-    """
+
     if intervals.size == 0:
         return 0.0
     births = intervals[:, 0]
@@ -158,14 +147,7 @@ def compute_presto_variance_from_metrics_table(
     *,
     homology_dims: Iterable[int] = (0, 1, 2),
 ) -> float:
-    """
-    Compute PRESTO variance using precomputed landscape L2 norms stored in a metrics table.
 
-    Expects df to contain columns l2_dim{d} for each d in homology_dims.
-    Uses the same definition as compute_presto_variance():
-      var = (1/N) * Σ_u Σ_d (n_{u,d} - μ_d)^2
-    where μ_d is the mean across universes for dimension d, and N is number of universes.
-    """
     dims = list(homology_dims)
 
     if df.empty:
@@ -176,7 +158,7 @@ def compute_presto_variance_from_metrics_table(
     if missing:
         raise ValueError(f"Missing columns for PRESTO variance: {missing}")
 
-    # Separate only those 3 L2 norm columns per universe.
+    # Separate only the homology-specific L2 norm columns per universe.
     X = df[cols].to_numpy(dtype=float)
 
     # Treat non-finite as 0.0
@@ -259,13 +241,7 @@ def build_metrics_table(
     require_exists: bool = True,
     homology_dims: tuple[int, ...] = (0, 1, 2),
 ) -> pd.DataFrame:
-    """
-    One row per universe, using stored metrics JSON only.
-    Missing dims are treated as 0.0 (your earlier decision).
-    This function mostly puts the individual json files into a single DataFrame
-    to facilitate downstream analyses.
-    Also computes per-universe l2 average and sum across dims.
-    """
+
     rows: List[Dict[str, Any]] = []
 
     for u in universes:
@@ -309,7 +285,7 @@ def build_metrics_table(
             # Sum of L2 norms across dims per universe
             row["l2_aggregate"] = float(sum(l2_vals))
 
-            # Per universe average of L2 norms across dims (so typically divide by 3)
+            # Per universe average of L2 norms across dims (so typically divide by 3 for hom dim 0,1,2)
             row["l2_average"] = float(sum(l2_vals) / max(len(l2_vals), 1))
 
             # Load evaluation metrics if available
@@ -319,8 +295,7 @@ def build_metrics_table(
                     with eval_path.open("r", encoding="utf-8") as f:
                         eval_payload = json.load(f) or {}
 
-                    # Flatten a few keys into columns.
-                    # Keep names stable: recon_* for overall, recon_benign_*, recon_attack_*
+                    # keep names standardized
                     recon = eval_payload.get("recon", {}) or {}
                     row["recon_n"] = recon.get("n")
                     row["recon_mse_mean"] = recon.get("mse_mean")
@@ -330,7 +305,7 @@ def build_metrics_table(
                     row["recon_mse_p99"] = recon.get("mse_p99")
                     row["recon_mse_max"] = recon.get("mse_max")
 
-                    # Stratified (optional)
+                    # Likely redundant.
                     row["recon_n_benign"] = eval_payload.get("n_benign")
                     row["recon_n_attack"] = eval_payload.get("n_attack")
 

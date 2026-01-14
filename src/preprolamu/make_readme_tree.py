@@ -1,8 +1,6 @@
 import os
 
-# --------------------------
-# CONFIGURATION
-# --------------------------
+# config
 IGNORE_FOLDERS = {
     "__pycache__",
     ".git",
@@ -11,19 +9,17 @@ IGNORE_FOLDERS = {
     ".venv",
 }
 
-# File extensions you WANT to show (Python scripts)
+# file extensions we want to show (change accordingly)
 ALLOWED_EXTENSIONS = {".py", ".yml", ".md"}
 
 
-# --------------------------
-# TREE FUNCTION
-# --------------------------
+# tree function
 def tree(path=".", prefix=""):
     items = []
     for name in os.listdir(path):
         full_path = os.path.join(path, name)
 
-        # Ignore folders you don't want
+        # Ignore folders we dont want
         if os.path.isdir(full_path) and name in IGNORE_FOLDERS:
             continue
 
@@ -35,7 +31,7 @@ def tree(path=".", prefix=""):
 
         items.append(name)
 
-    # Sort so folders appear before files
+    # Sort suc that folders appear before files
     items.sort(key=lambda x: (not os.path.isdir(os.path.join(path, x)), x))
 
     # Tree drawing
@@ -50,8 +46,6 @@ def tree(path=".", prefix=""):
             tree(full_path, prefix + extension)
 
 
-# --------------------------
-# RUN
-# --------------------------
+# RUN FOREST, RUN
 if __name__ == "__main__":
     tree(".")

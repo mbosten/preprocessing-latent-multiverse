@@ -29,37 +29,24 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(add_completion=False)
 
 
+# set up logging.
 @app.callback()
-def main(
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Enable verbose (DEBUG) logging",
-    ),
-):
-    """
-    Global CLI options, executed before any subcommand.
-    """
-    level = logging.DEBUG if verbose else logging.INFO
-    setup_logging(log_dir=Path("logs"), level=level)
+def main():
+
+    setup_logging(log_dir=Path("logs"))
     logger = logging.getLogger(__name__)
-    logger.info("CLI started with verbose=%s", verbose)
+    logger.info("CLI started ...")
 
 
 # presto variance violin function
 def _absdev_sum_for_dataset(gdf: pd.DataFrame, *, dims: list[int]) -> pd.DataFrame:
-    """
-    For one dataset group, compute per-universe combined absolute deviation:
-      abs_dev_sum_u = sum_d |n_{u,d} - mu_d|
-    Returns a df with one row per universe.
-    """
+
     cols = [f"l2_dim{d}" for d in dims]
     X = gdf[cols].to_numpy(dtype=float)
     X = np.where(np.isfinite(X), X, 0.0)
 
     mu = X.mean(axis=0)
-    abs_dev_sum = np.abs(X - mu).sum(axis=1)  # <-- combine across dims
+    abs_dev_sum = np.abs(X - mu).sum(axis=1)  # combine across dims
 
     return pd.DataFrame(
         {
@@ -75,10 +62,7 @@ def _absdev_sum_for_dataset(gdf: pd.DataFrame, *, dims: list[int]) -> pd.DataFra
 # Therefore the absolute deviation version is preferred,
 # which keeps the relative ordering and distribution information.
 def _sqdev_long_for_dataset(gdf: pd.DataFrame, *, dims: list[int]) -> pd.DataFrame:
-    """
-    For a dataset group, return long df with per-dimension squared deviations:
-      sq_dev_{u,d} = (n_{u,d} - mu_d)^2
-    """
+
     cols = [f"l2_dim{d}" for d in dims]
     X = gdf[cols].to_numpy(dtype=float)
     X = np.where(np.isfinite(X), X, 0.0)
@@ -96,8 +80,7 @@ def _sqdev_long_for_dataset(gdf: pd.DataFrame, *, dims: list[int]) -> pd.DataFra
     return out
 
 
-# ----------- Individual sensitivity helpers ---------- #
-# individual violin plot
+# individual violin plot helper
 PARAMS = [
     "scaling",
     "log_transform",
@@ -108,22 +91,18 @@ PARAMS = [
 ]
 
 
-# presto individual violin plot
+# presto individual violin plot helper
 def _individual_sensitivities_for_param(
     df: pd.DataFrame,
     *,
     param: str,
     homology_dims=(0, 1, 2),
 ) -> tuple[np.ndarray, dict]:
-    """
-    Returns:
-      values: individual sensitivities for all equivalence classes Q of `param`
-      meta: small diagnostics (n classes, singletons, mean size)
-    """
+
     if param not in df.columns:
         raise ValueError(f"Param {param} not in df columns.")
 
-    # Fix all OTHER params => equivalence class
+    # Fix all other params ~> equivalence class
     fixed_cols = [c for c in PARAMS if c != param]
 
     if len(df) == 0:
@@ -140,12 +119,12 @@ def _individual_sensitivities_for_param(
     singletons = 0
 
     for _, g in grouped:
-        # equivalence class size = how many universes share the same "other parameters"
+        # equivalence class size = how many universes share the same other params
         m = len(g)
         sizes.append(m)
         if m < 2:
             singletons += 1
-            # PV of a singleton is 0 -> sensitivity 0
+            # presto variance of a singleton is 0 so sensitivity is also 0, which is uninformative
             vals.append(0.0)
             continue
 
@@ -160,7 +139,7 @@ def _individual_sensitivities_for_param(
     }
 
 
-# ---------- CLI Commands ---------- #
+# Example plot function
 @app.command("example-plots")
 def example_plots(
     out_dir: Path = typer.Option(Path("data/figures"), help="Output directory"),
@@ -230,7 +209,6 @@ def presto_variance_violin(
 
     sns.set_theme(style="whitegrid")
 
-    # One axis, shared y-scale
     ax = sns.violinplot(
         data=df_plot,
         x="dataset_id",
@@ -244,6 +222,7 @@ def presto_variance_violin(
         ax.set_yscale("log")
 
     ax.set_xlabel("", fontsize=14)
+
     ax.set_ylabel(
         # r"$\sum^h_{x=0}|\|L\|_p-\mu_{\mathcal{L}^x}|$  (summed absolute norm deviation)",
         "Summed absolute norm deviation",
@@ -381,7 +360,7 @@ def presto_individual_violin(
     print(f"Saved: {out_path}")
 
 
-# Violin plots of Median MSE per dataset
+# Violin plots of median MSE per dataset
 @app.command("performance-summary")
 def performance_summary_plot(
     split: str = typer.Option("test"),
@@ -396,10 +375,7 @@ def performance_summary_plot(
     ),
     show: bool = typer.Option(False, help="Show interactive window after saving."),
 ):
-    """
-    Minimal descriptive plot: reconstruction error distribution per dataset,
-    with one subplot per dataset (independent y-axes).
-    """
+
     out_dir.mkdir(parents=True, exist_ok=True)
 
     universes = generate_multiverse()
@@ -445,7 +421,7 @@ def performance_summary_plot(
     logger.info("Saved performance summary plot to %s", out_path)
 
 
-# Scatter plot of Median MSE vs L2-norm average, per dataset
+# Scatter plot of median MSE vs per-universe L2-norm average, plotted per dataset
 @app.command("topology-vs-performance")
 def topology_vs_performance_plot(
     split: str = typer.Option("test"),
@@ -464,19 +440,12 @@ def topology_vs_performance_plot(
     ),
     show: bool = typer.Option(False, help="Show interactive window after saving."),
 ):
-    """
-    Scatter plot of topology scalar vs reconstruction error, faceted by dataset.
-    Annotates Spearman correlation per dataset.
-    """
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
     universes = generate_multiverse()
     df = build_metrics_table(universes, split=split, require_exists=True)
-    df = df[df["metrics_status"] == "ok"].copy()
-
-    # Optional: match exclusions
-    from preprolamu.analyses import filter_by_norm_threshold, filter_exclude_zero_norms
+    df = _ok_only(df)
 
     df = filter_by_norm_threshold(df, threshold=norm_threshold)
     df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)

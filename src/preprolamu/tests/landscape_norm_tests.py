@@ -1,4 +1,3 @@
-# src/preprolamu/tests/landscape_norm_tests.py
 from __future__ import annotations
 
 import logging
@@ -21,31 +20,18 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(help="debugging")
 
 
-# ----------- Global CLI options and commands ----------- #
+# set up logging.
 @app.callback()
-def main(
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Enable verbose (DEBUG) logging",
-    ),
-):
-    """
-    Global CLI options, executed before any subcommand.
-    """
-    level = logging.DEBUG if verbose else logging.INFO
-    setup_logging(log_dir=Path("logs"), level=level)
+def main():
+
+    setup_logging(log_dir=Path("logs"))
     logger = logging.getLogger(__name__)
-    logger.info("CLI started with verbose=%s", verbose)
+    logger.info("CLI started ...")
 
 
-# ----------- Support functions ----------- #
+# support function
 def row_duplicate_fraction(X: np.ndarray, seed: int, max_rows: int = 200_000) -> float:
-    """
-    Approximate duplicate-row fraction by sampling up to max_rows rows.
-    Exact unique over millions can be expensive; sampling is enough for diagnosis.
-    """
+
     X = np.asarray(X)
     n = X.shape[0]
     if n == 0:
@@ -61,7 +47,6 @@ def row_duplicate_fraction(X: np.ndarray, seed: int, max_rows: int = 200_000) ->
 
 
 def _finite_l2(arr: np.ndarray) -> float:
-    """L2 norm, ignoring non-finite entries. Returns inf if no finite entries."""
     a = np.asarray(arr, dtype=float)
     mask = np.isfinite(a)
     if not mask.any():
@@ -70,7 +55,7 @@ def _finite_l2(arr: np.ndarray) -> float:
 
 
 def _summarize_landscape_array(arr: np.ndarray) -> dict[str, float | int]:
-    """Quick diagnostics for a landscape array."""
+
     a = np.asarray(arr, dtype=float)
     finite = np.isfinite(a)
     out: dict[str, float | int] = {
@@ -96,7 +81,7 @@ def _summarize_landscape_array(arr: np.ndarray) -> dict[str, float | int]:
 
 
 def _robust_z(x: pd.Series) -> pd.Series:
-    """Median/MAD-based z-score, safer for outliers."""
+
     x = x.astype(float)
     med = x.median()
     mad = (x - med).abs().median()
@@ -108,7 +93,7 @@ def _robust_z(x: pd.Series) -> pd.Series:
 def _print_outlier_block(
     df: pd.DataFrame, dim: int, id_to_index: dict[str, int]
 ) -> None:
-    """Pretty-print landscape outliers one universe at a time, narrow terminal-friendly."""
+
     for _, row in df.iterrows():
         uid = row["universe_id"]
         uidx = id_to_index.get(uid, None)
@@ -126,11 +111,7 @@ _PARAM_KEYS = ["sc", "log", "fs", "dup", "miss", "sd"]
 
 
 def _parse_params_from_universe_id(universe_id: str) -> dict[str, str]:
-    """
-    Extracts parameters from universe_id like:
-    ds-XYZ_sc-minmax_log-log1p_fs-all_dup-keep_miss-impute_median_sd-42
-    Returns dict { "sc": "minmax", "log": "log1p", ... }
-    """
+
     parts = universe_id.split("_")
     out: dict[str, str] = {}
     for p in parts:
@@ -147,9 +128,7 @@ def _print_param_distribution(
     title: str,
     max_values_per_param: int = 12,
 ) -> None:
-    """
-    Print a compact distribution of universe parameters among the outliers.
-    """
+
     typer.echo("\n" + "=" * 72)
     typer.echo(title)
     typer.echo("=" * 72)
@@ -187,10 +166,7 @@ def _print_param_distribution_comparison(
     *,
     title: str,
 ) -> None:
-    """
-    Compare flagged vs baseline distributions for each param.
-    Prints values that are enriched in flagged set.
-    """
+
     typer.echo("\n" + "=" * 72)
     typer.echo(title)
     typer.echo("=" * 72)
@@ -235,7 +211,7 @@ def _print_param_distribution_comparison(
 
             rows.append((val, fc, fp, bc, bp))
 
-        # Sort by baseline proportion (so base% visually sums to ~100%)
+        # Sort by baseline proportion
         rows.sort(key=lambda t: t[4], reverse=True)
 
         typer.echo(f"\nParameter: {k}  (flagged n={nf}, baseline n={nb})")
@@ -248,7 +224,7 @@ def _print_param_distribution_comparison(
             typer.echo(f"{val:<28} {fc:>7} {fp*100:>6.1f}% {bc:>7} {bp*100:>6.1f}%")
 
 
-# ----------- CLI Functions ----------- #
+# cli debugging functions (old, and deprecated)
 @app.command("scan-landscape-outliers")
 def scan_landscape_outliers(
     split: str = typer.Option("test", help="train/val/test"),
@@ -264,11 +240,7 @@ def scan_landscape_outliers(
         None, help="Optional path to write a CSV with flagged universes"
     ),
 ):
-    """
-    Uses stored metrics JSONs (data/processed/metrics/*_metrics_{split}.json)
-    to identify which universes create extreme landscape L2 norms.
-    Does NOT touch analyses pipeline; does NOT recompute anything.
-    """
+
     universes = generate_multiverse()
     id_to_index = {u.id: i for i, u in enumerate(universes)}
     df = build_metrics_table(universes, split=split, require_exists=True)
@@ -319,9 +291,8 @@ def scan_landscape_outliers(
         else:
             _print_outlier_block(show, dim=d, id_to_index=id_to_index)
 
-        # choose which rows were "flagged"/printed for this dim
         flagged = sub if threshold is not None else show
-        baseline = df  # after dataset filter, status filter etc.
+        baseline = df
 
         _print_param_distribution_comparison(
             flagged_df=flagged,
@@ -329,13 +300,8 @@ def scan_landscape_outliers(
             title=f"Parameter distribution comparison (flagged vs baseline) (dim={d}, split={split}, dataset={dataset_id or 'ALL'})",
         )
 
-        # _print_param_distribution(
-        #     flagged,
-        #     title=f"Parameter distribution among flagged outliers (dim={d}, split={split}, dataset={dataset_id or 'ALL'})",
-        # )
-
         if not sub.empty:
-            # Collect all flagged if threshold is set, else collect top_k
+
             collect = sub if threshold is not None else show
             for _, r in collect.iterrows():
                 flagged_rows.append(
@@ -366,10 +332,7 @@ def inspect_landscape(
     split: str = typer.Option("test", help="train/val/test"),
     dims: List[int] = typer.Option([1, 2], help="Homology dimensions to inspect"),
 ):
-    """
-    Loads the stored landscape NPZ for a single universe and prints diagnostics:
-    finite fraction, NaN/Inf counts, max abs, and finite-only L2 norm.
-    """
+
     uni = get_universe(universe_index)
     typer.echo(f"Universe: {uni.id}  (split={split})")
     L = load_landscapes(uni, split=split)
@@ -402,10 +365,7 @@ def check_geometry(
         True, "--normalized", "-n", help="Whether to load normalized projections."
     ),
 ):
-    """
-    Diagnose whether giant persistence values are caused by (near-)zero diameter or
-    extreme scaling in latent/projected spaces.
-    """
+
     logging.basicConfig(level=logging.INFO)
 
     uni = get_universe(universe_index)
@@ -428,7 +388,7 @@ def check_geometry(
     logger.info("[latent] max_abs=%.3e", float(np.nanmax(np.abs(latent))))
     logger.info("[projected] max_abs=%.3e", float(np.nanmax(np.abs(projected))))
 
-    # Duplicate checks (approx)
+    # Duplicate checks
     dup_lat = row_duplicate_fraction(latent, seed=uni.seed)
     dup_proj = row_duplicate_fraction(projected, seed=uni.seed)
     logger.info("[latent] approx duplicate-row fraction ~ %.3f", dup_lat)

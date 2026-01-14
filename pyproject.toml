@@ -29,7 +29,6 @@ dependencies = [
 [project.scripts]
 acb = "preprolamu.cli:app"
 setup = "preprolamu.config:app"
-exp = "preprolamu.experiments.parameter_sensitivity:app"
 plot = "preprolamu.plots:app"
 analyze = "preprolamu.analyses:app"
 debug = "preprolamu.tests.landscape_norm_tests:app"

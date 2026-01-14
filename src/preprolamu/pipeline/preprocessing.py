@@ -1,4 +1,3 @@
-# src/preprolamu/pipeline/preprocessing.py
 from __future__ import annotations
 
 import gc
@@ -27,9 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Load the cleaned dataset
 def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
-    """
-    Load the cleaned dataset (all classes) as a pandas DataFrame.
-    """
+
     path = get_clean_dataset_path(dataset_id, extension="parquet")
     logger.info("Loading full cleaned dataset from %s", path)
     df = pd.read_parquet(path)
@@ -46,10 +43,7 @@ def split_train_test(
     train_frac: float = 0.6,
     val_frac: float = 0.2,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Random train/test split, stratified by 'Attack' if present,
-    otherwise by the label column.
-    """
+
     if label_col not in df.columns:
         raise ValueError(f"Label column {label_col!r} not found in dataframe.")
 
@@ -81,7 +75,7 @@ def split_train_test(
     df_test = df_test.reset_index(drop=True)
     df_val = df_val.reset_index(drop=True)
 
-    # Keep only benign samples for training. Otherwise preprocessing is affected by soft leakage.
+    # Keep only benign samples for training.
     df_train = df_train[df_train[label_col] == benign_label].reset_index(drop=True)
 
     logger.info(
@@ -108,6 +102,7 @@ def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
             "L4_SRC_PORT",
             "L4_DST_PORT",
         ]
+    # Remnant of debug dataset used earlier to set up the pipeline
     elif universe.id.startswith(
         "ds-Merged"
     ):  # Just a dummy variable to keep the pipeline similar.
@@ -152,10 +147,10 @@ def apply_missingness(
         logger.info("[PREP] No numeric columns found for missingness handling.")
         return df_train, df_test
 
-    # ---- Replace infinities with NaN ----
     df_train = df_train.copy()
     df_test = df_test.copy()
 
+    # handle nans and infs
     df_train[numeric_cols] = df_train[numeric_cols].replace([np.inf, -np.inf], np.nan)
     df_test[numeric_cols] = df_test[numeric_cols].replace([np.inf, -np.inf], np.nan)
 
@@ -169,7 +164,7 @@ def apply_missingness(
         missing_test_before,
     )
 
-    # ---- DROP ROWS ----
+    # drop rows universes
     if universe.missingness == Missingness.DROP_ROWS:
         before_train = len(df_train)
         before_test = len(df_test)
@@ -187,7 +182,7 @@ def apply_missingness(
 
         return df_train, df_test
 
-    # ---- IMPUTE MEDIAN based on training data only ----
+    # impute median universes.
     if universe.missingness == Missingness.IMPUTE_MEDIAN:
         medians = df_train[numeric_cols].median()
 
@@ -211,9 +206,7 @@ def apply_log_transform(
     universe: Universe,
     ds_cfg,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    log1p transform for numeric features.
-    """
+
     if universe.log_transform == LogTransform.NONE:
         return df_train, df_val, df_test
 
@@ -262,7 +255,7 @@ def apply_log_transform(
 
 
 def fit_scaler(df_train: pd.DataFrame, universe: Universe, ds_cfg):
-    # numeric features = numeric cols except label and 'Label' if present
+    # numeric features = numeric cols except label column (attack) and 'Label' if present
     numeric_cols = [
         c
         for c in df_train.select_dtypes(include="number").columns
@@ -302,10 +295,7 @@ def transform_with_scaler(df: pd.DataFrame, scaler, numeric_cols) -> pd.DataFram
 def preprocess_variant(
     universe: Universe, overwrite: bool = False
 ) -> Tuple[Path, Path]:
-    """
-    End-to-end preprocessing for one Universe.
-    Returns path to preprocessed dataset.
-    """
+
     logger.info(f"Preprocessing dataset for universe={universe.id}")
 
     path_train = universe.preprocessed_train_path()
@@ -353,7 +343,7 @@ def preprocess_variant(
         df = None  # free memory, just to be sure
         gc.collect()
 
-        # Remove or impute missing values (e.g., NaN, inf) from val and test, respectively
+        # Remove or impute missing values (e.g., nan, inf) from val and test, respectively
         df_train, df_val = apply_missingness(
             df_train,
             df_val,

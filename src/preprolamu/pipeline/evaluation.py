@@ -1,4 +1,3 @@
-# src/preprolamu/pipeline/evaluation.py
 from __future__ import annotations
 
 import json
@@ -36,7 +35,6 @@ def _labels_from_df(df: pd.DataFrame, label_col: str) -> Optional[np.ndarray]:
 
 
 def _feature_matrix_from_df(df: pd.DataFrame, label_col: str) -> np.ndarray:
-    # Mirrors your AE training logic: drop label column and (if present) also "Label"
     cols_to_drop = [label_col]
     if "Label" in df.columns and "Label" not in cols_to_drop:
         cols_to_drop.append("Label")
@@ -66,8 +64,7 @@ def _recon_error_per_sample(
             bx = bx.to(device)
             xhat = model(bx)
 
-            # per-sample MSE across features
-            # shape: (batch,)
+            # per-sample MSE across features (batch,)
             e = torch.mean((xhat - bx) ** 2, dim=1).detach().cpu().numpy()
             errs.append(e)
 
@@ -111,14 +108,6 @@ def evaluate_autoencoder_reconstruction(
     batch_size: int = 2048,
     include_stratified: bool = True,
 ) -> Dict[str, Any]:
-    """
-    Evaluate AE reconstruction on a split.
-    Computes per-sample reconstruction MSE and returns summary stats.
-    If include_stratified=True and label column exists, also computes:
-      - benign-only summary (Attack == "Benign")
-      - attack-only summary (Attack != "Benign")
-    No thresholding / classification metrics.
-    """
     ds_cfg = load_dataset_config(universe.dataset_id)
     label_col = ds_cfg.label_column
 
@@ -149,7 +138,6 @@ def evaluate_autoencoder_reconstruction(
         out["recon_benign"] = _summarize_errors(err[benign_mask])
         out["recon_attack"] = _summarize_errors(err[attack_mask])
 
-        # Useful context for the paper
         out["n_benign"] = int(benign_mask.sum())
         out["n_attack"] = int(attack_mask.sum())
 

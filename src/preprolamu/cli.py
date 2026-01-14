@@ -1,4 +1,3 @@
-# src/preprolamu/cli.py
 from __future__ import annotations
 
 import logging
@@ -18,26 +17,16 @@ from preprolamu.pipeline.universes import generate_multiverse, get_universe
 app = typer.Typer(help="Simulation + TDA pipeline")
 
 
-# ----------- Global CLI options and commands ----------- #
+# set up logging.
 @app.callback()
-def main(
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Enable verbose (DEBUG) logging",
-    ),
-):
-    """
-    Global CLI options, executed before any subcommand.
-    """
-    level = logging.DEBUG if verbose else logging.INFO
-    setup_logging(log_dir=Path("logs"), level=level)
+def main():
+
+    setup_logging(log_dir=Path("logs"))
     logger = logging.getLogger(__name__)
-    logger.info("CLI started with verbose=%s", verbose)
+    logger.info("CLI started ...")
 
 
-# ----------- Create preprocessing multiverse ----------- #
+# preprocessing CLI function
 @app.command("prepare-preprocessing")
 def prepare_preprocessing(
     universe_index: Annotated[int | None, typer.Option()] = None,
@@ -53,7 +42,7 @@ def prepare_preprocessing(
         preprocess_variant(u, overwrite=overwrite)
 
 
-# ----------- Train AEs and create embeddings ----------- #
+# train AEs and retrieve embedding space.
 @app.command("prepare-embeddings")
 def prepare_embeddings(
     universe_index: Annotated[int | None, typer.Option()] = None,
@@ -81,7 +70,7 @@ def prepare_embeddings(
         )
 
 
-# ----------- Compute simplexes and TDA metrics ----------- #
+# compute persistent homology and related metrics from embeddings.
 @app.command("prepare-tda")
 def prepare_tda(
     universe_index: Annotated[int | None, typer.Option()] = None,
@@ -102,11 +91,10 @@ def prepare_tda(
         )
 
 
+# list all universes that can be simulated.
 @app.command("list-universes")
 def list_universes():
-    """
-    List all default Universes with their indices.
-    """
+
     universes = generate_multiverse()
     for i, universe in enumerate(universes):
         typer.echo(f"{i:3d}: {universe.id}")

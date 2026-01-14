@@ -1,4 +1,3 @@
-# src/preprolamu/config.py
 from __future__ import annotations
 
 import gc
@@ -46,28 +45,17 @@ class DatasetConfig:
         return Path("data") / "raw" / f"{self.dataset_id}_clean.parquet"
 
 
+# set up logging.
 @app.callback()
-def main(
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Enable verbose (DEBUG) logging",
-    ),
-):
-    """
-    Global CLI options, executed before any subcommand.
-    """
-    level = logging.DEBUG if verbose else logging.INFO
-    setup_logging(log_dir=Path("logs"), level=level)
+def main():
+
+    setup_logging(log_dir=Path("logs"))
     logger = logging.getLogger(__name__)
-    logger.info("CLI started with verbose=%s", verbose)
+    logger.info("CLI started ...")
 
 
 def load_dataset_config(dataset_id: str) -> DatasetConfig:
-    """
-    Load dataset-specific config from config/datasets/{dataset_id}.yml
-    """
+
     config_path = Path("config") / "datasets" / f"{dataset_id}.yml"
 
     if not config_path.exists():
@@ -81,7 +69,7 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
 
     ae_raw = raw_cfg.get("autoencoder", {}) or {}
 
-    # Default to Ton-IoT-v3 AE config if not specified
+    # Default to Ton-IoT-v3 AE config if not specified (but should be specified tbh)
     ae_cfg = AutoencoderConfig(
         latent_dim=ae_raw.get("latent_dim", 12),
         hidden_dims=tuple(ae_raw.get("hidden_dims", (26,))),
@@ -119,7 +107,7 @@ def update_dataset_yaml_with_invariants(
     logger.info("[PREP] Updated %s with dataset invariants", path)
 
 
-# ----------------- Core cleaning logic ----------------- #
+# load OG data
 def load_raw_source(cfg: DatasetConfig) -> pd.DataFrame:
     path = cfg.raw_path
 
@@ -129,7 +117,7 @@ def load_raw_source(cfg: DatasetConfig) -> pd.DataFrame:
         raise FileNotFoundError(f"Raw source file not found at {path}")
 
     if path.suffix.lower() == ".csv":
-        # df = pd.read_csv(path)
+
         pl.Config.set_verbose(True)
         with pl.Config(verbose=True):
             logger.info("[PREP] Scanning csv with Polars")
@@ -147,6 +135,7 @@ def load_raw_source(cfg: DatasetConfig) -> pd.DataFrame:
     return df
 
 
+# drop columns if these are indicated in config (but aint the case)
 def apply_drop_columns(df: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
     cols_to_drop = [c for c in cfg.features_to_exclude if c in df.columns]
     if cols_to_drop:
@@ -155,6 +144,7 @@ def apply_drop_columns(df: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
     return df
 
 
+# cat encoding
 def apply_one_time_categorical_encoding(
     df: pd.DataFrame, cfg: DatasetConfig
 ) -> pd.DataFrame:
@@ -177,7 +167,7 @@ def apply_one_time_categorical_encoding(
         old_dtype = df_out[col].dtype
 
         df_out[col] = df_out[col].astype("category")
-        codes = df_out[col].cat.codes  # int64 by default
+        codes = df_out[col].cat.codes
         logger.info("[PREP] Category codes range %s-%s", codes.min(), codes.max())
         df_out[col] = codes.astype("int32")
 
@@ -318,15 +308,11 @@ def prepare_dataset(dataset_id: str) -> None:
     gc.collect()
 
 
-# ----------------- Typer CLI ----------------- #
-# uv run setup initiate Merged35
+# CLI function to run the initial data cleaning. Much complicated
 @app.command()
 def initiate(
     dataset_id: str = typer.Argument(..., help="Dataset id to prepare, e.g. base_v1"),
 ):
-    """
-    One-time cleaning: read raw file, fix dtypes, save to data/raw/{dataset_id}.parquet.
-    """
 
     prepare_dataset(dataset_id)
 

@@ -1,4 +1,3 @@
-# src/preprolamu/pipeline/universes.py
 from __future__ import annotations
 
 import logging
@@ -48,19 +47,15 @@ class TdaConfig:
     homology_dimensions: Tuple[int, ...] = (0, 1, 2)
     num_landscapes: int = 5
     resolution: int = 1000
-    subsample_size: int = 500_000  # points used for TDA (10M means all points)
+    subsample_size: int = 500_000  # points used for TDA
 
 
 @dataclass(frozen=True)
 class Universe:
-    """
-    One 'universe' in the multiverse: preprocessing + AE + TDA params.
-    Holds all parameters needed to run the full pipeline for one configuration, including fixed-value parameters.
-    """
 
     dataset_id: str
 
-    # Preprocessing choices
+    # preprocessing choices
     scaling: Scaling
     log_transform: LogTransform
     feature_subset: FeatureSubset
@@ -68,10 +63,8 @@ class Universe:
     missingness: Missingness
     seed: int
 
-    # Will be overridden by PCA dims below.
     pca_dim: int = 3
 
-    # TDA config
     tda_config: TdaConfig = TdaConfig()
 
     # Parsed ID string
@@ -192,7 +185,6 @@ class Universe:
 
 
 DATASET_IDS: List[str] = [
-    # "Merged35",
     "NF-ToN-IoT-v3",
     "NF-UNSW-NB15-v3",
     "NF-CICIDS2018-v3",
@@ -201,7 +193,7 @@ DATASET_IDS: List[str] = [
 
 def dataset_invariants_for(universe: Universe) -> dict[str, Any]:
     cfg = load_dataset_config(universe.dataset_id)
-    inv = cfg.raw_cfg.get("dataset_invariants")  # see note below
+    inv = cfg.raw_cfg.get("dataset_invariants")
     if inv is None:
         raise RuntimeError(
             f"dataset_invariants missing for {universe.dataset_id}. "
@@ -239,9 +231,7 @@ def prune_multiverse(universes: list[Universe]) -> list[Universe]:
 
 
 def generate_multiverse() -> List[Universe]:
-    """
-    Generate the multiverses
-    """
+
     scalings = [Scaling.ZSCORE, Scaling.MINMAX, Scaling.QUANTILE]
     log_transforms = [LogTransform.NONE, LogTransform.LOG1P]
     feature_subsets = [FeatureSubset.ALL, FeatureSubset.WITHOUT_CONFOUNDERS]
@@ -273,9 +263,7 @@ def generate_multiverse() -> List[Universe]:
 
 
 def get_universe(index: int) -> Universe:
-    """
-    Get a single universe from the multiverse.
-    """
+
     universes = generate_multiverse()
     if index < 0 or index >= len(universes):
         raise typer.BadParameter(f"universe_index must be in [0, {len(universes)-1}]")

@@ -1,4 +1,3 @@
-# src/preprolamu/analyses.py
 from __future__ import annotations
 
 import logging
@@ -24,8 +23,6 @@ from preprolamu.pipeline.universes import generate_multiverse
 from preprolamu.utils_analyses_plots import (
     _ok_only,
     _parse_split_by,
-    _print_excluded_param_overview,
-    _subset_excluded_universes,
     filter_by_norm_threshold,
     filter_exclude_zero_norms,
 )
@@ -36,26 +33,16 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(help="Data analyses based on landscapes and embeddings.")
 
 
-# ----------- Global CLI options and commands ----------- #
+# set up logging.
 @app.callback()
-def main(
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Enable verbose (DEBUG) logging",
-    ),
-):
-    """
-    Global CLI options, executed before any subcommand.
-    """
-    level = logging.DEBUG if verbose else logging.INFO
-    setup_logging(log_dir=Path("logs"), level=level)
+def main():
+
+    setup_logging(log_dir=Path("logs"))
     logger = logging.getLogger(__name__)
-    logger.info("CLI started with verbose=%s", verbose)
+    logger.info("CLI started ...")
 
 
-# Variance, global, local and stability functions
+# Used in variance, global, local and stability functions
 _PRESTO_PARAMS: list[str] = [
     "scaling",
     "log_transform",
@@ -66,7 +53,7 @@ _PRESTO_PARAMS: list[str] = [
 ]
 
 
-# local sensitivity
+# local sensitivity helper
 def _presto_local_sensitivity_from_metrics_table(
     df_ds: pd.DataFrame,
     *,
@@ -89,7 +76,7 @@ def _presto_local_sensitivity_from_metrics_table(
             f"Parameter {param!r} not found in metrics table columns."
         )
 
-    # Equivalence classes: fix everything except param
+    # Equivalence classes: fix everything except the param of interest
     other_cols = [c for c in _PRESTO_PARAMS if c != param]
     missing = [c for c in other_cols if c not in df_ds.columns]
     if missing:
@@ -97,11 +84,11 @@ def _presto_local_sensitivity_from_metrics_table(
             f"Cannot form equivalence classes for {param!r}: missing columns {missing}."
         )
 
-    # Group into equivalence classes Q in Q_i
+    # Group into equivalence classes
     grouped = list(df_ds.groupby(other_cols, dropna=False))
     q = len(grouped)
 
-    # Compute PV(L[Q]) for each class Q and average
+    # Compute variance for each class and average
     pvs: list[float] = []
     sizes: list[int] = []
     singletons = 0
@@ -136,7 +123,7 @@ def _presto_local_sensitivity_from_metrics_table(
     }
 
 
-# global sensitivity
+# global sensitivity helper
 def _presto_global_sensitivity_from_metrics_table(
     df_ds: pd.DataFrame,
     *,
@@ -205,14 +192,11 @@ def _individual_sensitivity_table_for_param(
     param: str,
     homology_dims=(0, 1, 2),
 ) -> pd.DataFrame:
-    """
-    Build a table with one row per equivalence class Q for `param`.
-    Each equivalence class is defined by fixing all other _PRESTO_PARAMS (and dataset_id).
-    """
+
     if param not in df.columns:
         raise ValueError(f"Param {param!r} not in df columns.")
 
-    # Define context = all OTHER params (plus dataset_id for safety)
+    # Define context = all other params plus dataset
     fixed_cols = ["dataset_id"] + [
         c for c in _PRESTO_PARAMS if c != param and c in df.columns
     ]
@@ -251,16 +235,13 @@ def _individual_sensitivity_table_for_param(
     return out
 
 
-# stability regions
+# stability regions helper
 def _value_enrichment_table(
     stable_df: pd.DataFrame,
     unstable_df: pd.DataFrame,
     col: str,
 ) -> pd.DataFrame:
-    """
-    Compare distributions of a fixed parameter value in stable vs unstable regions.
-    Returns a small table with proportions and difference.
-    """
+
     s = stable_df[col].astype("object").value_counts(normalize=True, dropna=False)
     u = unstable_df[col].astype("object").value_counts(normalize=True, dropna=False)
     out = pd.concat(
@@ -270,7 +251,7 @@ def _value_enrichment_table(
     return out.sort_values("diff_unstable_minus_stable", ascending=False)
 
 
-# stability regions
+# stability regions helper
 def _print_top_contexts_with_universes(
     *,
     label: str,
@@ -283,7 +264,8 @@ def _print_top_contexts_with_universes(
     print(top_ctx[cols_show].to_string(index=False))
 
 
-# ----------- CLI commands ----------- #
+# CLI functions #
+# Create table manually (run once after metrics have been computed)
 @app.command("table")
 def make_table(
     split: str = typer.Option("test", help="train/val/test"),
@@ -296,6 +278,7 @@ def make_table(
     logger.info("Saved table to %s (rows=%d)", out, len(df))
 
 
+# L2 descriptive statistics per dataset
 @app.command("dataset-summary")
 def dataset_summary(
     param: Annotated[
@@ -327,7 +310,7 @@ def dataset_summary(
     df = filter_by_norm_threshold(df, threshold=norm_threshold)
     df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
 
-    # Example: compare distributions of l2_average across datasets
+    # The actual data
     summary = (
         df.groupby("dataset_id")[param]
         .agg(
@@ -363,22 +346,19 @@ def presto_variance(
         help="Exclude universes where all l2_dim* norms are exactly zero.",
     ),
 ):
-    """
-    Compute PRESTO variance per group using precomputed norms from metrics JSON
-    (no landscape loading).
-    """
-    # parse split_by (reuse your parsing logic / aliases)
-    keys = _parse_split_by(split_by)  # use the same alias parser you already wrote
+
+    # parse split_by (to handle two splits)
+    keys = _parse_split_by(split_by)
 
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
 
-    # threshold across dims (your updated filter_by_norm_threshold)
+    # filter data by maximum norm threshold
     df = filter_by_norm_threshold(df, threshold=norm_threshold)
 
+    # exclude all-zero-valued norms
     df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
 
-    # Ensure required columns exist
     needed = [f"l2_dim{d}" for d in (0, 1, 2)]
     for c in needed:
         if c not in df.columns:
@@ -386,7 +366,7 @@ def presto_variance(
                 f"Missing {c} in metrics table; cannot compute PRESTO variance."
             )
 
-    # Group and compute
+    # group and compute
     if not keys:
         grouped = [(("ALL",), df)]
     else:
@@ -442,10 +422,7 @@ def presto_local_sensitivity(
         help="Exclude universes where all l2_dim* norms are exactly zero.",
     ),
 ):
-    """
-    Compute LOCAL PRESTO sensitivity per dataset from the metrics table only.
-    If param='all', prints one row per parameter per dataset.
-    """
+
     allowed = set(_PRESTO_PARAMS + ["all"])
     if param not in allowed:
         raise typer.BadParameter(f"--param must be one of {sorted(allowed)}")
@@ -461,6 +438,7 @@ def presto_local_sensitivity(
 
     params_to_run = _PRESTO_PARAMS if param == "all" else [param]
 
+    # build table data
     rows: list[dict] = []
     for ds in datasets:
         df_ds = df[df["dataset_id"] == ds].copy()
@@ -486,7 +464,7 @@ def presto_local_sensitivity(
     out["param"] = pd.Categorical(out["param"], categories=_PRESTO_PARAMS, ordered=True)
     out = out.sort_values(["dataset_id", "param"])
 
-    # pretty numeric formatting
+    # number formatting
     pd.set_option("display.float_format", lambda x: f"{x:.6g}")
     print(out.to_string(index=False))
 
@@ -503,10 +481,7 @@ def presto_global_sensitivity(
         help="Exclude universes where all l2_dim* norms are exactly zero.",
     ),
 ):
-    """
-    Compute GLOBAL PRESTO sensitivity per dataset from the metrics table only.
-    Global = sqrt( average over parameters of (average PV over equivalence classes for that param) ).
-    """
+
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
     df = filter_by_norm_threshold(df, threshold=norm_threshold)
@@ -546,10 +521,7 @@ def ae_eval(
         True, help="Also compute Benign vs Attack summaries (no thresholding)"
     ),
 ):
-    """
-    Evaluate trained autoencoders on a split and store reconstruction-error metrics per universe.
-    Writes: data/processed/eval_metrics/{universe_id}_eval_{split}.json
-    """
+
     if split == "validation":
         split = "val"
     if split not in {"val", "test"}:
@@ -619,11 +591,7 @@ def presto_stability_regions(
         help="If True, skip params with <2 unique values within a dataset (e.g. collapsed missingness).",
     ),
 ):
-    """
-    Stable vs unstable regions via *individual PRESTO sensitivity* (sqrt(PV) per equivalence class).
-    Prints BOTH top stable and top unstable contexts per dataset + param,
-    and prints the universes contained in each context.
-    """
+
     if not (0.0 < q_low < q_high < 1.0):
         raise typer.BadParameter("Require 0 < q_low < q_high < 1.")
 
@@ -663,7 +631,7 @@ def presto_stability_regions(
                 print(f"\n[param={p}] skipped (non-varying within dataset; nunique<2).")
                 continue
 
-            # One row per equivalence class (context defined by all OTHER params)
+            # One row per equivalence class (context defined by all other params)
             ind = _individual_sensitivity_table_for_param(
                 ds_df, param=p, homology_dims=(0, 1, 2)
             )
@@ -713,12 +681,11 @@ def presto_stability_regions(
             )
 
             # These columns define the context and are used to retrieve universes
-            # fixed_cols = _fixed_cols_for_param(ds_df, param=p)
             fixed_cols = ["dataset_id"] + [
                 c for c in _PRESTO_PARAMS if c != p and c in ds_df.columns
             ]
 
-            # Print top unstable + universes
+            # Print top unstable
             if not top_unstable.empty:
                 _print_top_contexts_with_universes(
                     label="Top UNSTABLE",
@@ -728,7 +695,7 @@ def presto_stability_regions(
             else:
                 print("\nTop UNSTABLE contexts: none (after filtering/thresholding).")
 
-            # Print top stable + universes
+            # Print top stable
             if not top_stable.empty:
                 _print_top_contexts_with_universes(
                     label="Top STABLE",
@@ -738,8 +705,7 @@ def presto_stability_regions(
             else:
                 print("\nTop STABLE contexts: none (after filtering/thresholding).")
 
-            # Optional quick “what characterizes instability?” enrichment table
-            # (kept minimal: only show for params with >=2 unique values)
+            # supplementary info about how params affect stability
             fixed_cols_no_ds = [c for c in fixed_cols if c != "dataset_id"]
             if fixed_cols_no_ds and len(stable) > 0 and len(unstable) > 0:
                 print(
@@ -754,90 +720,6 @@ def presto_stability_regions(
                     enr = _value_enrichment_table(stable, unstable, c)
                     print(f"\n  {c}:")
                     print(enr.head(5).to_string())
-
-
-# analyze excluded universes
-@app.command("excluded-universes")
-def excluded_universes(
-    split: str = typer.Option("test", help="train/val/test"),
-    threshold: float = typer.Option(
-        100.0,
-        help="Outlier threshold: flag universe if any l2_dim* > threshold.",
-    ),
-    preview_rows: int = typer.Option(25, help="How many excluded rows to preview."),
-    save_csv: bool = typer.Option(
-        False, help="Save excluded subset + overview CSV files."
-    ),
-    out_dir: Path = typer.Option(
-        Path("data/processed/analysis"),
-        help="Output directory for CSV exports (if --save-csv).",
-    ),
-):
-    """
-    Analyze universes you normally exclude:
-      - any l2_dim* > threshold
-      - OR all l2_dim* == 0
-
-    Prints excluded subset preview + parameter distribution tables (per dataset).
-    Optionally saves CSV exports.
-    """
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    universes = generate_multiverse()
-    df = build_metrics_table(universes, split=split, require_exists=True)
-    df = _ok_only(df)
-
-    excluded, meta = _subset_excluded_universes(df, threshold=threshold)
-
-    print("\n" + "=" * 90)
-    print("Excluded universes extraction summary")
-    print("=" * 90)
-    for k, v in meta.items():
-        print(f"{k}: {v}")
-
-    if excluded.empty:
-        print("\nNo excluded universes found.")
-        return
-
-    # Preview subset
-    show_cols = [
-        c
-        for c in (
-            ["universe_id", "dataset_id", "excluded_reason"]
-            + _PRESTO_PARAMS
-            + [f"l2_dim{d}" for d in (0, 1, 2)]
-            + ["l2_average"]
-        )
-        if c in excluded.columns
-    ]
-    print("\n" + "=" * 90)
-    print(f"Deviant universes (first {preview_rows} rows)")
-    print("=" * 90)
-    print(excluded[show_cols].head(preview_rows).to_string(index=False))
-
-    # Counts by dataset + reason
-    if "dataset_id" in excluded.columns:
-        print("\nCounts by dataset:")
-        print(excluded["dataset_id"].value_counts(dropna=False).to_string())
-    if "excluded_reason" in excluded.columns:
-        print("\nCounts by excluded reason:")
-        print(excluded["excluded_reason"].value_counts(dropna=False).to_string())
-
-    # Parameter overview tables
-    overview = _print_excluded_param_overview(excluded)
-
-    if save_csv:
-        subset_path = (
-            out_dir / f"excluded_universes_split-{split}_thr-{threshold:g}.csv"
-        )
-        excluded[show_cols].to_csv(subset_path, index=False)
-        logger.info("Saved excluded subset to %s", subset_path)
-
-        overview_path = (
-            out_dir / f"excluded_param_overview_split-{split}_thr-{threshold:g}.csv"
-        )
-        overview.to_csv(overview_path, index=False)
-        logger.info("Saved excluded overview to %s", overview_path)
 
 
 if __name__ == "__main__":

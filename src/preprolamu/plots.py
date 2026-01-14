@@ -228,20 +228,6 @@ def presto_variance_violin(
     if df_plot.empty:
         raise typer.BadParameter("No finite combined absolute deviations to plot.")
 
-    # If log scale requested, drop non-positive values (cannot plot on log axis)
-    # if log_y:
-    #     before = len(df_plot)
-    #     df_plot = df_plot[df_plot["abs_dev"] > 0].copy()
-    #     after = len(df_plot)
-    #     if df_plot.empty:
-    #         raise typer.BadParameter(
-    #             "log_y=True but no positive abs_dev values remain (log scale requires > 0)."
-    #         )
-    #     if after < before:
-    #         logger.info(
-    #             "log_y=True: excluded %d non-positive abs_dev values.", before - after
-    #         )
-
     sns.set_theme(style="whitegrid")
 
     # One axis, shared y-scale
@@ -334,21 +320,6 @@ def presto_individual_violin(
     plot_df = pd.DataFrame(rows)
     if plot_df.empty:
         raise typer.BadParameter("No individual sensitivities to plot.")
-
-    # If log scale requested, drop non-positive values
-    # if log_y:
-    #     before = len(plot_df)
-    #     plot_df = plot_df[plot_df["individual_sensitivity"] > 0].copy()
-    #     after = len(plot_df)
-    #     if plot_df.empty:
-    #         raise typer.BadParameter(
-    #             "log_y=True but no positive individual_sensitivity values remain (log scale requires > 0)."
-    #         )
-    #     if after < before:
-    #         logger.info(
-    #             "log_y=True: excluded %d non-positive individual_sensitivity values.",
-    #             before - after,
-    #         )
 
     plt.figure(figsize=(9, 3.4))
     ax = sns.violinplot(
@@ -568,7 +539,7 @@ def topology_vs_performance_plot(
             txt,
             transform=ax.transAxes,
             ha="right",
-            va="top",
+            va="center",
             fontsize=12,
         )
 

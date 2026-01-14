@@ -255,7 +255,7 @@ def presto_variance_violin(
     )
 
     if log_y:
-        ax.set_yscale("log", base=2)
+        ax.set_yscale("log")
 
     ax.set_xlabel("", fontsize=14)
     ax.set_ylabel(
@@ -361,7 +361,7 @@ def presto_individual_violin(
     )
 
     if log_y:
-        ax.set_yscale("log", base=2)
+        ax.set_yscale("log")
 
     # modify duplicates tick text to ensure readability
     x_ticks = ax.get_xticks()

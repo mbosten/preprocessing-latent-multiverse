@@ -81,8 +81,10 @@ def load_tda_npz(path: Path) -> Dict[str, np.ndarray]:
         return {k: data[k] for k in data.files}
 
 
-def save_projected(universe: Universe, split: str, arr: np.ndarray) -> None:
-    path = universe.projected_path(split=split)
+def save_projected(
+    universe: Universe, split: str, normalized: bool, arr: np.ndarray
+) -> None:
+    path = universe.projected_path(split=split, normalized=normalized)
     ensure_parent_dir(path)
     logger.info("[IO] Saving projected point cloud (%s) to %s", split, path)
     np.save(path, arr)

@@ -76,7 +76,10 @@ def from_latent_to_point_cloud(
         u, split = save_projected_raw_to
         X_pca_raw = project_PCA(X, n_components=pca_dim, seed=seed)
         save_projected(
-            universe=u, split=f"{split}_raw", arr=X_pca_raw.astype(dtype, copy=False)
+            universe=u,
+            split=f"{split}_raw",
+            normalized=False,
+            arr=X_pca_raw.astype(dtype, copy=False),
         )
 
     diameter = None
@@ -85,10 +88,13 @@ def from_latent_to_point_cloud(
 
     X_pca = project_PCA(X, n_components=pca_dim, seed=seed)
 
-    if save_projected_to is not None:
+    if save_projected_to is not None and normalize:
         universe, split = save_projected_to
         save_projected(
-            universe=universe, split=split, arr=X_pca.astype(dtype, copy=False)
+            universe=universe,
+            split=split,
+            normalized=normalize,
+            arr=X_pca.astype(dtype, copy=False),
         )
 
     if target_size < X_pca.shape[0]:

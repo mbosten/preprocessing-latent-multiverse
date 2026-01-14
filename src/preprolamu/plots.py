@@ -395,7 +395,7 @@ def presto_individual_violin(
     ax.set_title(f"{scope}", fontsize=14)
     ax.set_xticks(ticks=x_ticks)
     ax.set_xticklabels(labels=x_labels, ha="center", fontsize=12)
-    ax.set_yticklabels(fontsize=12)
+    ax.tick_params(labelsize=12)
 
     log_tag = "logy-1" if log_y else "logy-0"
     out_path = out_dir / (

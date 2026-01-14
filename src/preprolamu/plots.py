@@ -1434,7 +1434,8 @@ def presto_variance_violin(
 
     ax.set_xlabel("", fontsize=14)
     ax.set_ylabel(
-        r"$\sum^h_{x=0}|\|L\|_p-\mu_{\mathcal{L}^x}|$  (summed absolute norm deviation)",
+        # r"$\sum^h_{x=0}|\|L\|_p-\mu_{\mathcal{L}^x}|$  (summed absolute norm deviation)",
+        "Summed absolute norm deviation",
         fontsize=14,
     )
     ax.tick_params(labelsize=12)

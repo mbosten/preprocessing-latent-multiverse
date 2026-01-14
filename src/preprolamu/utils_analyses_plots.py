@@ -122,3 +122,125 @@ def spearmanr_permutation(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
         random_state=0,
     )
     return float(rs), float(res.pvalue)
+
+
+_L2_DIMS = (0, 1, 2)
+
+
+def _get_l2_dim_cols(df: pd.DataFrame) -> list[str]:
+    cols = [f"l2_dim{d}" for d in _L2_DIMS if f"l2_dim{d}" in df.columns]
+    if not cols:
+        raise typer.BadParameter("No l2_dim* columns found in metrics table.")
+    return cols
+
+
+def _subset_excluded_universes(
+    df: pd.DataFrame,
+    *,
+    threshold: float,
+) -> tuple[pd.DataFrame, dict]:
+    """
+    Deviant universes are those that are normally excluded:
+      A) any l2_dim* > threshold
+      OR
+      B) all l2_dim* == 0
+
+    Returns: (excluded_df, meta)
+    """
+    df = _ok_only(df)
+    dim_cols = _get_l2_dim_cols(df)
+
+    X = df[dim_cols].to_numpy(dtype=float)
+    X = np.where(np.isfinite(X), X, np.nan)
+
+    outlier_mask = np.nanmax(X, axis=1) > threshold
+    all_zero_mask = np.all(X == 0.0, axis=1) & np.all(np.isfinite(X), axis=1)
+
+    excluded_mask = outlier_mask | all_zero_mask
+
+    excluded = df.loc[excluded_mask].copy()
+    breakpoint()
+    excluded["excluded_reason"] = np.where(
+        outlier_mask & all_zero_mask,
+        "both",
+        np.where(outlier_mask, f"outlier_norm_gt_{threshold:g}", "all_zero_norms"),
+    )
+
+    meta = {
+        "n_total_ok": int(len(df)),
+        "n_excluded": int(len(excluded)),
+        "n_outlier": int(outlier_mask.sum()),
+        "n_all_zero": int(all_zero_mask.sum()),
+        "threshold": float(threshold),
+        "dim_cols": dim_cols,
+    }
+    return excluded, meta
+
+
+_PRESTO_PARAMS: list[str] = [
+    "scaling",
+    "log_transform",
+    "feature_subset",
+    "duplicate_handling",
+    "missingness",
+    "seed",
+]
+
+
+def _print_excluded_param_overview(excluded: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prints (and returns) a long-form overview table:
+      dataset_id, param, value, count, pct
+    """
+    if excluded.empty:
+        print("\nNo excluded universes.")
+        return pd.DataFrame(columns=["dataset_id", "param", "value", "count", "pct"])
+
+    params_present = [
+        c for c in (["dataset_id"] + _PRESTO_PARAMS) if c in excluded.columns
+    ]
+    datasets = (
+        sorted(excluded["dataset_id"].dropna().unique().tolist())
+        if "dataset_id" in excluded.columns
+        else ["ALL"]
+    )
+
+    rows: list[dict] = []
+    for ds in datasets:
+        sdf = excluded if ds == "ALL" else excluded[excluded["dataset_id"] == ds]
+        if sdf.empty:
+            continue
+        for p in params_present:
+            if p == "dataset_id":
+                continue
+            vc = sdf[p].astype("object").value_counts(dropna=False)
+            for val, cnt in vc.items():
+                rows.append(
+                    {
+                        "dataset_id": ds,
+                        "param": p,
+                        "value": val,
+                        "count": int(cnt),
+                        "pct": float(cnt / max(len(sdf), 1)),
+                    }
+                )
+
+    overview = pd.DataFrame(rows).sort_values(
+        ["dataset_id", "param", "count"], ascending=[True, True, False]
+    )
+
+    print("\n" + "=" * 90)
+    print("Deviant universes: parameter-value counts (per dataset)")
+    print("=" * 90)
+    for ds in overview["dataset_id"].unique().tolist():
+        print("\n" + "-" * 90)
+        print(f"Dataset: {ds}")
+        sub = overview[overview["dataset_id"] == ds].copy()
+        for p in sub["param"].unique().tolist():
+            s2 = sub[sub["param"] == p].copy()
+            # show all values for this param
+            s2["pct"] = (s2["pct"] * 100.0).round(1)
+            print(f"\n{p}:")
+            print(s2[["value", "count", "pct"]].to_string(index=False))
+
+    return overview

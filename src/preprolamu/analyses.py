@@ -24,6 +24,8 @@ from preprolamu.pipeline.universes import generate_multiverse
 from preprolamu.plots import _parse_split_by
 from preprolamu.utils_analyses_plots import (
     _ok_only,
+    _print_excluded_param_overview,
+    _subset_excluded_universes,
     filter_by_norm_threshold,
     filter_exclude_zero_norms,
 )
@@ -870,6 +872,90 @@ def presto_stability_regions(
                     enr = _value_enrichment_table(stable, unstable, c)
                     print(f"\n  {c}:")
                     print(enr.head(5).to_string())
+
+
+# analyze excluded universes
+@app.command("excluded-universes")
+def excluded_universes(
+    split: str = typer.Option("test", help="train/val/test"),
+    threshold: float = typer.Option(
+        100.0,
+        help="Outlier threshold: flag universe if any l2_dim* > threshold.",
+    ),
+    preview_rows: int = typer.Option(25, help="How many excluded rows to preview."),
+    save_csv: bool = typer.Option(
+        False, help="Save excluded subset + overview CSV files."
+    ),
+    out_dir: Path = typer.Option(
+        Path("data/processed/analysis"),
+        help="Output directory for CSV exports (if --save-csv).",
+    ),
+):
+    """
+    Analyze universes you normally exclude:
+      - any l2_dim* > threshold
+      - OR all l2_dim* == 0
+
+    Prints excluded subset preview + parameter distribution tables (per dataset).
+    Optionally saves CSV exports.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    universes = generate_multiverse()
+    df = build_metrics_table(universes, split=split, require_exists=True)
+    df = _ok_only(df)
+
+    excluded, meta = _subset_excluded_universes(df, threshold=threshold)
+
+    print("\n" + "=" * 90)
+    print("Excluded universes extraction summary")
+    print("=" * 90)
+    for k, v in meta.items():
+        print(f"{k}: {v}")
+
+    if excluded.empty:
+        print("\nNo excluded universes found.")
+        return
+
+    # Preview subset
+    show_cols = [
+        c
+        for c in (
+            ["universe_id", "dataset_id", "excluded_reason"]
+            + _PRESTO_PARAMS
+            + [f"l2_dim{d}" for d in (0, 1, 2)]
+            + ["l2_average"]
+        )
+        if c in excluded.columns
+    ]
+    print("\n" + "=" * 90)
+    print(f"Deviant universes (first {preview_rows} rows)")
+    print("=" * 90)
+    print(excluded[show_cols].head(preview_rows).to_string(index=False))
+
+    # Counts by dataset + reason
+    if "dataset_id" in excluded.columns:
+        print("\nCounts by dataset:")
+        print(excluded["dataset_id"].value_counts(dropna=False).to_string())
+    if "excluded_reason" in excluded.columns:
+        print("\nCounts by excluded reason:")
+        print(excluded["excluded_reason"].value_counts(dropna=False).to_string())
+
+    # Parameter overview tables
+    overview = _print_excluded_param_overview(excluded)
+
+    if save_csv:
+        subset_path = (
+            out_dir / f"excluded_universes_split-{split}_thr-{threshold:g}.csv"
+        )
+        excluded[show_cols].to_csv(subset_path, index=False)
+        logger.info("Saved excluded subset to %s", subset_path)
+
+        overview_path = (
+            out_dir / f"excluded_param_overview_split-{split}_thr-{threshold:g}.csv"
+        )
+        overview.to_csv(overview_path, index=False)
+        logger.info("Saved excluded overview to %s", overview_path)
 
 
 if __name__ == "__main__":

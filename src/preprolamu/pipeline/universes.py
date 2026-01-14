@@ -48,7 +48,7 @@ class TdaConfig:
     homology_dimensions: Tuple[int, ...] = (0, 1, 2)
     num_landscapes: int = 5
     resolution: int = 1000
-    subsample_size: int = 10_000_000  # points used for TDA (10M means all points)
+    subsample_size: int = 500_000  # points used for TDA (10M means all points)
 
 
 @dataclass(frozen=True)

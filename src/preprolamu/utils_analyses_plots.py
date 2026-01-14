@@ -105,6 +105,43 @@ def filter_exclude_zero_norms(df: pd.DataFrame, *, exclude_zero: bool) -> pd.Dat
     return df2
 
 
+def _parse_split_by(spec: str) -> list[str]:
+    """
+    Parse --split-by "dataset,scaling" into list of 1-2 normalized keys.
+    Allowed keys map to columns in the metrics table.
+    """
+    spec = (spec or "").strip()
+    if not spec:
+        return []
+
+    keys = [k.strip().lower() for k in spec.split(",") if k.strip()]
+    if len(keys) > 2:
+        raise typer.BadParameter(
+            "--split-by supports at most 2 keys (e.g., 'dataset' or 'dataset,scaling')."
+        )
+
+    alias = {
+        "dataset": "dataset_id",
+        "dataset_id": "dataset_id",
+        "scaling": "scaling",
+        "feature_subset": "feature_subset",
+        "features": "feature_subset",
+        "log_transform": "log_transform",
+        "log": "log_transform",
+        "duplicate_handling": "duplicate_handling",
+        "duplicates": "duplicate_handling",
+        "missingness": "missingness",
+    }
+    out = []
+    for k in keys:
+        if k not in alias:
+            raise typer.BadParameter(
+                f"Unknown split key {k!r}. Allowed: dataset, scaling, feature_subset, log_transform, duplicate_handling, missingness."
+            )
+        out.append(alias[k])
+    return out
+
+
 def spearmanr_permutation(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
 
     rs = spearmanr(x, y).statistic

@@ -330,7 +330,16 @@ def dataset_summary(
     # Example: compare distributions of l2_average across datasets
     summary = (
         df.groupby("dataset_id")[param]
-        .agg(["count", "mean", "median", "std", "min", "max"])
+        .agg(
+            count="count",
+            mean="mean",
+            median="median",
+            std="std",
+            min="min",
+            max="max",
+            p95=lambda x: x.quantile(0.95),
+            p99=lambda x: x.quantile(0.99),
+        )
         .sort_values("mean", ascending=False)
     )
     print(summary.to_string())

@@ -43,27 +43,20 @@ def filter_by_norm_threshold(
     if threshold is None:
         return df
 
-    # Find all l2_dim{d} columns present
-    dim_cols = sorted([c for c in df.columns if c.startswith("l2_dim")])
-    if not dim_cols:
+    if "l2_average" not in df.columns:
         raise typer.BadParameter(
-            "Requested norm threshold filtering, but no 'l2_dim*' columns exist in the table."
+            "Requested norm threshold filtering, but 'l2_average' column does not exist in the table."
         )
 
     before = len(df)
 
-    # Keep universes where every dimension norm is <= threshold (NaNs treated as fail-safe drop)
-    mask = pd.Series(True, index=df.index)
-    for c in dim_cols:
-        mask &= df[c].notna() & (df[c] <= threshold)
-
+    mask = df["l2_average"].notna() & (df["l2_average"] <= threshold)
     df2 = df[mask].copy()
 
     logger.info(
-        "Applied norm threshold across dims: kept %d/%d where max(%s) <= %.6g (dropped=%d)",
+        "Applied norm threshold on l2_average: kept %d/%d where l2_average <= %.6g (dropped=%d)",
         len(df2),
         before,
-        ",".join(dim_cols),
         threshold,
         before - len(df2),
     )

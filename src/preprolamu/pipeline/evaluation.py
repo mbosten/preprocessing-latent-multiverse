@@ -120,7 +120,7 @@ def evaluate_autoencoder_reconstruction(
     No thresholding / classification metrics.
     """
     ds_cfg = load_dataset_config(universe.dataset_id)
-    label_col = ds_cfg.label_column  # you said this is "Attack"
+    label_col = ds_cfg.label_column
 
     path = _split_to_path(universe, split)
     df = pd.read_parquet(path)

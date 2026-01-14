@@ -21,9 +21,9 @@ from preprolamu.pipeline.metrics import (
     compute_presto_variance_from_metrics_table,
 )
 from preprolamu.pipeline.universes import generate_multiverse
-from preprolamu.plots import _parse_split_by
 from preprolamu.utils_analyses_plots import (
     _ok_only,
+    _parse_split_by,
     _print_excluded_param_overview,
     _subset_excluded_universes,
     filter_by_norm_threshold,
@@ -55,6 +55,7 @@ def main(
     logger.info("CLI started with verbose=%s", verbose)
 
 
+# Variance, global, local and stability functions
 _PRESTO_PARAMS: list[str] = [
     "scaling",
     "log_transform",
@@ -65,24 +66,14 @@ _PRESTO_PARAMS: list[str] = [
 ]
 
 
+# local sensitivity
 def _presto_local_sensitivity_from_metrics_table(
     df_ds: pd.DataFrame,
     *,
     param: str,
     homology_dims: tuple[int, ...] = (0, 1, 2),
 ) -> dict:
-    """
-    Wayland-style LOCAL PRESTO sensitivity for one parameter i, within ONE dataset.
-    Uses equivalence classes defined by equality on all other parameters (j != i).
 
-    Returns dict with:
-      - local_sensitivity (sqrt of avg PV over classes)
-      - avg_pv_over_classes
-      - q (number of equivalence classes)
-      - n (rows)
-      - singleton_classes (classes of size 1)
-      - mean_class_size
-    """
     if df_ds.empty:
         return {
             "local_sensitivity": float("nan"),
@@ -145,24 +136,13 @@ def _presto_local_sensitivity_from_metrics_table(
     }
 
 
+# global sensitivity
 def _presto_global_sensitivity_from_metrics_table(
     df_ds: pd.DataFrame,
     *,
     params: list[str] | None = None,
     homology_dims: tuple[int, ...] = (0, 1, 2),
 ) -> dict:
-    """
-    Wayland-style GLOBAL PRESTO sensitivity within ONE dataset:
-      sqrt( (1/c) * sum_i (1/q_i) * sum_Q PV(L[Q]) )
-    which equals:
-      sqrt( average over parameters of (average PV over equivalence classes for that param) )
-
-    Returns dict with:
-      - global_sensitivity
-      - avg_pv_across_params   (the quantity under sqrt)
-      - c (#params)
-      - n (rows)
-    """
     if df_ds.empty:
         return {
             "global_sensitivity": float("nan"),
@@ -219,18 +199,6 @@ def _presto_global_sensitivity_from_metrics_table(
     }
 
 
-def _universes_for_equivalence_class(
-    df: pd.DataFrame,
-    *,
-    fixed_cols: list[str],
-    fixed_vals: tuple,
-) -> pd.DataFrame:
-    mask = pd.Series(True, index=df.index)
-    for c, v in zip(fixed_cols, fixed_vals):
-        mask &= df[c] == v
-    return df.loc[mask].copy()
-
-
 def _individual_sensitivity_table_for_param(
     df: pd.DataFrame,
     *,
@@ -283,6 +251,7 @@ def _individual_sensitivity_table_for_param(
     return out
 
 
+# stability regions
 def _value_enrichment_table(
     stable_df: pd.DataFrame,
     unstable_df: pd.DataFrame,
@@ -301,14 +270,12 @@ def _value_enrichment_table(
     return out.sort_values("diff_unstable_minus_stable", ascending=False)
 
 
+# stability regions
 def _print_top_contexts_with_universes(
     *,
     label: str,
-    ds_df: pd.DataFrame,
     top_ctx: pd.DataFrame,
     fixed_cols: list[str],
-    sort_universes_by: str = "l2_average",
-    max_universes_per_context: int | None = None,
 ):
     print(f"\n{label} contexts (equivalence classes):")
     cols_show = fixed_cols + ["class_size", "individual_sensitivity"]
@@ -367,91 +334,6 @@ def dataset_summary(
         .sort_values("mean", ascending=False)
     )
     print(summary.to_string())
-
-
-@app.command("parameter-effect")
-def parameter_effect(
-    param: Annotated[
-        Literal[
-            "scaling",
-            "log_transform",
-            "feature_subset",
-            "duplicate_handling",
-            "missingness",
-            "seed",
-        ],
-        typer.Option(
-            "--param",
-            help="Which multiverse parameter to compare?",
-            show_choices=True,
-        ),
-    ],
-    split: Annotated[
-        Literal["train", "val", "test"],
-        typer.Option(
-            "--split",
-            help="Dataset split to analyze",
-            show_choices=True,
-        ),
-    ] = "test",
-    dataset_id: Optional[str] = typer.Option(
-        None,
-        help="Optional: restrict to one dataset ('NF-ToN-IoT-v3', 'NF-UNSW-NB15-v3', 'NF-CICIDS2018-v3')",
-    ),
-    norm_threshold: Optional[float] = typer.Option(
-        None,
-        help="Only include universes with norm <= this threshold (for outlier-robust comparisons).",
-    ),
-    exclude_zero_norms: bool = typer.Option(
-        False,
-        help="Exclude universes where all l2_dim* norms are exactly zero.",
-    ),
-):
-    """
-    Compare distributions of l2_average between the settings of one parameter.
-    Minimal version: group summaries + a simple nonparametric test.
-    """
-    try:
-        from scipy.stats import kruskal, mannwhitneyu
-    except Exception:
-        raise typer.Exit(code=2)  # scipy missing; keep script minimal and fail early
-
-    universes = generate_multiverse()
-    df = _ok_only(build_metrics_table(universes, split=split))
-
-    df = filter_by_norm_threshold(
-        df,
-        threshold=norm_threshold,
-    )
-    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
-
-    if dataset_id is not None:
-        df = df[df["dataset_id"] == dataset_id].copy()
-
-    if param not in df.columns:
-        raise typer.BadParameter(
-            f"Unknown param {param!r}. Available: {list(df.columns)}"
-        )
-
-    # summaries
-    grp = df.groupby(param)["l2_average"]
-    summ = grp.agg(["count", "mean", "median", "std"]).sort_values(
-        "median", ascending=False
-    )
-    print("\nSummary:\n", summ.to_string())
-
-    # stats: 2 groups => Mann–Whitney, >2 => Kruskal
-    groups = [g.dropna().to_numpy() for _, g in grp]
-    labels = list(grp.groups.keys())
-
-    if len(groups) == 2:
-        stat, p = mannwhitneyu(groups[0], groups[1], alternative="two-sided")
-        print(f"\nMann–Whitney U: {labels[0]} vs {labels[1]}: U={stat:.3g}, p={p:.3g}")
-    elif len(groups) > 2:
-        stat, p = kruskal(*groups)
-        print(f"\nKruskal–Wallis: H={stat:.3g}, p={p:.3g}")
-    else:
-        print("\nNot enough groups to test.")
 
 
 @app.command("presto-variance")
@@ -726,10 +608,6 @@ def presto_stability_regions(
         True,
         help="If True, skip params with <2 unique values within a dataset (e.g. collapsed missingness).",
     ),
-    max_universes_per_context: int = typer.Option(
-        20,
-        help="How many universes to print per context (stable/unstable).",
-    ),
 ):
     """
     Stable vs unstable regions via *individual PRESTO sensitivity* (sqrt(PV) per equivalence class).
@@ -834,11 +712,8 @@ def presto_stability_regions(
             if not top_unstable.empty:
                 _print_top_contexts_with_universes(
                     label="Top UNSTABLE",
-                    ds_df=ds_df,
                     top_ctx=top_unstable,
                     fixed_cols=fixed_cols,
-                    sort_universes_by="l2_average",
-                    max_universes_per_context=max_universes_per_context,
                 )
             else:
                 print("\nTop UNSTABLE contexts: none (after filtering/thresholding).")
@@ -847,11 +722,8 @@ def presto_stability_regions(
             if not top_stable.empty:
                 _print_top_contexts_with_universes(
                     label="Top STABLE",
-                    ds_df=ds_df,
                     top_ctx=top_stable,
                     fixed_cols=fixed_cols,
-                    sort_universes_by="l2_average",
-                    max_universes_per_context=max_universes_per_context,
                 )
             else:
                 print("\nTop STABLE contexts: none (after filtering/thresholding).")

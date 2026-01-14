@@ -337,6 +337,7 @@ def dataset_summary(
             std="std",
             min="min",
             max="max",
+            p90=lambda x: x.quantile(0.90),
             p95=lambda x: x.quantile(0.95),
             p99=lambda x: x.quantile(0.99),
         )

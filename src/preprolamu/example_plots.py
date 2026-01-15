@@ -11,6 +11,7 @@ from matplotlib.patches import Circle
 
 
 # sample data in the shape of a circle
+# sample data in the shape of a circle
 def sample_noisy_circle(
     n: int = 60,
     radius: float = 1.0,
@@ -24,6 +25,7 @@ def sample_noisy_circle(
     return X
 
 
+# build example alpha complex with gudhi
 # build example alpha complex with gudhi
 def build_alpha_simplex_tree(X: np.ndarray, max_dimension: int = 2) -> gd.SimplexTree:
     ac = gd.AlphaComplex(points=X)
@@ -64,11 +66,13 @@ def pick_alphas_from_h1(intervals: dict[int, np.ndarray], fallback=(0.005, 0.03,
 
 
 # Extract simplices present at alpha (for plotting specific scales)
+# Extract simplices present at alpha (for plotting specific scales)
 def simplices_at_alpha(st: gd.SimplexTree, alpha: float):
 
     edges, tris = [], []
     for simplex, filt in st.get_filtration():
         if filt > alpha:
+            break
             break
         if len(simplex) == 2:
             i, j = simplex
@@ -87,6 +91,7 @@ def _finite_diagram(dgm: np.ndarray) -> np.ndarray:
     return dgm[np.isfinite(dgm[:, 1])]
 
 
+# Figure 1 - alpha complex panel
 # Figure 1 - alpha complex panel
 def plot_alpha_panel(
     ax,
@@ -120,12 +125,14 @@ def plot_alpha_panel(
         )
 
     # ball visualization
+    # ball visualization
     if draw_balls:
         r = float(np.sqrt(max(alpha, 0.0)))
         for k in range(X.shape[0]):
             ax.add_patch(Circle((X[k, 0], X[k, 1]), r, fill=False, alpha=0.15))
 
 
+# Figure 2 - barcode
 # Figure 2 - barcode
 def plot_barcode(
     ax, intervals: dict[int, np.ndarray], dims=(0, 1), cap_inf: float | None = None
@@ -182,6 +189,7 @@ def plot_barcode(
     ax.tick_params(axis="both", labelsize=14)
 
     # simple legend
+    # simple legend
     handles = [
         plt.Line2D([0], [0], color=dim_to_color[d], lw=2.0, label=f"H{d}")
         for d in dims
@@ -191,6 +199,7 @@ def plot_barcode(
         ax.legend(handles=handles, loc="lower right", fontsize=14)
 
 
+# Figure 3 - persistence diagram
 # Figure 3 - persistence diagram
 def plot_persistence_diagram_gudhi(
     ax,
@@ -220,6 +229,7 @@ def plot_persistence_diagram_gudhi(
             if dim in pts:
                 pts[dim].append((float(b), float(de)))
 
+    # Flatten for axis limits
     # Flatten for axis limits
     all_births = []
     all_deaths = []
@@ -252,6 +262,7 @@ def plot_persistence_diagram_gudhi(
         arr = np.array(pts[d], dtype=float)
 
         # Drop inifite deaths
+        # Drop inifite deaths
         finite = np.isfinite(arr[:, 1])
         arr = arr[finite]
         if arr.size == 0:
@@ -268,6 +279,7 @@ def plot_persistence_diagram_gudhi(
     ax.legend(loc="best", fontsize=14)
 
 
+# landscape plot function
 # landscape plot function
 def plot_landscape_gudhi(
     ax,
@@ -309,6 +321,7 @@ def plot_landscape_gudhi(
     ax.legend(loc="best", fontsize=14)
 
 
+# Figure 4 - landscape
 # Figure 4 - landscape
 def plot_both_landscapes(
     intervals: dict,
@@ -372,11 +385,14 @@ def plot_example_figures(
     persistence_pairs, intervals = compute_persistence(st, coeff_field=2)
 
     # 4) three alpha values
+    # 4) three alpha values
     a_low, a_mid, a_high = pick_alphas_from_h1(intervals)
 
     # 4.5) output directory
+    # 4.5) output directory
     os.makedirs(out_dir, exist_ok=True)
 
+    # Figure 1 - panel
     # Figure 1 - panel
     fig1, axes = plt.subplots(1, 3, figsize=(15, 4), constrained_layout=True)
 
@@ -424,6 +440,7 @@ def plot_example_figures(
     )
 
     # Figure 3 - persistence diagram
+    # Figure 3 - persistence diagram
     fig3 = plt.figure(figsize=(6, 6), constrained_layout=True)
     ax3 = fig3.add_subplot(1, 1, 1)
     plot_persistence_diagram_gudhi(
@@ -437,6 +454,7 @@ def plot_example_figures(
         bbox_inches="tight",
     )
 
+    # Figure 4 - persistence landscape
     # Figure 4 - persistence landscape
     fig4, axes4 = plot_both_landscapes(
         intervals, k_levels=3, resolution=1000, shared_x_range=False

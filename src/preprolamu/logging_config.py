@@ -1,4 +1,3 @@
-# src/preprolamu/logging_config.py
 from __future__ import annotations
 
 import logging
@@ -9,6 +8,7 @@ from rich.logging import RichHandler
 from rich.style import Style
 from rich.theme import Theme
 
+# Cool theme
 custom_theme = Theme(
     {
         "logging.level.info": Style(color="#00f0f0"),
@@ -72,6 +72,7 @@ def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> Non
     root_logger.addHandler(file_handler)
 
     root_logger._acb_logging_configured = True
+    # make new runs easy to spot in lengthy log files
     root_logger.info(
         "------------------------------------------ & NEW RUN STARTED & ------------------------------------------"
     )

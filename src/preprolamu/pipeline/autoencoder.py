@@ -1,4 +1,3 @@
-# src/preprolamu/pipeline/autoencoder.py
 from __future__ import annotations
 
 import logging
@@ -20,10 +19,8 @@ from preprolamu.tests.data_checks import log_feature_stats
 logger = logging.getLogger(__name__)
 
 
+# Autoencoder architecture class
 class Autoencoder(nn.Module):
-    """
-    Defines an autoencoder with adjustable architecture that is retrieved from the Universe class.
-    """
 
     def __init__(
         self,
@@ -151,10 +148,6 @@ def get_feature_matrix_from_universe(
 
 
 def train_autoencoder_for_universe(universe: Universe) -> Path:
-    """
-    Train an autoencoder on the preprocessed data for this universe.
-    Also saves a checkpoint to universe.ae_model_path() and returns that path.
-    """
     logger.info(f"[AE] Training autoencoder for universe = {universe.id}")
 
     seed = universe.seed
@@ -331,9 +324,7 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
 def load_autoencoder_for_universe(
     universe: Universe, ds_cfg: DatasetConfig
 ) -> Autoencoder:
-    """
-    Load the trained autoencoder model for this universe from its checkpoint.
-    """
+
     model_path = universe.ae_model_path()
     if not model_path.exists():
         raise FileNotFoundError(

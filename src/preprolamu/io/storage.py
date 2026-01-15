@@ -1,4 +1,3 @@
-# src/preprolamu/io/storage.py
 from __future__ import annotations
 
 import json
@@ -18,9 +17,6 @@ logger = logging.getLogger(__name__)
 # Data base directory
 BASE_DATA_DIR = Path("data")
 
-# Experiment directories
-EXPERIMENTS_ROOT = BASE_DATA_DIR / "experiments"
-
 
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
@@ -31,10 +27,7 @@ def ensure_parent_dir(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
-# ---------- low-level save/load helpers ----------
-
-
-# PATHS
+# paths
 def get_raw_dataset_path(dataset_id: str, extension: str) -> Path:
     return BASE_DATA_DIR / "raw" / f"{dataset_id}.{extension}"
 
@@ -43,21 +36,13 @@ def get_clean_dataset_path(dataset_id: str, extension: str) -> Path:
     return BASE_DATA_DIR / "raw" / f"{dataset_id}_clean.{extension}"
 
 
-def get_latent_cache_path(universe: Universe) -> Path:
-    root = ensure_dir(EXPERIMENTS_ROOT / "latent")
-    return root / f"{universe.to_id_string()}_latent.npy"
-
-
 # IO functions
 def load_embedding(
     universe: Universe,
     split: str,
     force_recompute: bool = False,
 ):
-    """
-    Loads embedding from disk. If the file is not found or if force_recompute=True,
-    raises FileNotFoundError.
-    """
+
     embed_path = universe.embedding_path(split=split)
     if embed_path.exists() and not force_recompute:
         logger.info(
@@ -103,9 +88,6 @@ def load_projected(universe: Universe, split: str, normalized: bool) -> np.ndarr
     raise FileNotFoundError(f"No projected point cloud found at {path}")
 
 
-# ---------- Persistence ----------
-
-
 def save_persistence(
     universe: Universe,
     split: str,
@@ -131,9 +113,6 @@ def load_persistence(
     if not per_dim:
         raise FileNotFoundError(f"No persistence intervals found in {path}")
     return per_dim
-
-
-# ---------- Landscapes ----------
 
 
 def save_landscapes(
@@ -167,9 +146,6 @@ def load_landscapes(
     return landscapes
 
 
-# ---------- Metrics ----------
-
-
 def save_metrics(
     universe: Universe,
     split: str,
@@ -189,9 +165,6 @@ def load_metrics(
 ) -> Dict[str, Any]:
     path = universe.metrics_path(split=split)
     return load_json(path)
-
-
-# ---------- JSON ----------
 
 
 def save_json(path: Path, payload: Dict[str, Any]) -> None:

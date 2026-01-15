@@ -1,4 +1,3 @@
-# src/preprolamu/tests/data_checks.py
 from __future__ import annotations
 
 import logging
@@ -50,12 +49,12 @@ def log_feature_stats(
         np.std(X_finite),
     )
 
-    # Rough idea of scale per feature
+    # rough idea of scale per feature
     feature_means = np.nanmean(X, axis=0)
     feature_stds = np.nanstd(X, axis=0)
     feature_max_abs = np.nanmax(np.abs(X), axis=0)
 
-    # Log top-10 “worst” features by max abs value
+    # Log top-10 worst features by max abs (beast)
     worst_idx = np.argsort(-feature_max_abs)[:10]
     for j in worst_idx:
         name = (

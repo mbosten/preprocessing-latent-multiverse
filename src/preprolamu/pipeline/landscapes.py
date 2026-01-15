@@ -1,4 +1,3 @@
-# src/preprolamu/pipeline/landscapes.py
 from __future__ import annotations
 
 import logging
@@ -15,10 +14,7 @@ def compute_landscapes(
     resolution: int = 1000,
     homology_dimensions: list[int] = [0, 1, 2],
 ) -> dict[int, np.ndarray | None]:
-    """
-    Compute persistence landscapes per dimension.
-    Returns a dict dim -> landscapes array or None if no intervals.
-    """
+
     logger.info(
         f"Computing landscapes: dims={homology_dimensions}, "
         f"num_landscapes={num_landscapes}, resolution={resolution}"

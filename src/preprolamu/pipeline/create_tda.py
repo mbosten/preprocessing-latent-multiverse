@@ -1,4 +1,3 @@
-# src/preprolamu/pipeline/create_tda.py
 from __future__ import annotations
 
 import logging
@@ -24,9 +23,6 @@ logger = logging.getLogger(__name__)
 def run_tda_for_universe(
     universe: Universe, split: str = "test", overwrite: bool = False
 ):
-    """
-    Complete TDA step for a single universe, starting from latent embeddings.
-    """
 
     tda_cfg = universe.tda_config
     pca_dim = universe.pca_dim

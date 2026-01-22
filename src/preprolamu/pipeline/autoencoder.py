@@ -12,7 +12,6 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from preprolamu.config import DatasetConfig, load_dataset_config
-from preprolamu.io.storage import ensure_parent_dir
 from preprolamu.pipeline.universes import Universe
 from preprolamu.tests.data_checks import log_feature_stats
 
@@ -292,7 +291,6 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
 
     # Save model checkpoint
     model_path = universe.ae_model_path()
-    ensure_parent_dir(model_path)
 
     checkpoint = {
         "input_dim": input_dim,

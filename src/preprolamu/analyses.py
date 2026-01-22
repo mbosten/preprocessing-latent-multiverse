@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import math
 from pathlib import Path
@@ -11,10 +12,7 @@ import typer
 from typing_extensions import Annotated
 
 from preprolamu.logging_config import setup_logging
-from preprolamu.pipeline.evaluation import (
-    evaluate_autoencoder_reconstruction,
-    save_eval_metrics,
-)
+from preprolamu.pipeline.evaluation import evaluate_autoencoder_reconstruction
 from preprolamu.pipeline.metrics import (
     build_metrics_table,
     compute_presto_variance_from_metrics_table,
@@ -551,7 +549,12 @@ def ae_eval(
                 batch_size=batch_size,
                 include_stratified=include_stratified,
             )
-            save_eval_metrics(payload, out_path)
+
+            # save evaluation
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+
+            # save_eval_metrics(payload, out_path)
             n_done += 1
         except FileNotFoundError as e:
             logger.warning("[AE-EVAL] Missing file for %s: %s", u.id, e)

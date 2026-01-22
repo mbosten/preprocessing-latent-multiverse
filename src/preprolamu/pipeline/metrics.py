@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from preprolamu.io.storage import load_landscapes, load_metrics
+from preprolamu.io.storage import load_landscapes
 from preprolamu.pipeline.universes import Universe
 from preprolamu.tests.landscape_checks import top_landscape_outliers
 
@@ -255,7 +255,7 @@ def build_metrics_table(
         row["metrics_path"] = str(path)
 
         try:
-            payload = load_metrics(u, split=split)
+            payload = u.load_metrics(split=split)
             if not payload:
                 row["metrics_status"] = "empty_metrics"
                 row["failure_reason"] = "metrics JSON is empty"

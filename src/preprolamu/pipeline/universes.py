@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -10,6 +11,8 @@ import typer
 import yaml
 
 from preprolamu.config import load_dataset_config
+
+# from preprolamu.io.storage import epd
 
 logger = logging.getLogger(__name__)
 
@@ -90,15 +93,20 @@ class Universe:
     def to_id_string(self) -> str:
         return self.id
 
-    # Path functions
+    # -------------------------------------------------------------- #
+    # ----------------------- PATH FUNCTIONS ----------------------- #
+    # -------------------------------------------------------------- #
+    def clean_data_path(self) -> Path:
+        return epd(BASE_DATA_DIR / "raw" / f"{self.dataset_id}_clean.parquet")
+
     def embedding_path(self, split: str = "test") -> Path:
-        return (
+        return epd(
             BASE_DATA_DIR / "interim" / "embeddings" / f"{self.id}_latent_{split}.npy"
         )
 
     def projected_path(self, split: str = "test", normalized: bool = False) -> Path:
         tag = "" if normalized else "_raw"
-        return (
+        return epd(
             BASE_DATA_DIR
             / "interim"
             / "projections"
@@ -106,7 +114,7 @@ class Universe:
         )
 
     def persistence_path(self, split: str = "test") -> Path:
-        return (
+        return epd(
             BASE_DATA_DIR
             / "interim"
             / "persistence"
@@ -114,7 +122,7 @@ class Universe:
         )
 
     def landscapes_path(self, split: str = "test") -> Path:
-        return (
+        return epd(
             BASE_DATA_DIR
             / "interim"
             / "landscapes"
@@ -122,15 +130,15 @@ class Universe:
         )
 
     def metrics_path(self, split: str = "test") -> Path:
-        return (
+        return epd(
             BASE_DATA_DIR / "processed" / "metrics" / f"{self.id}_metrics_{split}.json"
         )
 
     def ae_model_path(self) -> Path:
-        return BASE_DATA_DIR / "interim" / "autoencoder" / f"{self.id}_ae.pt"
+        return epd(BASE_DATA_DIR / "interim" / "autoencoder" / f"{self.id}_ae.pt")
 
     def eval_metrics_path(self, split: str = "test") -> Path:
-        return (
+        return epd(
             BASE_DATA_DIR
             / "processed"
             / "eval_metrics"
@@ -138,7 +146,7 @@ class Universe:
         )
 
     def preprocessed_train_path(self) -> Path:
-        return (
+        return epd(
             BASE_DATA_DIR
             / "processed"
             / "train"
@@ -146,7 +154,7 @@ class Universe:
         )
 
     def preprocessed_validation_path(self) -> Path:
-        return (
+        return epd(
             BASE_DATA_DIR
             / "processed"
             / "validation"
@@ -154,7 +162,7 @@ class Universe:
         )
 
     def preprocessed_test_path(self) -> Path:
-        return (
+        return epd(
             BASE_DATA_DIR
             / "processed"
             / "test"
@@ -162,7 +170,28 @@ class Universe:
         )
 
     def preprocessing_status_path(self) -> Path:
-        return BASE_DATA_DIR / "interim" / "preprocessing_status" / f"{self.id}.status"
+        return epd(
+            BASE_DATA_DIR / "interim" / "preprocessing_status" / f"{self.id}.status"
+        )
+
+    # -------------------------------------------------------------- #
+    # ------------------------ IO FUNCTIONS ------------------------ #
+    # -------------------------------------------------------------- #
+    def load_metrics(self, split: str = "test") -> Dict[str, Any]:
+        path = self.metrics_path(split=split)
+        with path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def save_metrics(self, split: str, metrics: Any) -> None:
+        path = self.metrics_path(split=split)
+        if hasattr(metrics, "__dataclass_fields__"):
+            payload = asdict(metrics)
+        else:
+            payload = dict(metrics)
+
+        # Save json
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
 
     def to_param_dict(self) -> Dict[str, Any]:
         """
@@ -189,6 +218,11 @@ DATASET_IDS: List[str] = [
     "NF-UNSW-NB15-v3",
     "NF-CICIDS2018-v3",
 ]
+
+
+def epd(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def dataset_invariants_for(universe: Universe) -> dict[str, Any]:

@@ -29,6 +29,11 @@ Thumbs.db
 !/data/**/
 !/data/**/.gitkeep
 
+# visualizations under construction
+*.html
+*.js
+*.wasm
+
 # Logs
 logs/
 *.log

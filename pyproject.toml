@@ -31,7 +31,6 @@ acb = "preprolamu.cli:app"
 setup = "preprolamu.config:app"
 plot = "preprolamu.plots:app"
 analyze = "preprolamu.analyses:app"
-debug = "preprolamu.tests.landscape_norm_tests:app"
 
 [build-system]
 requires = ["hatchling>=1.18"]

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict
 
 import numpy as np
@@ -15,25 +14,29 @@ logger = logging.getLogger(__name__)
 
 
 # Data base directory
-BASE_DATA_DIR = Path("data")
+# BASE_DATA_DIR = Path("data")
 
 
-def ensure_dir(path: Path) -> Path:
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+# def ensure_dir(path: Path) -> Path:
+#     path.mkdir(parents=True, exist_ok=True)
+#     return path
 
+# Likely soon deprecated in favor of epd() in Universe
+# def ensure_parent_dir(path: Path) -> None:
+#     path.parent.mkdir(parents=True, exist_ok=True)
+#     return path
 
-def ensure_parent_dir(path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+# def epd(path: Path) -> None:
+#         path.parent.mkdir(parents=True, exist_ok=True)
+#         return path
 
+# This is handled in the yml files.
+# def get_raw_dataset_path(dataset_id: str, extension: str) -> Path:
+#     return BASE_DATA_DIR / "raw" / f"{dataset_id}.{extension}"
 
-# paths
-def get_raw_dataset_path(dataset_id: str, extension: str) -> Path:
-    return BASE_DATA_DIR / "raw" / f"{dataset_id}.{extension}"
-
-
-def get_clean_dataset_path(dataset_id: str, extension: str) -> Path:
-    return BASE_DATA_DIR / "raw" / f"{dataset_id}_clean.{extension}"
+# Included in Universe class
+# def get_clean_dataset_path(dataset_id: str, extension: str) -> Path:
+#     return BASE_DATA_DIR / "raw" / f"{dataset_id}_clean.{extension}"
 
 
 # IO functions
@@ -55,37 +58,24 @@ def load_embedding(
     raise FileNotFoundError(f"No embedding found at {embed_path} for {universe.id}")
 
 
-def save_tda_npz(path: Path, **arrays: np.ndarray) -> None:
-    ensure_parent_dir(path)
-    logger.info("Saving npz to %s with keys %s", path, list(arrays.keys()))
-    np.savez(path, **arrays)
+# These might as well be integrated into the persistence and landscape loading functions.
+# def save_tda_npz(path: Path, **arrays: np.ndarray) -> None:
+#     ensure_parent_dir(path)
+#     logger.info("Saving npz to %s with keys %s", path, list(arrays.keys()))
+#     np.savez(path, **arrays)
 
 
-def load_tda_npz(path: Path) -> Dict[str, np.ndarray]:
-    with np.load(path) as data:
-        return {k: data[k] for k in data.files}
+# def load_tda_npz(path: Path) -> Dict[str, np.ndarray]:
+#     with np.load(path) as data:
+#         return {k: data[k] for k in data.files}
 
 
 def save_projected(
     universe: Universe, split: str, normalized: bool, arr: np.ndarray
 ) -> None:
     path = universe.projected_path(split=split, normalized=normalized)
-    ensure_parent_dir(path)
     logger.info("[IO] Saving projected point cloud (%s) to %s", split, path)
     np.save(path, arr)
-
-
-def load_projected(universe: Universe, split: str, normalized: bool) -> np.ndarray:
-    path = universe.projected_path(split=split, normalized=normalized)
-    if path.exists():
-        logger.info(
-            "[IO] Loading projection (split=%s, normalized=%s) from %s",
-            split,
-            normalized,
-            path,
-        )
-        return np.load(path)
-    raise FileNotFoundError(f"No projected point cloud found at {path}")
 
 
 def save_persistence(
@@ -94,8 +84,12 @@ def save_persistence(
     per_dim: dict[int, np.ndarray],
 ) -> None:
     path = universe.persistence_path(split=split)
+
     arrays = {f"dim{d}_intervals": arr for d, arr in per_dim.items()}
-    save_tda_npz(path, **arrays)
+    logger.info("Saving npz to %s with keys %s", path, list(arrays.keys()))
+    np.savez(path, **arrays)
+
+    # save_tda_npz(path, **arrays)
 
 
 def load_persistence(
@@ -103,7 +97,10 @@ def load_persistence(
     split: str = "test",
 ) -> dict[int, np.ndarray]:
     path = universe.persistence_path(split=split)
-    raw = load_tda_npz(path)
+    # raw = load_tda_npz(path)
+    with np.load(path) as data:
+        raw = {k: data[k] for k in data.files}
+
     per_dim: dict[int, np.ndarray] = {}
     for key, arr in raw.items():
         if key.startswith("dim") and key.endswith("_intervals"):
@@ -121,10 +118,15 @@ def save_landscapes(
     landscapes: dict[int, np.ndarray | None],
 ) -> None:
     path = universe.landscapes_path(split=split)
+
     arrays = {
         f"dim{d}_landscapes": arr for d, arr in landscapes.items() if arr is not None
     }
-    save_tda_npz(path, **arrays)
+
+    logger.info("Saving npz to %s with keys %s", path, list(arrays.keys()))
+    np.savez(path, **arrays)
+
+    # save_tda_npz(path, **arrays)
 
 
 def load_landscapes(
@@ -132,7 +134,11 @@ def load_landscapes(
     split: str = "test",
 ) -> dict[int, np.ndarray | None]:
     path = universe.landscapes_path(split=split)
-    raw = load_tda_npz(path)
+    # raw = load_tda_npz(path)
+
+    with np.load(path) as data:
+        raw = {k: data[k] for k in data.files}
+
     landscapes: dict[int, np.ndarray | None] = {}
     for key, arr in raw.items():
         if key.startswith("dim") and key.endswith("_landscapes"):
@@ -156,24 +162,33 @@ def save_metrics(
         payload = asdict(metrics)
     else:
         payload = dict(metrics)
-    save_json(path, payload)
+
+    # Save json
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    # save_json(path, payload)
 
 
+# Moved to Universe class: Remove when everything runs properly there.
 def load_metrics(
     universe: Universe,
     split: str = "test",
 ) -> Dict[str, Any]:
     path = universe.metrics_path(split=split)
-    return load_json(path)
-
-
-def save_json(path: Path, payload: Dict[str, Any]) -> None:
-    ensure_parent_dir(path)
-    logger.info(f"Saving JSON to {path}")
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
-
-
-def load_json(path: Path) -> Dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+    # return load_json(path)
+
+
+# Integrated in the functions above.
+# def save_json(path: Path, payload: Dict[str, Any]) -> None:
+#     ensure_parent_dir(path)
+#     logger.info(f"Saving JSON to {path}")
+#     with path.open("w", encoding="utf-8") as f:
+#         json.dump(payload, f, indent=2)
+
+
+# def load_json(path: Path) -> Dict[str, Any]:
+#     with path.open("r", encoding="utf-8") as f:
+#         return json.load(f)

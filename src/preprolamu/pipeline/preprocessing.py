@@ -11,7 +11,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, QuantileTransformer, StandardScaler
 
 from preprolamu.config import load_dataset_config
-from preprolamu.io.storage import ensure_parent_dir, get_clean_dataset_path
 from preprolamu.pipeline.universes import (
     DuplicateHandling,
     FeatureSubset,
@@ -25,13 +24,11 @@ logger = logging.getLogger(__name__)
 
 
 # Load the cleaned dataset
-def load_raw_dataset(dataset_id: str) -> pd.DataFrame:
-
-    path = get_clean_dataset_path(dataset_id, extension="parquet")
-    logger.info("Loading full cleaned dataset from %s", path)
+# This function might as well be moved to the storage.py file
+def load_raw_dataset(universe: Universe) -> pd.DataFrame:
+    path = universe.clean_data_path()
     df = pd.read_parquet(path)
     logger.info("Loaded %d rows x %d columns.", *df.shape)
-    logger.info("Column dtypes: %s", dict(df.dtypes))
     return df
 
 
@@ -323,11 +320,10 @@ def preprocess_variant(
 
         return path_train, path_test
 
-    ensure_parent_dir(status_path)
     status_path.write_text("IN_PROGRESS\n", encoding="utf-8")
 
     try:
-        df = load_raw_dataset(universe.dataset_id)
+        df = load_raw_dataset(universe)
         ds_cfg = load_dataset_config(universe.dataset_id)
         df = apply_feature_subset(df, universe)
         df = apply_duplicate_handling(df, universe)
@@ -372,10 +368,6 @@ def preprocess_variant(
         df_train = transform_with_scaler(df_train, scaler, numeric_cols)
         df_val = transform_with_scaler(df_val, scaler, numeric_cols)
         df_test = transform_with_scaler(df_test, scaler, numeric_cols)
-
-        ensure_parent_dir(path_train)
-        ensure_parent_dir(path_val)
-        ensure_parent_dir(path_test)
 
         df_train.to_parquet(path_train)
         df_val.to_parquet(path_val)

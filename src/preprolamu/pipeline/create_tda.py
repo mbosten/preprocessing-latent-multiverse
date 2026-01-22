@@ -5,10 +5,8 @@ import logging
 from preprolamu.io.storage import (
     load_embedding,
     load_landscapes,
-    load_metrics,
     load_persistence,
     save_landscapes,
-    save_metrics,
     save_persistence,
 )
 from preprolamu.pipeline.embeddings import from_latent_to_point_cloud
@@ -96,7 +94,7 @@ def run_tda_for_universe(
 
     # Check if metrics already exist
     if metrics_path.exists() and not overwrite:
-        metrics = load_metrics(universe, split)
+        metrics = universe.load_metrics(split=split)
         logger.info("[TDA] Metrics already exist at %s.", metrics_path)
     else:
         metrics = compute_metrics_from_tda(
@@ -104,7 +102,7 @@ def run_tda_for_universe(
             landscapes_per_dimension=landscapes,
         )
 
-        save_metrics(universe, split, metrics)
+        universe.save_metrics(split, metrics)
         logger.info("[TDA] Saved metrics to %s", metrics_path)
 
     return per_dim, landscapes, metrics

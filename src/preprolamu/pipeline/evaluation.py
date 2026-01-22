@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any, Dict, Optional
 
@@ -10,7 +9,6 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from preprolamu.config import load_dataset_config
-from preprolamu.io.storage import ensure_parent_dir
 from preprolamu.pipeline.autoencoder import _get_device, load_autoencoder_for_universe
 from preprolamu.pipeline.universes import Universe
 
@@ -144,7 +142,7 @@ def evaluate_autoencoder_reconstruction(
     return out
 
 
-def save_eval_metrics(payload: Dict[str, Any], path) -> None:
-    ensure_parent_dir(path)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+# Single use function that has been integrated in the ae_eval function itself.
+# def save_eval_metrics(payload: Dict[str, Any], path) -> None:
+#     with open(path, "w", encoding="utf-8") as f:
+#         json.dump(payload, f, indent=2)

@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 def _split_to_path(universe: Universe, split: str):
     if split == "train":
-        return universe.preprocessed_train_path()
+        return universe.paths.preprocessed(split="train")
     if split in {"val", "validation"}:
-        return universe.preprocessed_validation_path()
+        return universe.paths.preprocessed(split="val")
     if split == "test":
-        return universe.preprocessed_test_path()
+        return universe.paths.preprocessed(split="test")
     raise ValueError("split must be 'train', 'val'/'validation', or 'test'")
 
 

@@ -8,7 +8,6 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from preprolamu.io.storage import load_landscapes
 from preprolamu.pipeline.universes import Universe
 from preprolamu.tests.landscape_checks import top_landscape_outliers
 
@@ -33,12 +32,12 @@ def load_landscapes_with_provenance(
     skipped_empty = 0
 
     for u in universes:
-        path = u.landscapes_path(split=split)
+        path = u.paths.landscapes(split=split)
         if not path.exists():
             skipped_missing += 1
             continue
 
-        L = load_landscapes(u, split=split)
+        L = u.io.load_landscapes(split=split)
         if not L:
             skipped_empty += 1
             continue
@@ -255,7 +254,7 @@ def build_metrics_table(
         row["metrics_path"] = str(path)
 
         try:
-            payload = u.load_metrics(split=split)
+            payload = u.io.load_metrics(split=split)
             if not payload:
                 row["metrics_status"] = "empty_metrics"
                 row["failure_reason"] = "metrics JSON is empty"
@@ -289,7 +288,7 @@ def build_metrics_table(
             row["l2_average"] = float(sum(l2_vals) / max(len(l2_vals), 1))
 
             # Load evaluation metrics if available
-            eval_path = u.eval_metrics_path(split=split)
+            eval_path = u.paths.eval_metrics(split=split)
             if eval_path.exists():
                 try:
                     with eval_path.open("r", encoding="utf-8") as f:

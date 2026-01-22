@@ -129,11 +129,11 @@ def get_feature_matrix_from_universe(
     ds_cfg: DatasetConfig = load_dataset_config(universe.dataset_id)
 
     if split == "train":
-        path = universe.preprocessed_train_path()
+        path = universe.paths.preprocessed(split="train")
     elif split == "val":
-        path = universe.preprocessed_validation_path()
+        path = universe.paths.preprocessed(split="val")
     elif split == "test":
-        path = universe.preprocessed_test_path()
+        path = universe.paths.preprocessed(split="test")
     else:
         raise ValueError(f"Invalid split: {split}. Must be 'train', 'val', or 'test'.")
 
@@ -290,7 +290,7 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
         )
 
     # Save model checkpoint
-    model_path = universe.ae_model_path()
+    model_path = universe.paths.ae_model()
 
     checkpoint = {
         "input_dim": input_dim,
@@ -323,7 +323,7 @@ def load_autoencoder_for_universe(
     universe: Universe, ds_cfg: DatasetConfig
 ) -> Autoencoder:
 
-    model_path = universe.ae_model_path()
+    model_path = universe.paths.ae_model()
     if not model_path.exists():
         raise FileNotFoundError(
             f"Autoencoder model checkpoint not found at {model_path}"

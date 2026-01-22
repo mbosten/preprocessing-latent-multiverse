@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -11,8 +10,8 @@ import typer
 import yaml
 
 from preprolamu.config import load_dataset_config
-
-# from preprolamu.io.storage import epd
+from preprolamu.io.io import UniverseIO
+from preprolamu.io.paths import UniversePaths
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +72,10 @@ class Universe:
     # Parsed ID string
     id: str = field(init=False)
 
+    base_data_dir: Path = field(
+        default=Path("data"), compare=False, hash=False, repr=False
+    )
+
     def __post_init__(self):
         # Compute once
         object.__setattr__(
@@ -96,102 +99,62 @@ class Universe:
     # -------------------------------------------------------------- #
     # ----------------------- PATH FUNCTIONS ----------------------- #
     # -------------------------------------------------------------- #
-    def clean_data_path(self) -> Path:
-        return epd(BASE_DATA_DIR / "raw" / f"{self.dataset_id}_clean.parquet")
+    @property
+    def paths(self) -> UniversePaths:
+        return UniversePaths(self)
 
-    def embedding_path(self, split: str = "test") -> Path:
-        return epd(
-            BASE_DATA_DIR / "interim" / "embeddings" / f"{self.id}_latent_{split}.npy"
-        )
-
-    def projected_path(self, split: str = "test", normalized: bool = False) -> Path:
-        tag = "" if normalized else "_raw"
-        return epd(
-            BASE_DATA_DIR
-            / "interim"
-            / "projections"
-            / f"{self.id}_projected_{split}{tag}.npy"
-        )
-
-    def persistence_path(self, split: str = "test") -> Path:
-        return epd(
-            BASE_DATA_DIR
-            / "interim"
-            / "persistence"
-            / f"{self.id}_persistence_{split}.npz"
-        )
-
-    def landscapes_path(self, split: str = "test") -> Path:
-        return epd(
-            BASE_DATA_DIR
-            / "interim"
-            / "landscapes"
-            / f"{self.id}_landscapes_{split}.npz"
-        )
-
-    def metrics_path(self, split: str = "test") -> Path:
-        return epd(
-            BASE_DATA_DIR / "processed" / "metrics" / f"{self.id}_metrics_{split}.json"
-        )
-
-    def ae_model_path(self) -> Path:
-        return epd(BASE_DATA_DIR / "interim" / "autoencoder" / f"{self.id}_ae.pt")
-
-    def eval_metrics_path(self, split: str = "test") -> Path:
-        return epd(
-            BASE_DATA_DIR
-            / "processed"
-            / "eval_metrics"
-            / f"{self.id}_eval_{split}.json"
-        )
-
-    def preprocessed_train_path(self) -> Path:
-        return epd(
-            BASE_DATA_DIR
-            / "processed"
-            / "train"
-            / f"{self.id}_preprocessed_train.parquet"
-        )
-
-    def preprocessed_validation_path(self) -> Path:
-        return epd(
-            BASE_DATA_DIR
-            / "processed"
-            / "validation"
-            / f"{self.id}_preprocessed_validation.parquet"
-        )
-
-    def preprocessed_test_path(self) -> Path:
-        return epd(
-            BASE_DATA_DIR
-            / "processed"
-            / "test"
-            / f"{self.id}_preprocessed_test.parquet"
-        )
-
-    def preprocessing_status_path(self) -> Path:
-        return epd(
-            BASE_DATA_DIR / "interim" / "preprocessing_status" / f"{self.id}.status"
-        )
+    @property
+    def io(self) -> UniverseIO:
+        return UniverseIO(self)
 
     # -------------------------------------------------------------- #
     # ------------------------ IO FUNCTIONS ------------------------ #
     # -------------------------------------------------------------- #
-    def load_metrics(self, split: str = "test") -> Dict[str, Any]:
-        path = self.metrics_path(split=split)
-        with path.open("r", encoding="utf-8") as f:
-            return json.load(f)
+    # def load_metrics(self, split: str = "test") -> Dict[str, Any]:
+    #     path = self.metrics_path(split=split)
+    #     with path.open("r", encoding="utf-8") as f:
+    #         return json.load(f)
 
-    def save_metrics(self, split: str, metrics: Any) -> None:
-        path = self.metrics_path(split=split)
-        if hasattr(metrics, "__dataclass_fields__"):
-            payload = asdict(metrics)
-        else:
-            payload = dict(metrics)
+    # def save_metrics(self, split: str, metrics: Any) -> None:
+    #     path = self.metrics_path(split=split)
+    #     if hasattr(metrics, "__dataclass_fields__"):
+    #         payload = asdict(metrics)
+    #     else:
+    #         payload = dict(metrics)
 
-        # Save json
-        with path.open("w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
+    #     # Save json
+    #     with path.open("w", encoding="utf-8") as f:
+    #         json.dump(payload, f, indent=2)
+
+    # def load_landscapes(self, split: str = "test") -> dict[int, np.ndarray | None]:
+    #     """
+    #     Read individual landscape .npz files and return as a dict.
+    #     """
+    #     path = self.landscapes_path(split=split)
+
+    #     with np.load(path) as data:
+    #         raw = {k: data[k] for k in data.files}
+
+    #     landscapes: dict[int, np.ndarray | None] = {}
+    #     for key, arr in raw.items():
+    #         if key.startswith("dim") and key.endswith("_landscapes"):
+    #             dim_str = key[3:-11]  # strip "dim" and "_landscapes"
+    #             dim = int(dim_str)
+    #             landscapes[dim] = arr
+    #     if not landscapes:
+    #         raise FileNotFoundError(f"No landscapes found in {path}")
+    #     return landscapes
+
+    # def save_landscapes(self, split: str, landscapes: dict[int, np.ndarray | None]) -> None:
+    #     """
+    #     Write landscape dict to individual .npz files.
+    #     """
+    #     path = self.landscapes_path(split=split)
+    #     arrays = {
+    #         f"dim{d}_landscapes": arr for d, arr in landscapes.items() if arr is not None
+    #     }
+    #     logger.info("Saving npz to %s with keys %s", path, list(arrays.keys()))
+    #     np.savez(path, **arrays)
 
     def to_param_dict(self) -> Dict[str, Any]:
         """
@@ -220,7 +183,7 @@ DATASET_IDS: List[str] = [
 ]
 
 
-def epd(path: Path) -> None:
+def epd(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 

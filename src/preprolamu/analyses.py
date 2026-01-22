@@ -532,13 +532,13 @@ def ae_eval(
     n_missing_model = 0
 
     for u in universes:
-        out_path = u.eval_metrics_path(split=split)
+        out_path = u.paths.eval_metrics(split=split)
 
         if out_path.exists() and not overwrite:
             n_skipped += 1
             continue
 
-        if not u.ae_model_path().exists():
+        if not u.paths.ae_model().exists():
             n_missing_model += 1
             continue
 

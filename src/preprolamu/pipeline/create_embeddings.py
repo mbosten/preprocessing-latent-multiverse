@@ -5,7 +5,6 @@ import logging
 import numpy as np
 import torch
 
-from preprolamu.io.storage import load_embedding
 from preprolamu.pipeline.autoencoder import (
     get_feature_matrix_from_universe,
     load_autoencoder_for_universe,
@@ -25,8 +24,8 @@ def get_or_compute_latent(
 
     if not force_recompute:
         try:
-            return load_embedding(
-                universe, split=split, force_recompute=force_recompute
+            return universe.io.load_embedding(
+                split=split, force_recompute=force_recompute
             )
         except FileNotFoundError:
             logger.info(
@@ -35,10 +34,10 @@ def get_or_compute_latent(
                 universe.id,
             )
 
-    latent_path = universe.embedding_path(split=split)
+    latent_path = universe.paths.embedding(split=split)
 
     # Retrieve model path to see if a checkpoint exists.
-    model_path = universe.ae_model_path()
+    model_path = universe.paths.ae_model()
 
     # Feature matrix
     X, _, ds_cfg = get_feature_matrix_from_universe(universe, split=split)

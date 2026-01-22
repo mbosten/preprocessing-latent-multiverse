@@ -2,13 +2,6 @@ from __future__ import annotations
 
 import logging
 
-from preprolamu.io.storage import (
-    load_embedding,
-    load_landscapes,
-    load_persistence,
-    save_landscapes,
-    save_persistence,
-)
 from preprolamu.pipeline.embeddings import from_latent_to_point_cloud
 from preprolamu.pipeline.landscapes import compute_landscapes
 from preprolamu.pipeline.metrics import compute_metrics_from_tda
@@ -31,7 +24,7 @@ def run_tda_for_universe(
 
     # 1. Read latent embedding, err if not found
     try:
-        latent = load_embedding(universe, split=split, force_recompute=False)
+        latent = universe.io.load_embedding(split=split, force_recompute=False)
     except FileNotFoundError as e:
         msg = (
             f"[TDA] No embedding found for universe {universe.id} "
@@ -46,13 +39,13 @@ def run_tda_for_universe(
         latent.shape,
     )
 
-    persistence_path = universe.persistence_path(split=split)
-    landscapes_path = universe.landscapes_path(split=split)
-    metrics_path = universe.metrics_path(split=split)
+    persistence_path = universe.paths.persistence(split=split)
+    landscapes_path = universe.paths.landscapes(split=split)
+    metrics_path = universe.paths.metrics(split=split)
 
     # Check if persistence already exists
     if persistence_path.exists() and not overwrite:
-        per_dim = load_persistence(universe, split)
+        per_dim = universe.io.load_persistence(split=split)
         logger.info("[TDA] Loaded persistence from %s", persistence_path)
         return
     else:
@@ -73,12 +66,12 @@ def run_tda_for_universe(
             homology_dimensions=hom_dims,
         )
 
-        save_persistence(universe, split, per_dim)
+        universe.io.save_persistence(split=split, per_dim=per_dim)
         logger.info("[TDA] Saved persistence to %s", persistence_path)
 
     # Check if landscapes already exist
     if landscapes_path.exists() and not overwrite:
-        landscapes = load_landscapes(universe, split)
+        landscapes = universe.io.load_landscapes(split=split)
         logger.info("[TDA] Landscapes already exist at %s.", landscapes_path)
     else:
         logger.info("[TDA] Computing landscapes for %s", universe.id)
@@ -89,12 +82,12 @@ def run_tda_for_universe(
             homology_dimensions=hom_dims,
         )
 
-        save_landscapes(universe, split, landscapes)
+        universe.io.save_landscapes(split=split, landscapes=landscapes)
         logger.info("[TDA] Saved landscapes to %s", landscapes_path)
 
     # Check if metrics already exist
     if metrics_path.exists() and not overwrite:
-        metrics = universe.load_metrics(split=split)
+        metrics = universe.io.load_metrics(split=split)
         logger.info("[TDA] Metrics already exist at %s.", metrics_path)
     else:
         metrics = compute_metrics_from_tda(
@@ -102,7 +95,7 @@ def run_tda_for_universe(
             landscapes_per_dimension=landscapes,
         )
 
-        universe.save_metrics(split, metrics)
+        universe.io.save_metrics(split, metrics)
         logger.info("[TDA] Saved metrics to %s", metrics_path)
 
     return per_dim, landscapes, metrics

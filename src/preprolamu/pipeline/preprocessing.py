@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Load the cleaned dataset
 # This function might as well be moved to the storage.py file
 def load_raw_dataset(universe: Universe) -> pd.DataFrame:
-    path = universe.clean_data_path()
+    path = universe.paths.clean_data()
     df = pd.read_parquet(path)
     logger.info("Loaded %d rows x %d columns.", *df.shape)
     return df
@@ -295,10 +295,10 @@ def preprocess_variant(
 
     logger.info(f"Preprocessing dataset for universe={universe.id}")
 
-    path_train = universe.preprocessed_train_path()
-    path_val = universe.preprocessed_validation_path()
-    path_test = universe.preprocessed_test_path()
-    status_path = universe.preprocessing_status_path()
+    path_train = universe.paths.preprocessed(split="train")
+    path_val = universe.paths.preprocessed(split="val")
+    path_test = universe.paths.preprocessed(split="test")
+    status_path = universe.paths.preprocessing_status()
 
     if not overwrite and path_train.exists() and path_test.exists():
         logger.info(

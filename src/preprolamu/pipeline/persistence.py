@@ -18,7 +18,7 @@ def mask_infinities(array: np.ndarray) -> np.ndarray:
 def build_alpha_complex_simplex_tree(points: np.ndarray) -> gd.SimplexTree:
 
     logger.info(f"Computing alpha complex persistence for data of shape {points.shape}")
-    alpha_complex = gd.AlphaComplex(points=points, precision="safe")
+    alpha_complex = gd.AlphaComplex(points=points, precision="exact")
     simplex_tree = alpha_complex.create_simplex_tree()
     simplex_tree.compute_persistence()
     return simplex_tree

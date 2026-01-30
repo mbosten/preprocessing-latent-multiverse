@@ -23,6 +23,12 @@ dependencies = [
     "pre-commit>=4.5.0",
     "persim>=0.3.8",
     "seaborn>=0.13.2",
+    "pytest-cov>=7.0.0",
+    "statsmodels>=0.14.6",
+    "ipympl",
+    "plotly>=6.5.2",
+    "nbformat>=5.10.4",
+    "cython>=3.2.4",
 ]
 
 # Allows cli commands to be run as: uv run acb [cli function] [parameters]

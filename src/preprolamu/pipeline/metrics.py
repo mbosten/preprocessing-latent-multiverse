@@ -244,7 +244,7 @@ def build_metrics_table(
     rows: List[Dict[str, Any]] = []
 
     for u in universes:
-        path = u.metrics_path(split=split)
+        path = u.paths.metrics(split=split)
         if require_exists and not path.exists():
             continue
 

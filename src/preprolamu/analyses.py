@@ -17,7 +17,7 @@ from preprolamu.pipeline.metrics import (
     build_metrics_table,
     compute_presto_variance_from_metrics_table,
 )
-from preprolamu.pipeline.universes import generate_multiverse
+from preprolamu.pipeline.universes import generate_multiverse, get_universe
 from preprolamu.utils_analyses_plots import (
     _ok_only,
     _parse_split_by,
@@ -512,6 +512,7 @@ def presto_global_sensitivity(
 # CLI function that evaluates autoencoders and saves reconstruction-error metrics
 @app.command("ae-eval")
 def ae_eval(
+    universe_index: Annotated[int | None, typer.Option()] = None,
     split: str = typer.Option("test", help="val or test"),
     batch_size: int = typer.Option(2048, help="Batch size for reconstruction eval"),
     overwrite: bool = typer.Option(False, help="Overwrite existing eval json files"),
@@ -525,22 +526,17 @@ def ae_eval(
     if split not in {"val", "test"}:
         raise typer.BadParameter("split must be 'val' or 'test'")
 
-    universes = generate_multiverse()
-
-    n_done = 0
-    n_skipped = 0
-    n_missing_model = 0
-
-    for u in universes:
+    if universe_index is not None:
+        u = get_universe(universe_index)
         out_path = u.paths.eval_metrics(split=split)
 
         if out_path.exists() and not overwrite:
-            n_skipped += 1
-            continue
+            logger.info("[AE-EVAL] Skipping existing eval for universe %s", u.id)
+            return
 
         if not u.paths.ae_model().exists():
-            n_missing_model += 1
-            continue
+            logger.info("[AE-EVAL] Missing model for universe %s", u.id)
+            return
 
         try:
             payload = evaluate_autoencoder_reconstruction(
@@ -554,16 +550,52 @@ def ae_eval(
             with open(out_path, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2)
 
-            # save_eval_metrics(payload, out_path)
-            n_done += 1
         except FileNotFoundError as e:
             logger.warning("[AE-EVAL] Missing file for %s: %s", u.id, e)
         except Exception as e:
             logger.exception("[AE-EVAL] Failed for %s: %s", u.id, e)
 
-    print(
-        f"AE eval done. wrote={n_done}, skipped_existing={n_skipped}, missing_model={n_missing_model}"
-    )
+        return
+
+    else:
+        universes = generate_multiverse()
+
+        n_done = 0
+        n_skipped = 0
+        n_missing_model = 0
+
+        for u in universes:
+            out_path = u.paths.eval_metrics(split=split)
+
+            if out_path.exists() and not overwrite:
+                n_skipped += 1
+                continue
+
+            if not u.paths.ae_model().exists():
+                n_missing_model += 1
+                continue
+
+            try:
+                payload = evaluate_autoencoder_reconstruction(
+                    u,
+                    split=split,
+                    batch_size=batch_size,
+                    include_stratified=include_stratified,
+                )
+
+                # save evaluation
+                with open(out_path, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2)
+
+                n_done += 1
+            except FileNotFoundError as e:
+                logger.warning("[AE-EVAL] Missing file for %s: %s", u.id, e)
+            except Exception as e:
+                logger.exception("[AE-EVAL] Failed for %s: %s", u.id, e)
+
+        print(
+            f"Sequential AE eval done. wrote={n_done}, skipped_existing={n_skipped}, missing_model={n_missing_model}"
+        )
 
 
 @app.command("presto-stability-regions")

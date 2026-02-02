@@ -1,5 +1,6 @@
 # import libraries
 import argparse
+import logging
 
 # For timing
 import time
@@ -12,10 +13,14 @@ import gudhi as gd
 import matplotlib.pyplot as plt
 import numpy as np
 
+from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.landscapes import compute_landscapes
 from preprolamu.pipeline.metrics import compute_landscape_norm
 from preprolamu.pipeline.persistence import mask_infinities
 from preprolamu.pipeline.universes import get_universe
+
+setup_logging(log_dir=Path("logs"))
+logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser(description="sample size effects on landscape norms")
 
@@ -29,14 +34,14 @@ parser.add_argument(
 args = parser.parse_args()
 
 u = get_universe(args.uid)
-print(f"Processing universe: {u.id}", flush=True)
+logger.info(f"Processing universe: {u.id}")
 seed = 42
 out_dir = Path("data/figures")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 projection_path = u.paths.projected(split="test", normalized=True)
 projection = np.load(projection_path)
-print(f"Loaded projection with shape: {projection.shape}", flush=True)
+logger.info(f"Loaded projection with shape: {projection.shape}")
 
 
 def random_sample_indices(n_points: int, k: int, seed=42) -> np.ndarray:
@@ -58,7 +63,7 @@ persistence_timings = []
 # Compute persistence per sample size and for random sampling initially.
 for size in sample_sizes:
     persistence_start = time.perf_counter()
-    print(f"Processing sample size: {size}", flush=True)
+    logger.info(f"Processing sample size: {size}")
     random_indices = random_sample_indices(N, size, seed)
     Xrng = projection[random_indices]
 
@@ -77,10 +82,10 @@ for size in sample_sizes:
     persistence_elapsed = time.perf_counter() - persistence_start
     persistence_timings.append((size, persistence_elapsed))
 
-print(f"{'Sample size':>12} | {'Time (s)':>8}", flush=True)
-print("-" * 25, flush=True)
+logger.info(f"{'Sample size':>12} | {'Time (s)':>8}")
+logger.info("-" * 25)
 for size, t in persistence_timings:
-    print(f"{size:12d} | {t:8.3f}", flush=True)
+    logger.info(f"{size:12d} | {t:8.3f}")
 
 persistence_sizes = [s for s, _ in persistence_timings]
 persistence_times = [t for _, t in persistence_timings]
@@ -99,7 +104,7 @@ sample_size_landscape_results = {}
 landscape_timings = []
 for size, results in sample_size_persistence_results.items():
     landscape_start = time.perf_counter()
-    print(f"Processing sample size: {size}", flush=True)
+    logger.info(f"Processing sample size: {size}")
 
     landscapes = compute_landscapes(
         persistence_per_dimension=results,
@@ -113,10 +118,10 @@ for size, results in sample_size_persistence_results.items():
     landscape_elapsed = time.perf_counter() - landscape_start
     landscape_timings.append((size, landscape_elapsed))
 
-print(f"{'Sample size':>12} | {'Time (s)':>8}", flush=True)
-print("-" * 25, flush=True)
+logger.info(f"{'Sample size':>12} | {'Time (s)':>8}")
+logger.info("-" * 25)
 for size, t in landscape_timings:
-    print(f"{size:12d} | {t:8.3f}", flush=True)
+    logger.info(f"{size:12d} | {t:8.3f}")
 
 landscape_sizes = [s for s, _ in landscape_timings]
 landscape_times = [t for _, t in landscape_timings]

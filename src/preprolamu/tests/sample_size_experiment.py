@@ -29,14 +29,14 @@ parser.add_argument(
 args = parser.parse_args()
 
 u = get_universe(args.uid)
-print(f"Processing universe: {u.id}")
+print(f"Processing universe: {u.id}", flush=True)
 seed = 42
 out_dir = Path("data/figures")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 projection_path = u.paths.projected(split="test", normalized=True)
 projection = np.load(projection_path)
-print(f"Loaded projection with shape: {projection.shape}")
+print(f"Loaded projection with shape: {projection.shape}", flush=True)
 
 
 def random_sample_indices(n_points: int, k: int, seed=42) -> np.ndarray:
@@ -58,7 +58,7 @@ persistence_timings = []
 # Compute persistence per sample size and for random sampling initially.
 for size in sample_sizes:
     persistence_start = time.perf_counter()
-    print(f"Processing sample size: {size}")
+    print(f"Processing sample size: {size}", flush=True)
     random_indices = random_sample_indices(N, size, seed)
     Xrng = projection[random_indices]
 
@@ -77,10 +77,10 @@ for size in sample_sizes:
     persistence_elapsed = time.perf_counter() - persistence_start
     persistence_timings.append((size, persistence_elapsed))
 
-print(f"{'Sample size':>12} | {'Time (s)':>8}")
-print("-" * 25)
+print(f"{'Sample size':>12} | {'Time (s)':>8}", flush=True)
+print("-" * 25, flush=True)
 for size, t in persistence_timings:
-    print(f"{size:12d} | {t:8.3f}")
+    print(f"{size:12d} | {t:8.3f}", flush=True)
 
 persistence_sizes = [s for s, _ in persistence_timings]
 persistence_times = [t for _, t in persistence_timings]
@@ -99,7 +99,7 @@ sample_size_landscape_results = {}
 landscape_timings = []
 for size, results in sample_size_persistence_results.items():
     landscape_start = time.perf_counter()
-    print(f"Processing sample size: {size}")
+    print(f"Processing sample size: {size}", flush=True)
 
     landscapes = compute_landscapes(
         persistence_per_dimension=results,
@@ -113,10 +113,10 @@ for size, results in sample_size_persistence_results.items():
     landscape_elapsed = time.perf_counter() - landscape_start
     landscape_timings.append((size, landscape_elapsed))
 
-print(f"{'Sample size':>12} | {'Time (s)':>8}")
-print("-" * 25)
+print(f"{'Sample size':>12} | {'Time (s)':>8}", flush=True)
+print("-" * 25, flush=True)
 for size, t in landscape_timings:
-    print(f"{size:12d} | {t:8.3f}")
+    print(f"{size:12d} | {t:8.3f}", flush=True)
 
 landscape_sizes = [s for s, _ in landscape_timings]
 landscape_times = [t for _, t in landscape_timings]

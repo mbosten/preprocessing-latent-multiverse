@@ -31,6 +31,14 @@ parser.add_argument(
     type=int,
 )
 
+parser.add_argument(
+    "--sampling-method",
+    dest="sampler",
+    default="random",
+    type=str,
+    choices=["random", "fps"],
+)
+
 args = parser.parse_args()
 
 u = get_universe(args.uid)
@@ -54,7 +62,34 @@ def random_sample_indices(n_points: int, k: int, seed=42) -> np.ndarray:
     return rng.choice(n_points, size=k, replace=False)
 
 
-sample_sizes = list(range(10000, 360000, 10000))
+def fps_indices(X: np.ndarray, k: int, seed: int = 42) -> np.ndarray:
+    X = np.asarray(X)
+    N = X.shape[0]
+
+    if k <= 0:
+        raise ValueError("k must be positive.")
+    if k >= N:
+        return np.arange(N, dtype=np.int64)
+
+    rng = np.random.default_rng(seed)
+    seed_idx = int(rng.integers(0, N))  # starting point
+    selected = np.empty(k, dtype=np.int64)
+    selected[0] = seed_idx
+    diff = X - X[seed_idx]
+    nearest_d2 = np.einsum("ij,ij->i", diff, diff)
+
+    for i in range(1, k):
+        idx = int(np.argmax(nearest_d2))
+        selected[i] = idx
+
+        diff = X - X[idx]
+        d2 = np.einsum("ij,ij->i", diff, diff)
+        nearest_d2 = np.minimum(nearest_d2, d2)
+
+    return selected
+
+
+sample_sizes = list(range(10000, 410000, 20000))
 N = projection.shape[0]
 
 sample_size_persistence_results = {}
@@ -64,8 +99,11 @@ persistence_timings = []
 for size in sample_sizes:
     persistence_start = time.perf_counter()
     logger.info(f"Processing sample size: {size}")
-    random_indices = random_sample_indices(N, size, seed)
-    Xrng = projection[random_indices]
+    if args.sampler == "fps":
+        indices = fps_indices(projection, k=size, seed=seed)
+    else:
+        indices = random_sample_indices(N, k=size, seed=seed)
+    Xrng = projection[indices]
 
     ac = gd.AlphaComplex(points=Xrng, precision="exact")
     simplex_tree = ac.create_simplex_tree()

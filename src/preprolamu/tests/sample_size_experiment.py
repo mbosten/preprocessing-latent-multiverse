@@ -1,6 +1,5 @@
 # import libraries
 import argparse
-import logging
 
 # For timing
 import time
@@ -18,7 +17,6 @@ from preprolamu.pipeline.metrics import compute_landscape_norm
 from preprolamu.pipeline.persistence import mask_infinities
 from preprolamu.pipeline.universes import get_universe
 
-logger = logging.getLogger(__name__)
 parser = argparse.ArgumentParser(description="sample size effects on landscape norms")
 
 parser.add_argument(
@@ -31,14 +29,14 @@ parser.add_argument(
 args = parser.parse_args()
 
 u = get_universe(args.uid)
-logger.info(f"Processing universe: {u.id}")
+print(f"Processing universe: {u.id}")
 seed = 42
 out_dir = Path("data/figures")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 projection_path = u.paths.projected(split="test", normalized=True)
 projection = np.load(projection_path)
-logger.info(f"Loaded projection with shape: {projection.shape}")
+print(f"Loaded projection with shape: {projection.shape}")
 
 
 def random_sample_indices(n_points: int, k: int, seed=42) -> np.ndarray:
@@ -60,7 +58,7 @@ persistence_timings = []
 # Compute persistence per sample size and for random sampling initially.
 for size in sample_sizes:
     persistence_start = time.perf_counter()
-    logger.info(f"Processing sample size: {size}")
+    print(f"Processing sample size: {size}")
     random_indices = random_sample_indices(N, size, seed)
     Xrng = projection[random_indices]
 
@@ -101,7 +99,7 @@ sample_size_landscape_results = {}
 landscape_timings = []
 for size, results in sample_size_persistence_results.items():
     landscape_start = time.perf_counter()
-    logger.info(f"Processing sample size: {size}")
+    print(f"Processing sample size: {size}")
 
     landscapes = compute_landscapes(
         persistence_per_dimension=results,

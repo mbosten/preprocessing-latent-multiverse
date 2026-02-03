@@ -18,9 +18,6 @@ for p in files:
         for row in r:
             rows.append(row)
 
-# optional: sort by universe_id then sample_size
-rows.sort(key=lambda r: (int(r[0]), r[3]))  # r[0]=universe_id, r[3]=sample_size
-
 with out_path.open("w", newline="") as f:
     w = csv.writer(f)
     w.writerow(header)

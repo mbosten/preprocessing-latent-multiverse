@@ -37,7 +37,7 @@ args = parser.parse_args()
 u = get_universe(args.uid)
 logger.info(f"Processing universe: {u.id}")
 seed = 42
-out_dir = Path("data/figures")
+out_dir = Path("data/figures/pca_dim_experiment")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 latent = u.io.load_embedding(split="test", force_recompute=False)
@@ -179,7 +179,9 @@ for size, landscapes in pca_landscape_results.items():
 results_dir = Path("data/experiments/pca_dim_experiment")
 results_dir.mkdir(parents=True, exist_ok=True)
 
-results_path = results_dir / f"landscape_norms_universe_{u.id}_{max(pca_dims)}dims.csv"
+results_path = (
+    results_dir / f"landscape_norm_pca_dims_universe_{u.id}_{max(pca_dims)}dims.csv"
+)
 
 with results_path.open("w", newline="") as f:
     writer = csv.writer(f)

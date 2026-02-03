@@ -193,7 +193,9 @@ for size, landscapes in sample_size_landscape_results.items():
 results_dir = Path("data/experiments/sample_size_experiment")
 results_dir.mkdir(parents=True, exist_ok=True)
 
-norm_csv_path = results_dir / f"landscape_norms_universe_{u.id}_{args.sampler}.csv"
+norm_csv_path = (
+    results_dir / f"landscape_norm_sample_size_universe_{u.id}_{args.sampler}.csv"
+)
 
 with norm_csv_path.open("w", newline="") as f:
     writer = csv.writer(f)

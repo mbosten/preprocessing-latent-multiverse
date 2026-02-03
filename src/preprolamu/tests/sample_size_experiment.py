@@ -1,5 +1,6 @@
 # import libraries
 import argparse
+import csv
 import logging
 
 # For timing
@@ -23,6 +24,10 @@ setup_logging(log_dir=Path("logs"))
 logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser(description="sample size effects on landscape norms")
+
+NORMFIGSIZE = (12, 8)  # inches
+TIMEFIGSIZE = (8, 6)  # inches
+DPI = 300  # fixed DPI
 
 parser.add_argument(
     "--universe-index",
@@ -89,7 +94,7 @@ def fps_indices(X: np.ndarray, k: int, seed: int = 42) -> np.ndarray:
     return selected
 
 
-sample_sizes = list(range(10000, 410000, 20000))
+sample_sizes = list(range(10000, 40000, 10000))
 N = projection.shape[0]
 
 sample_size_persistence_results = {}
@@ -128,14 +133,16 @@ for size, t in persistence_timings:
 persistence_sizes = [s for s, _ in persistence_timings]
 persistence_times = [t for _, t in persistence_timings]
 
-plt.plot(persistence_sizes, persistence_times)
-plt.xlabel("Sample size", fontsize=20, labelpad=12)
-plt.ylabel("Computation time (s)", fontsize=20)
-plt.tick_params(axis="both", which="major", labelsize=16)
+fig, ax = plt.subplots(figsize=TIMEFIGSIZE, dpi=DPI)
+ax.plot(persistence_sizes, persistence_times)
+ax.set_xlabel("Sample size", fontsize=20, labelpad=12)
+ax.set_ylabel("Computation time (s)", fontsize=20)
+ax.tick_params(axis="both", which="major", labelsize=16)
+fig.tight_layout(pad=1.5)
 persistence_out_path = (
     out_dir / f"persistence_time_sample_size_universe_{u.id}_{max(sample_sizes)}k.png"
 )
-plt.savefig(persistence_out_path, dpi=300, bbox_inches="tight")
+fig.savefig(persistence_out_path, dpi=DPI)
 plt.close()
 
 sample_size_landscape_results = {}
@@ -164,14 +171,16 @@ for size, t in landscape_timings:
 landscape_sizes = [s for s, _ in landscape_timings]
 landscape_times = [t for _, t in landscape_timings]
 
-plt.plot(landscape_sizes, landscape_times)
-plt.xlabel("Sample size", fontsize=20, labelpad=12)
-plt.ylabel("Computation time (s)", fontsize=20)
-plt.tick_params(axis="both", which="major", labelsize=16)
+fig, ax = plt.subplots(figsize=TIMEFIGSIZE, dpi=DPI)
+ax.plot(landscape_sizes, landscape_times)
+ax.set_xlabel("Sample size", fontsize=20, labelpad=12)
+ax.set_ylabel("Computation time (s)", fontsize=20)
+ax.tick_params(axis="both", which="major", labelsize=16)
+fig.tight_layout(pad=1.5)
 landscape_out_path = (
     out_dir / f"landscape_time_sample_size_universe_{u.id}_{max(sample_sizes)}k.png"
 )
-plt.savefig(landscape_out_path, dpi=300, bbox_inches="tight")
+fig.savefig(landscape_out_path, dpi=DPI)
 plt.close()
 
 sample_size_norm_results = {}
@@ -179,6 +188,23 @@ sample_size_norm_results = {}
 for size, landscapes in sample_size_landscape_results.items():
     dim_norms = compute_landscape_norm(landscapes, score_type="separate")
     sample_size_norm_results[size] = dim_norms
+
+# Store norms in universe-csv on disk to aggregate later
+results_dir = Path("data/experiments/sample_size_experiment")
+results_dir.mkdir(parents=True, exist_ok=True)
+
+norm_csv_path = results_dir / f"landscape_norms_universe_{u.id}_{args.sampler}.csv"
+
+with norm_csv_path.open("w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["universe_id", "sampler", "seed", "sample_size", "H0", "H1", "H2"])
+    for size in sorted(sample_size_norm_results.keys()):
+        h0 = float(sample_size_norm_results[size][0])
+        h1 = float(sample_size_norm_results[size][1])
+        h2 = float(sample_size_norm_results[size][2])
+        writer.writerow([u.id, args.sampler, seed, size, h0, h1, h2])
+
+logger.info(f"Wrote norms to {norm_csv_path}")
 
 
 # Sort x-axis
@@ -190,17 +216,19 @@ y1 = [sample_size_norm_results[k][1] for k in x]
 y2 = [sample_size_norm_results[k][2] for k in x]
 
 # Plot
-plt.figure(figsize=(12, 8))
-plt.plot(x, y0, label="H0")
-plt.plot(x, y1, label="H1")
-plt.plot(x, y2, label="H2")
+fig, ax = plt.subplots(figsize=NORMFIGSIZE, dpi=DPI)
+ax.plot(x, y0, label="H0")
+ax.plot(x, y1, label="H1")
+ax.plot(x, y2, label="H2")
 
-plt.xlabel("Sample Size", fontsize=20, labelpad=12)
-plt.ylabel("Landscape L2 Norm", fontsize=20)
-plt.tick_params(axis="both", which="major", labelsize=16)
-plt.legend(fontsize=18)
+ax.set_xlabel("Sample Size", fontsize=20, labelpad=12)
+ax.set_ylabel("Landscape L2 Norm", fontsize=20)
+ax.tick_params(axis="both", which="major", labelsize=16)
+ax.legend(fontsize=18)
+fig.tight_layout(pad=1.5)
+
 norm_out_path = (
     out_dir / f"landscape_norm_sample_size_universe_{u.id}_{max(sample_sizes)}k.png"
 )
-plt.savefig(norm_out_path, dpi=300, bbox_inches="tight")
+fig.savefig(norm_out_path, dpi=DPI)
 plt.close()

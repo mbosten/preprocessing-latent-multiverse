@@ -49,7 +49,7 @@ args = parser.parse_args()
 u = get_universe(args.uid)
 logger.info(f"Processing universe: {u.id}")
 seed = 42
-out_dir = Path("data/figures")
+out_dir = Path("data/figures/sample_size_experiment")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 projection_path = u.paths.projected(split="test", normalized=True)

@@ -17,7 +17,7 @@ for p in files:
         rows.extend(list(r))
 
 # sort: universe_id then pca_components
-rows.sort(key=lambda r: (int(r[0]), int(r[4])))
+# rows.sort(key=lambda r: (int(r[0]), int(r[4])))
 
 with out_path.open("w", newline="") as f:
     w = csv.writer(f)

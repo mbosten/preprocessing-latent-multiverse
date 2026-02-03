@@ -1,5 +1,6 @@
 # import libraries
 import argparse
+import csv
 import logging
 import time
 from pathlib import Path
@@ -173,6 +174,37 @@ pca_norm_results = {}
 for size, landscapes in pca_landscape_results.items():
     dim_norms = compute_landscape_norm(landscapes, score_type="separate")
     pca_norm_results[size] = dim_norms
+
+# Store universe-level data to disk
+results_dir = Path("data/experiments/pca_dim_experiment")
+results_dir.mkdir(parents=True, exist_ok=True)
+
+results_path = results_dir / f"landscape_norms_universe_{u.id}_{max(pca_dims)}dims.csv"
+
+with results_path.open("w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(
+        [
+            "universe_id",
+            "seed",
+            "n_points",
+            "n_latent_dim",
+            "pca_components",
+            "H0",
+            "H1",
+            "H2",
+        ]
+    )
+
+    for comps in sorted(pca_norm_results.keys()):
+        norms = pca_norm_results[comps]
+        h0 = float(norms.get(0, np.nan))
+        h1 = float(norms.get(1, np.nan))
+        h2 = float(norms.get(2, np.nan))
+
+        writer.writerow([u.id, seed, int(N), int(D), int(comps), h0, h1, h2])
+
+logger.info(f"Wrote norm table to {results_path}")
 
 x = sorted(pca_norm_results.keys())
 

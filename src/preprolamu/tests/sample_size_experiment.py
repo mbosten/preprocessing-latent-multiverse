@@ -94,7 +94,7 @@ def fps_indices(X: np.ndarray, k: int, seed: int = 42) -> np.ndarray:
     return selected
 
 
-sample_sizes = list(range(10000, 40000, 10000))
+sample_sizes = list(range(10000, 410000, 20000))
 N = projection.shape[0]
 
 sample_size_persistence_results = {}

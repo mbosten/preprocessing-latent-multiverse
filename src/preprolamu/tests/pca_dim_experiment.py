@@ -1,6 +1,7 @@
 # import libraries
 import argparse
 import csv
+import gc
 import logging
 import time
 from pathlib import Path
@@ -24,7 +25,7 @@ parser = argparse.ArgumentParser(description="sample size effects on landscape n
 NORMFIGSIZE = (12, 8)  # inches
 TIMEFIGSIZE = (8, 6)  # inches
 DPI = 300  # fixed DPI
-SUBSAMPLE_SIZE = 250_000
+SUBSAMPLE_SIZE = 100_000
 
 parser.add_argument(
     "--universe-index",
@@ -66,9 +67,17 @@ indices = random_sample_indices(N, SUBSAMPLE_SIZE, seed=seed)
 X = latent[indices]
 logger.info(X.shape)
 
+# Active memory management
+del latent
+gc.collect()
+
 # Diameter division to normalize the data
 Xnorm, diameter = normalize_space(X, seed=seed, diameter_iterations=1000)
 pca_dims = list(range(1, 6, 1))
+
+# Active memory management
+del X
+gc.collect()
 
 for components in pca_dims:
     logger.info(components)
@@ -105,6 +114,10 @@ logger.info(f"{'PCA components':>12} | {'Time (s)':>8}")
 logger.info("-" * 25)
 for components, t in persistence_timings:
     logger.info(f"{components:12d} | {t:8.3f}")
+
+# Active memory management
+del Xnorm
+gc.collect()
 
 pca_components = [s for s, _ in persistence_timings]
 persistence_times = [t for _, t in persistence_timings]

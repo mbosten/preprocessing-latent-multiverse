@@ -1,6 +1,7 @@
 # import libraries
 import argparse
 import csv
+import gc
 import logging
 
 # For timing
@@ -94,7 +95,7 @@ def fps_indices(X: np.ndarray, k: int, seed: int = 42) -> np.ndarray:
     return selected
 
 
-sample_sizes = list(range(10000, 410000, 20000))
+sample_sizes = list(range(20000, 510000, 20000))
 N = projection.shape[0]
 
 sample_size_persistence_results = {}
@@ -129,6 +130,10 @@ logger.info(f"{'Sample size':>12} | {'Time (s)':>8}")
 logger.info("-" * 25)
 for size, t in persistence_timings:
     logger.info(f"{size:12d} | {t:8.3f}")
+
+# Active memory management
+del projection, Xrng
+gc.collect()
 
 persistence_sizes = [s for s, _ in persistence_timings]
 persistence_times = [t for _, t in persistence_timings]

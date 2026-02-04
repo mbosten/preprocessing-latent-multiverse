@@ -1,8 +1,9 @@
 # import libraries
 import argparse
 import csv
-import gc
+import gc  # Explicit memory management
 import logging
+import sys  # Terminate script when all files are already on disk
 import time
 from pathlib import Path
 
@@ -22,11 +23,6 @@ logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser(description="sample size effects on landscape norms")
 
-NORMFIGSIZE = (12, 8)  # inches
-TIMEFIGSIZE = (8, 6)  # inches
-DPI = 300  # fixed DPI
-SUBSAMPLE_SIZE = 100_000
-
 parser.add_argument(
     "--universe-index",
     dest="uid",
@@ -36,11 +32,54 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+# VARIABLES
+NORMFIGSIZE = (12, 8)  # inches
+TIMEFIGSIZE = (8, 6)  # inches
+DPI = 300  # fixed DPI
+SUBSAMPLE_SIZE = 100_000
+pca_dims = list(range(1, 6, 1))
+seed = 42
+
+# Get universe prior to path variables for naming
 u = get_universe(args.uid)
 logger.info(f"Processing universe: {u.id}")
-seed = 42
+
+# PATHS
+# figures path
 out_dir = Path("data/figures/pca_dim_experiment")
 out_dir.mkdir(parents=True, exist_ok=True)
+
+# csvs path
+results_dir = Path("data/experiments/pca_dim_experiment")
+results_dir.mkdir(parents=True, exist_ok=True)
+persistence_out_path = (
+    out_dir
+    / f"persistence_time_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
+)
+landscape_out_path = (
+    out_dir
+    / f"landscape_time_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
+)
+results_path = (
+    results_dir
+    / f"landscape_norm_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.csv"
+)
+norm_out_path = (
+    out_dir
+    / f"landscape_norm_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
+)
+
+# Check if all files already exist
+paths = [
+    persistence_out_path,
+    landscape_out_path,
+    results_path,
+    norm_out_path,
+]
+
+if all(p.exists() for p in paths):
+    logger.info("All output files already exist. Exiting.")
+    sys.exit(0)
 
 latent = u.io.load_embedding(split="test", force_recompute=False)
 logger.info(f"Loaded projection with shape: {latent.shape}")
@@ -73,7 +112,6 @@ gc.collect()
 
 # Diameter division to normalize the data
 Xnorm, diameter = normalize_space(X, seed=seed, diameter_iterations=1000)
-pca_dims = list(range(1, 6, 1))
 
 # Active memory management
 del X
@@ -128,10 +166,7 @@ ax.set_xlabel("PCA components", fontsize=20, labelpad=12)
 ax.set_ylabel("Computation time (s)", fontsize=20)
 ax.tick_params(axis="both", which="major", labelsize=16)
 fig.tight_layout(pad=1.5)
-persistence_out_path = (
-    out_dir
-    / f"persistence_time_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
-)
+
 fig.savefig(persistence_out_path, dpi=DPI)
 plt.close()
 
@@ -179,10 +214,7 @@ ax.set_xlabel("Number of PCA components", fontsize=20, labelpad=12)
 ax.set_ylabel("Computation time (s)", fontsize=20)
 ax.tick_params(axis="both", which="major", labelsize=16)
 fig.tight_layout(pad=1.5)
-landscape_out_path = (
-    out_dir
-    / f"landscape_time_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
-)
+
 fig.savefig(landscape_out_path, dpi=DPI)
 plt.close()
 
@@ -190,15 +222,6 @@ pca_norm_results = {}
 for size, landscapes in pca_landscape_results.items():
     dim_norms = compute_landscape_norm(landscapes, score_type="separate")
     pca_norm_results[size] = dim_norms
-
-# Store universe-level data to disk
-results_dir = Path("data/experiments/pca_dim_experiment")
-results_dir.mkdir(parents=True, exist_ok=True)
-
-results_path = (
-    results_dir
-    / f"landscape_norm_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.csv"
-)
 
 with results_path.open("w", newline="") as f:
     writer = csv.writer(f)
@@ -241,9 +264,6 @@ ax.set_ylabel("Landscape L2 Norm", fontsize=20)
 ax.tick_params(axis="both", which="major", labelsize=16)
 ax.legend(fontsize=18)
 fig.tight_layout(pad=1.5)
-norm_out_path = (
-    out_dir
-    / f"landscape_norm_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
-)
+
 fig.savefig(norm_out_path, dpi=DPI)
 plt.close()

@@ -24,7 +24,8 @@ parser = argparse.ArgumentParser(description="sample size effects on landscape n
 NORMFIGSIZE = (12, 8)  # inches
 TIMEFIGSIZE = (8, 6)  # inches
 DPI = 300  # fixed DPI
-SUBSAMPLE_SIZE = 100_000
+SUBSAMPLE_SIZE = 250_000
+
 parser.add_argument(
     "--universe-index",
     dest="uid",
@@ -67,7 +68,7 @@ logger.info(X.shape)
 
 # Diameter division to normalize the data
 Xnorm, diameter = normalize_space(X, seed=seed, diameter_iterations=1000)
-pca_dims = list(range(1, 7, 1))
+pca_dims = list(range(1, 6, 1))
 
 for components in pca_dims:
     logger.info(components)

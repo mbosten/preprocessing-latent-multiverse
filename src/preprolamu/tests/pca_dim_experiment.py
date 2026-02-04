@@ -24,7 +24,7 @@ parser = argparse.ArgumentParser(description="sample size effects on landscape n
 NORMFIGSIZE = (12, 8)  # inches
 TIMEFIGSIZE = (8, 6)  # inches
 DPI = 300  # fixed DPI
-
+SUBSAMPLE_SIZE = 100_000
 parser.add_argument(
     "--universe-index",
     dest="uid",
@@ -61,13 +61,13 @@ persistence_timings = []
 persistence_start = time.perf_counter()
 
 # Sample embedding space to ensure reasonable computation times when increasing pca components
-indices = random_sample_indices(N, 25000, seed=seed)
+indices = random_sample_indices(N, SUBSAMPLE_SIZE, seed=seed)
 X = latent[indices]
 logger.info(X.shape)
 
 # Diameter division to normalize the data
 Xnorm, diameter = normalize_space(X, seed=seed, diameter_iterations=1000)
-pca_dims = list(range(1, 6, 1))
+pca_dims = list(range(1, 7, 1))
 
 for components in pca_dims:
     logger.info(components)
@@ -115,7 +115,8 @@ ax.set_ylabel("Computation time (s)", fontsize=20)
 ax.tick_params(axis="both", which="major", labelsize=16)
 fig.tight_layout(pad=1.5)
 persistence_out_path = (
-    out_dir / f"persistence_time_pca_dims_universe_{u.id}_{max(pca_dims)}dims.png"
+    out_dir
+    / f"persistence_time_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
 )
 fig.savefig(persistence_out_path, dpi=DPI)
 plt.close()
@@ -165,7 +166,8 @@ ax.set_ylabel("Computation time (s)", fontsize=20)
 ax.tick_params(axis="both", which="major", labelsize=16)
 fig.tight_layout(pad=1.5)
 landscape_out_path = (
-    out_dir / f"landscape_time_pca_dims_universe_{u.id}_{max(pca_dims)}dims.png"
+    out_dir
+    / f"landscape_time_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
 )
 fig.savefig(landscape_out_path, dpi=DPI)
 plt.close()
@@ -180,7 +182,8 @@ results_dir = Path("data/experiments/pca_dim_experiment")
 results_dir.mkdir(parents=True, exist_ok=True)
 
 results_path = (
-    results_dir / f"landscape_norm_pca_dims_universe_{u.id}_{max(pca_dims)}dims.csv"
+    results_dir
+    / f"landscape_norm_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.csv"
 )
 
 with results_path.open("w", newline="") as f:
@@ -204,7 +207,7 @@ with results_path.open("w", newline="") as f:
         h1 = float(norms.get(1, np.nan))
         h2 = float(norms.get(2, np.nan))
 
-        writer.writerow([u.id, seed, int(N), int(D), int(comps), h0, h1, h2])
+        writer.writerow([u.id, seed, SUBSAMPLE_SIZE, int(D), int(comps), h0, h1, h2])
 
 logger.info(f"Wrote norm table to {results_path}")
 
@@ -225,7 +228,8 @@ ax.tick_params(axis="both", which="major", labelsize=16)
 ax.legend(fontsize=18)
 fig.tight_layout(pad=1.5)
 norm_out_path = (
-    out_dir / f"landscape_norm_pca_dims_universe_{u.id}_{max(pca_dims)}dims.png"
+    out_dir
+    / f"landscape_norm_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
 )
 fig.savefig(norm_out_path, dpi=DPI)
 plt.close()

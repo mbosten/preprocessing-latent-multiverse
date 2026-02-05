@@ -5,6 +5,7 @@ import gc
 import logging
 
 # For timing
+import sys
 import time
 from pathlib import Path
 
@@ -47,17 +48,36 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+# PRIORS
 u = get_universe(args.uid)
 logger.info(f"Processing universe: {u.id}")
 seed = 42
+sample_sizes = list(range(20000, 510000, 20000))
+
+# PATHS
 out_dir = Path("data/figures/sample_size_experiment")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 projection_path = u.paths.projected(split="test", normalized=True)
-projection = np.load(projection_path)
-logger.info(f"Loaded projection with shape: {projection.shape}")
+
+persistence_out_path = (
+    out_dir / f"persistence_time_sample_size_universe_{u.id}_{max(sample_sizes)}k.png"
+)
+landscape_out_path = (
+    out_dir / f"landscape_time_sample_size_universe_{u.id}_{max(sample_sizes)}k.png"
+)
+results_dir = Path("data/experiments/sample_size_experiment")
+results_dir.mkdir(parents=True, exist_ok=True)
+
+norm_csv_path = (
+    results_dir / f"landscape_norm_sample_size_universe_{u.id}_{args.sampler}.csv"
+)
+norm_out_path = (
+    out_dir / f"landscape_norm_sample_size_universe_{u.id}_{max(sample_sizes)}k.png"
+)
 
 
+# FUNCTIONS
 def random_sample_indices(n_points: int, k: int, seed=42) -> np.ndarray:
     if seed is None:
         raise ValueError("Seed must be provided for reproducibility.")
@@ -95,7 +115,22 @@ def fps_indices(X: np.ndarray, k: int, seed: int = 42) -> np.ndarray:
     return selected
 
 
-sample_sizes = list(range(20000, 510000, 20000))
+# Abort script if all output files already exist
+paths = [
+    persistence_out_path,
+    landscape_out_path,
+    norm_csv_path,
+    norm_out_path,
+]
+
+if all(p.exists() for p in paths):
+    logger.info("All output files already exist. Exiting.")
+    sys.exit(0)
+
+# load data
+projection = np.load(projection_path)
+logger.info(f"Loaded projection with shape: {projection.shape}")
+
 N = projection.shape[0]
 
 sample_size_persistence_results = {}
@@ -105,6 +140,9 @@ persistence_timings = []
 for size in sample_sizes:
     persistence_start = time.perf_counter()
     logger.info(f"Processing sample size: {size}")
+
+    size = min(size, N)  # Ensure we don't sample more than available points
+
     if args.sampler == "fps":
         indices = fps_indices(projection, k=size, seed=seed)
     else:
@@ -126,6 +164,10 @@ for size in sample_sizes:
     persistence_elapsed = time.perf_counter() - persistence_start
     persistence_timings.append((size, persistence_elapsed))
 
+    if size == N:
+        logger.info("Reached full dataset size. Stopping further computations.")
+        break
+
 logger.info(f"{'Sample size':>12} | {'Time (s)':>8}")
 logger.info("-" * 25)
 for size, t in persistence_timings:
@@ -144,9 +186,7 @@ ax.set_xlabel("Sample size", fontsize=20, labelpad=12)
 ax.set_ylabel("Computation time (s)", fontsize=20)
 ax.tick_params(axis="both", which="major", labelsize=16)
 fig.tight_layout(pad=1.5)
-persistence_out_path = (
-    out_dir / f"persistence_time_sample_size_universe_{u.id}_{max(sample_sizes)}k.png"
-)
+
 fig.savefig(persistence_out_path, dpi=DPI)
 plt.close()
 
@@ -182,9 +222,7 @@ ax.set_xlabel("Sample size", fontsize=20, labelpad=12)
 ax.set_ylabel("Computation time (s)", fontsize=20)
 ax.tick_params(axis="both", which="major", labelsize=16)
 fig.tight_layout(pad=1.5)
-landscape_out_path = (
-    out_dir / f"landscape_time_sample_size_universe_{u.id}_{max(sample_sizes)}k.png"
-)
+
 fig.savefig(landscape_out_path, dpi=DPI)
 plt.close()
 
@@ -194,13 +232,6 @@ for size, landscapes in sample_size_landscape_results.items():
     dim_norms = compute_landscape_norm(landscapes, score_type="separate")
     sample_size_norm_results[size] = dim_norms
 
-# Store norms in universe-csv on disk to aggregate later
-results_dir = Path("data/experiments/sample_size_experiment")
-results_dir.mkdir(parents=True, exist_ok=True)
-
-norm_csv_path = (
-    results_dir / f"landscape_norm_sample_size_universe_{u.id}_{args.sampler}.csv"
-)
 
 with norm_csv_path.open("w", newline="") as f:
     writer = csv.writer(f)
@@ -234,8 +265,5 @@ ax.tick_params(axis="both", which="major", labelsize=16)
 ax.legend(fontsize=18)
 fig.tight_layout(pad=1.5)
 
-norm_out_path = (
-    out_dir / f"landscape_norm_sample_size_universe_{u.id}_{max(sample_sizes)}k.png"
-)
 fig.savefig(norm_out_path, dpi=DPI)
 plt.close()

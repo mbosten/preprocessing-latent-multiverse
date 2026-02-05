@@ -143,11 +143,17 @@ for size in sample_sizes:
 
     size = min(size, N)  # Ensure we don't sample more than available points
 
-    if args.sampler == "fps":
-        indices = fps_indices(projection, k=size, seed=seed)
-    else:
+    if size == N:
+        logger.info("Sample size equals total number of points. Using full dataset.")
+        Xrng = projection
+    elif args.sampler == "random":
         indices = random_sample_indices(N, k=size, seed=seed)
-    Xrng = projection[indices]
+        Xrng = projection[indices]
+    else:
+        indices = fps_indices(
+            projection, k=size, seed=seed
+        )  # not in use yet: sampling is extremely slow
+        Xrng = projection[indices]
 
     ac = gd.AlphaComplex(points=Xrng, precision="exact")
     simplex_tree = ac.create_simplex_tree()

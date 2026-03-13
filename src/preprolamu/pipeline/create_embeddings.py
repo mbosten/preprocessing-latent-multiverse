@@ -39,7 +39,7 @@ def get_or_compute_latent(
     # Retrieve model path to see if a checkpoint exists.
     model_path = universe.paths.ae_model()
 
-    # Retrieve test set feature matrix for encoder
+    # Retrieve test set feature matrix for encoder, which only contains benign traffic
     X, _, ds_cfg = get_feature_matrix_from_universe(universe, split=split)
 
     logger.info(
@@ -48,9 +48,6 @@ def get_or_compute_latent(
         universe.id,
         split,
     )
-
-    # Encode only the benign class
-    X = X[X[ds_cfg.label_column] == ds_cfg.benign_label]
 
     # If model does not exist yet, or training should be overwritten.
     # Internally retrieves train and validation sets.

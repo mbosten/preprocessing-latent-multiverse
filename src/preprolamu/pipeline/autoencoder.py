@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from preprolamu.config import DatasetConfig, load_dataset_config
 from preprolamu.pipeline.universes import Universe
-from preprolamu.tests.data_checks import log_feature_stats
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +139,12 @@ def get_feature_matrix_from_universe(
     logger.info("[AE] Loading preprocessed %s data from %s", split.upper(), path)
 
     df = pd.read_parquet(path)
+
+    if split == "test":
+        # Only return benign samples for AE encoder
+        # Performance evaluation uses a different function for retrieving the feature matrix.
+        df = df[df[ds_cfg.label_column] == ds_cfg.benign_label]
+
     logger.info("[AE] %s data shape: %s", split.upper(), df.shape)
 
     X, feature_names = _get_feature_matrix_for_ae(df, ds_cfg)
@@ -156,7 +161,7 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
         universe, split="train"
     )
 
-    log_feature_stats(X_train, feature_names, "train", universe)
+    # log_feature_stats(X_train, feature_names, "train", universe)
 
     X_val, _, _ = get_feature_matrix_from_universe(universe, split="val")
 

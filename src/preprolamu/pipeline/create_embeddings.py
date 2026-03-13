@@ -49,6 +49,9 @@ def get_or_compute_latent(
         split,
     )
 
+    # Encode only the benign class
+    X = X[X[ds_cfg.label_column] == ds_cfg.benign_label]
+
     # If model does not exist yet, or training should be overwritten.
     # Internally retrieves train and validation sets.
     if not model_path.exists() or retrain_regardless:

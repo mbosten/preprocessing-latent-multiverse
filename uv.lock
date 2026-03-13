@@ -1930,6 +1930,7 @@ dependencies = [
     { name = "pytest-cov" },
     { name = "pyyaml" },
     { name = "rich" },
+    { name = "ripser" },
     { name = "scikit-learn" },
     { name = "seaborn" },
     { name = "statsmodels" },
@@ -1961,6 +1962,7 @@ requires-dist = [
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=13.0" },
+    { name = "ripser", specifier = ">=0.6.14" },
     { name = "scikit-learn", specifier = ">=1.7.2" },
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "statsmodels", specifier = ">=0.14.6" },
@@ -2329,6 +2331,71 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fb/d2/8920e102050a0de7bfabeb4c4614a49248cf8d5d7a8d01885fbb24dc767a/rich-14.2.0.tar.gz", hash = "sha256:73ff50c7c0c1c77c8243079283f4edb376f0f6442433aecb8ce7e6d0b92d1fe4", size = 219990, upload-time = "2025-10-09T14:16:53.064Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/25/7a/b0178788f8dc6cafce37a212c99565fa1fe7872c70c6c9c1e1a372d9d88f/rich-14.2.0-py3-none-any.whl", hash = "sha256:76bc51fe2e57d2b1be1f96c524b890b816e334ab4c1e45888799bfaab0021edd", size = 243393, upload-time = "2025-10-09T14:16:51.245Z" },
+]
+
+[[package]]
+name = "ripser"
+version = "0.6.14"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cython" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "persim" },
+    { name = "scikit-learn" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.16.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b5/b7/20bc656af04f289a24873367571d8524b2bd8bb366894ab60041dfd52273/ripser-0.6.14.tar.gz", hash = "sha256:95dcc16e4577090f0ae8abd6b2665892aaed0fdfaacbdcfcc277e20e30860863", size = 112565, upload-time = "2025-12-08T03:42:19.374Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2e/e8/bd5d261b13791a68d386354b7ff20e4414ccdd9d3194835c15c343011e3d/ripser-0.6.14-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:e24323fa3ea90afde58d26ea3e0f0b78f8e4592416b07e011aaeabcd0665b2af", size = 175299, upload-time = "2025-12-08T03:40:53.012Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/e2/d3a3c5a4e0e33523a9f184e397e1fe16ac80c9b350b0a82cf6c07a6a5513/ripser-0.6.14-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:4c845d8293698789b76a2c9686f412ccfa59ef54e60f769ba7e417fe86bf9d61", size = 170105, upload-time = "2025-12-08T03:40:54.288Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/69/97bc88fd39d3dbf55a751487e117ce441e1e5a951fa4a1a12553c023ad83/ripser-0.6.14-cp310-cp310-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1cba91ee032a87c050c257f46681459ce1a7a62daad73848be98384e71a00849", size = 819786, upload-time = "2025-12-08T03:40:55.747Z" },
+    { url = "https://files.pythonhosted.org/packages/04/6f/2bcb7ef55d64b8fa802062ef3e4d5d2cd3b853866d34e5cf0f4624ccc09c/ripser-0.6.14-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:452c1e6af9c3b3da5507433f976fb4af51fc9782347e6b9bb2959c00981446df", size = 826534, upload-time = "2025-12-08T03:40:57.176Z" },
+    { url = "https://files.pythonhosted.org/packages/53/a8/475634ec20e0fd71c9f9c053b39087e10d8419bb825178af2a1fd035cc8a/ripser-0.6.14-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:8e03ad22830a199dff9b6572cf1d162a55ada4ffe08f73767957c86b216963ec", size = 1781554, upload-time = "2025-12-08T03:40:58.521Z" },
+    { url = "https://files.pythonhosted.org/packages/58/f5/02e2d06270b51780a7f2f3cbd44f251b9f6342fae86d786b5072a9774354/ripser-0.6.14-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:0f29714baa9ea31bf68649fb32f9a12091d46d77e557cff7d67a9690bcd26d15", size = 1843122, upload-time = "2025-12-08T03:40:59.812Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/98/c9056424e69f60e50352d576cdda67c0bfd755ba4ac607461070dc1d1c51/ripser-0.6.14-cp310-cp310-win32.whl", hash = "sha256:ff5ae9796e8a7d3329c92e48ab6d9a10eaccfcd1a2912428bf7328257aa0a627", size = 157236, upload-time = "2025-12-08T03:41:01.44Z" },
+    { url = "https://files.pythonhosted.org/packages/73/92/f6e3aae67ebbc288873f01dbfa9349126a3d1de388d5ea295a07c4e2284a/ripser-0.6.14-cp310-cp310-win_amd64.whl", hash = "sha256:b3a7c9a6a50c25b562dd36d1af3897fb37e5a3535f92773573c53ee54a22ddb2", size = 164815, upload-time = "2025-12-08T03:41:02.509Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/b6/5ac8d9aabb157c1c8e6f5f4b21b7bda546d6b4431786e448e6f34474a41a/ripser-0.6.14-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:efe1a5c5b0d778ec2df8798cfa6c606c008b215fbd1fa8b624acd7d9764ea8e8", size = 175198, upload-time = "2025-12-08T03:41:03.59Z" },
+    { url = "https://files.pythonhosted.org/packages/c0/4e/6c676d9630d5918dc2af754e7fb9e4e032d0861c8697df9247bde3553810/ripser-0.6.14-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:4bbd0c7fcda80237b37305199e1ca7fdc9ad71c6ac585fc6dccb287d9ecfddbf", size = 169973, upload-time = "2025-12-08T03:41:04.962Z" },
+    { url = "https://files.pythonhosted.org/packages/de/2a/493e0c8bb2da8a193ccddc431b9207f61564fedc0b9be73a00fbaf66c012/ripser-0.6.14-cp311-cp311-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:3005a38717bde96baadb21f8296311700b928fefd4c026d46dfaf56e17fd9c8b", size = 826050, upload-time = "2025-12-08T03:41:06.209Z" },
+    { url = "https://files.pythonhosted.org/packages/b1/3f/faa8d033962bc0d0372fa5e87e7e15472377966705638b10637db69af469/ripser-0.6.14-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:888c9df17006acefbb84718b10b75a32732c4fcc1dc536c5b5a3fc92a5e3e5de", size = 832044, upload-time = "2025-12-08T03:41:07.789Z" },
+    { url = "https://files.pythonhosted.org/packages/63/b2/b935ab0e298384658ce21d045747a8c57b29bc8faa7f57192ed13f9a74fd/ripser-0.6.14-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:e7d6aa94a1724a90b4099c74a299a0a168acaf7a8bd7591d488e0f9f4da98492", size = 1785773, upload-time = "2025-12-08T03:41:09.066Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/49/068ec5a798192301d5ddbefeb1bda6e2b3d20d29772305d5987a08bfee7a/ripser-0.6.14-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:5497b1f372643d90c387b2ee436538ca3b05fbf8d0fbb4e80d8f98dee153c400", size = 1847730, upload-time = "2025-12-08T03:41:11.271Z" },
+    { url = "https://files.pythonhosted.org/packages/84/ff/f25b89f94364a2c98b8e91264386c65963a015677ba5c9f56481c0694b1e/ripser-0.6.14-cp311-cp311-win32.whl", hash = "sha256:6c53757a6c51c8fa4c0357bae26781c4ca24ef5164c0aab3bbe00309f7d5e79e", size = 157201, upload-time = "2025-12-08T03:41:12.844Z" },
+    { url = "https://files.pythonhosted.org/packages/68/63/ab1efa8bb627aaf9ac62370139ceb9ee4aff502329fcf8dfc07dfe4b1c9b/ripser-0.6.14-cp311-cp311-win_amd64.whl", hash = "sha256:b4dfac06d7298c5d6669b16ca335e6223cbcbd33b2487a1da372e049a94fe93f", size = 164971, upload-time = "2025-12-08T03:41:13.923Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/47/5a48d4ea36ec9c4f70d0df59f27b64da005d3f8a9f35d4ed526e019561a5/ripser-0.6.14-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:62abfbf3a03dac0e9eda9015ed018eec48722d694c42af4d8e3b253dee7662b7", size = 175467, upload-time = "2025-12-08T03:41:15.045Z" },
+    { url = "https://files.pythonhosted.org/packages/99/89/3a65dd5fbe41b93a2285aed3147f2c90b7d5ccb2c1b1673e61be97e4ca0c/ripser-0.6.14-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:2740d387207b97d5662a10c826983437c1c8e5660e06df3a49821be3933cb50f", size = 170041, upload-time = "2025-12-08T03:41:16.19Z" },
+    { url = "https://files.pythonhosted.org/packages/46/35/b3843e835408e7f98dbe220c2c3691f820a91c2f056e8e2af55d1b095c52/ripser-0.6.14-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:38f96c5aa0e71ac02d6060c9bd86ed0b553f319a9f50d43cae4d268005a8564c", size = 832760, upload-time = "2025-12-08T03:41:17.717Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/3e/47bb59869ef942f8abaa0ef29820f30ec3b8690e120590ee1dac67b76493/ripser-0.6.14-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:5c757a2c130f686ebd8ac5f02fc18326234a96ea26f3115ee231d77de631785c", size = 842087, upload-time = "2025-12-08T03:41:19.031Z" },
+    { url = "https://files.pythonhosted.org/packages/79/6b/ba80ef2ff6ee14681bad90db2a439bfcab5a14dba2c6ec3681eda6ed6038/ripser-0.6.14-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:b6215698fb29bbde4393565cc75f60dad97fd1506f13b7620d2c6662c46fc85a", size = 1790706, upload-time = "2025-12-08T03:41:20.305Z" },
+    { url = "https://files.pythonhosted.org/packages/c0/92/7a371410711fa3e72c6bdddf378ba40f13da5122f9a7686385d7aa56503e/ripser-0.6.14-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:5dff01737061f4318ad4f7e8d2f4bdf17c6711f3ef75c3bc1c83546edcc913ad", size = 1859722, upload-time = "2025-12-08T03:41:21.68Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/73/1434be0f98436df2ebe73ed24cfadc84b50a40af7919145e3207bae4ed1f/ripser-0.6.14-cp312-cp312-win32.whl", hash = "sha256:fd132d12e92b63a614fa20cad32d59b6576748f3384fa021b18f733d3c192a93", size = 157694, upload-time = "2025-12-08T03:41:23.248Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/09/5ffadf3b2355e21a5aa02c1e7aa4f291d084db5c6d8112ac3b3c877a3fa3/ripser-0.6.14-cp312-cp312-win_amd64.whl", hash = "sha256:c5e02617921a5503420d23648134a9e4baa70636259748dd9779168804b4110e", size = 165385, upload-time = "2025-12-08T03:41:24.379Z" },
+    { url = "https://files.pythonhosted.org/packages/62/d3/79cdd1190543c2b3a6f6ec6d0e0d5f2a2fb8988cce037e65d117f96933cd/ripser-0.6.14-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:56c6dea6ca370991c14dfa4b3889ed12c8f921c74a9e220aa4fe57c2dc681f9e", size = 175394, upload-time = "2025-12-08T03:41:25.862Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/f7/977e790a79b57b71b779e9d56fe37e2e7a72c2ec1b308e70255fbdbe8a9d/ripser-0.6.14-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:c1fdc8a20bb99ebb76923907ab0397c7050241a51febc96b4cb8be58ca59a2db", size = 169998, upload-time = "2025-12-08T03:41:27.079Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/f1/f2984f15c4b375e971af409bb3573943557e8af45b41db3f3aac075f7953/ripser-0.6.14-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:e8fd474f789bc1db04753c40efc385229f204363f30b2adad69f8c782276b3e9", size = 832422, upload-time = "2025-12-08T03:41:28.534Z" },
+    { url = "https://files.pythonhosted.org/packages/69/f7/2463200eeb7a7f08c0208174a848c22bb70c5afa1e687fd01ebba35f7ee6/ripser-0.6.14-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d1f9392fa2481b74a99d422c363f68c598a30e41b24968a4f0a3f3f576ac4001", size = 839669, upload-time = "2025-12-08T03:41:29.961Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/00/8eefd2de767fd5699c0407e6d7605e3c6e1c27505c06c4df43435201efcd/ripser-0.6.14-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:5512844d5b3fd1b1c2a255b148224d8741cc65d0586f374c22d26ccb4e3069e1", size = 1790515, upload-time = "2025-12-08T03:41:31.851Z" },
+    { url = "https://files.pythonhosted.org/packages/55/33/56d930dc55fd316096530135698ae1a4685f248b153c596dfee8056feb80/ripser-0.6.14-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:c6ab18241c0ec4080f9330494abf8a4493a8f3edd88de6e05067e92e7e5c9793", size = 1856691, upload-time = "2025-12-08T03:41:33.187Z" },
+    { url = "https://files.pythonhosted.org/packages/96/28/0075e23e9bb8feca9fdbceeb722059a50184d8afa4211f7c43cd5600a6f9/ripser-0.6.14-cp313-cp313-win32.whl", hash = "sha256:be27ff2ee5378ca1cc25d8d73c7c97341acd179dadf6a71da84401689455a723", size = 157657, upload-time = "2025-12-08T03:41:34.82Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/fc/4be597c49e65e0dc866ec2272ba5d3257400ccdaaa9f1044e8fe68c8b18a/ripser-0.6.14-cp313-cp313-win_amd64.whl", hash = "sha256:d829c377fa0e7195a03cdc811b0f3e77591a70efd4820359070fe4a5153caadb", size = 165383, upload-time = "2025-12-08T03:41:35.972Z" },
+    { url = "https://files.pythonhosted.org/packages/89/0d/d4467a968f49936f341292c245b925e62c7a175bf1dce0764e198e898995/ripser-0.6.14-cp314-cp314-macosx_10_13_x86_64.whl", hash = "sha256:9cfb8c50bd6aaea8d0baf3a612d5cd3d68660c091f7e533cb1f012241b0c43ce", size = 176331, upload-time = "2025-12-08T03:41:37.16Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/aa/27238dbf60c6fab0b883ae37239464794b0dfc1e07a08f456e0fb11a3ca2/ripser-0.6.14-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:6a757674fb8a10221e4728efade521a9e07f3b8dbca3b00ef7e1b2a9e4144334", size = 171019, upload-time = "2025-12-08T03:41:38.257Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/be/ebb02751b441ec8ee2e06e362c004026e9e76502a6b57f672adf8e5195b1/ripser-0.6.14-cp314-cp314-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:eeb947c72d2ce530de60a8ac2f91cc77fdf47d97efafa0a2b2e5844963b14138", size = 831275, upload-time = "2025-12-08T03:41:39.416Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/51/c1f1f07aad40670deaa1c314fe991273e1412cc1d2757d556816639ebb55/ripser-0.6.14-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:18dce133791a3967f2ca044142432b6698d05c0daf724c09bb7db42f111eef89", size = 839039, upload-time = "2025-12-08T03:41:40.7Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/69/9d8cd38f8da5f62aeea41d10a66aaa8f22bf5ee19b1247a26b782458664a/ripser-0.6.14-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:d784449191636115d442e56192dd0112e607d1b41cf49089d9a1771bbfc574ae", size = 1790475, upload-time = "2025-12-08T03:41:42.348Z" },
+    { url = "https://files.pythonhosted.org/packages/15/b4/e187b0c0cd6a22fde45e3b86480ecb16efe2c643a82f1f9b95d6a41434e7/ripser-0.6.14-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:05a37e0b18f775c8873d67ed5dc3482c772b9cea111c0a65a9bdac4d17f87a08", size = 1856549, upload-time = "2025-12-08T03:41:43.701Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/df/806d58f379126146385fd1c1e765efbeb4f549494eb915f97924cf6717c0/ripser-0.6.14-cp314-cp314-win32.whl", hash = "sha256:bccdc7b0115b4fcee9cd403795609d3860219994b41ec0b767cba8a13e85ea06", size = 160390, upload-time = "2025-12-08T03:41:45.117Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/ef/8c4423d53bcd3af41527f191e16b78e1188d9764615dcbf48ffe8974c15d/ripser-0.6.14-cp314-cp314-win_amd64.whl", hash = "sha256:4c813e07c63436829c32a6fa80e3809676a27e36b4b94d1ebe1ee32e9af71f9e", size = 167872, upload-time = "2025-12-08T03:41:46.451Z" },
+    { url = "https://files.pythonhosted.org/packages/67/81/3e4e2793100f5b526c44c68ea80f90461f7b4ead63b6337cb75733f73349/ripser-0.6.14-cp314-cp314t-macosx_10_13_x86_64.whl", hash = "sha256:4b08896dcbdf75d028842585e69d2b8721490e99fe9b27c79e776532b69677d5", size = 178603, upload-time = "2025-12-08T03:41:47.522Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/68/fccf2bd0f8771ffd9f5948788e9abae4c2a32705d21967c316c300f30312/ripser-0.6.14-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:efd92bc50d32c8a65b8eeb6e826637eca82b87dd26b27bd8c0f4bed5d84352d8", size = 174066, upload-time = "2025-12-08T03:41:48.659Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/88/f409ae0758f2b1ffd0036b1081e6285be115d9a658f0de7a6b0e17aabbe9/ripser-0.6.14-cp314-cp314t-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:cdeee3f93adfc14ed3b7e9104d6084f83db725dca574aa98deea41f5b5aff0d2", size = 843110, upload-time = "2025-12-08T03:41:49.871Z" },
+    { url = "https://files.pythonhosted.org/packages/95/c6/1d11c3111ee6e9c092d69d3cee163314e8c82f535ffffd2dcc14f91378b0/ripser-0.6.14-cp314-cp314t-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f12913d4a415e7e5e28ada39868d125c39fd432ab3f610fd9e8c426a4e2a0eba", size = 846794, upload-time = "2025-12-08T03:41:51.195Z" },
+    { url = "https://files.pythonhosted.org/packages/93/b0/499b26d9bc2779dd4ab842cb4c16d6ca205a8615d78227a6108fdfbb7a52/ripser-0.6.14-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:df20462b3192c3844a3ce5fffdc9fc732eb4c8651d820b6f376195c2a5bfc220", size = 1804230, upload-time = "2025-12-08T03:41:52.836Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/a8/7e0eab946e0f9f055df552a73c61df083cc94f7a4412635eba86af5acc42/ripser-0.6.14-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:d51622f6961c93a0028f220cdb44517783186cfc55f63765291aa4959082f731", size = 1864726, upload-time = "2025-12-08T03:41:54.201Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/14/20dbf9253a2936677378ec20d85ed456bfadaafd72c3718fd4062509e126/ripser-0.6.14-cp314-cp314t-win32.whl", hash = "sha256:5fb9a2977408399fca916b1f18d2c882fd1b6b9b508db4d96be61deac280d259", size = 163291, upload-time = "2025-12-08T03:41:55.629Z" },
+    { url = "https://files.pythonhosted.org/packages/d3/7a/89aca4402b44dc32ebadb3a38c217654113b906059778acd1b82405be2ee/ripser-0.6.14-cp314-cp314t-win_amd64.whl", hash = "sha256:d5168a48f727bdcb99d92fb834321cc2957e8e74c448e7fe47064a625c2e703b", size = 171864, upload-time = "2025-12-08T03:41:57.097Z" },
 ]
 
 [[package]]

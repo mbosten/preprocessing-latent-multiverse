@@ -9,9 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def mask_infinities(array: np.ndarray) -> np.ndarray:
-    logger.info(f"Masking infinities in array with shape {array.shape}")
     masked = array[array[:, 1] < np.inf]
-    logger.info(f"Resulting masked array shape: {masked.shape}")
     return masked
 
 

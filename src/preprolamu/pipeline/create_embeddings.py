@@ -39,7 +39,7 @@ def get_or_compute_latent(
     # Retrieve model path to see if a checkpoint exists.
     model_path = universe.paths.ae_model()
 
-    # Feature matrix
+    # Retrieve test set feature matrix for encoder
     X, _, ds_cfg = get_feature_matrix_from_universe(universe, split=split)
 
     logger.info(
@@ -50,6 +50,7 @@ def get_or_compute_latent(
     )
 
     # If model does not exist yet, or training should be overwritten.
+    # Internally retrieves train and validation sets.
     if not model_path.exists() or retrain_regardless:
         train_autoencoder_for_universe(universe)
 

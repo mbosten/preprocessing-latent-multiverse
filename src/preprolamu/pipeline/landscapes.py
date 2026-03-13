@@ -15,11 +15,6 @@ def compute_landscapes(
     homology_dimensions: list[int] = [0, 1, 2],
 ) -> dict[int, np.ndarray | None]:
 
-    logger.info(
-        f"Computing landscapes: dims={homology_dimensions}, "
-        f"num_landscapes={num_landscapes}, resolution={resolution}"
-    )
-
     LS = Landscape(
         resolution=resolution, keep_endpoints=False, num_landscapes=num_landscapes
     )
@@ -36,8 +31,5 @@ def compute_landscapes(
             continue
 
         landscapes_per_dimension[dim] = LS.fit_transform([persistence_pairs])
-        logger.info(
-            f"Dim {dim}: landscapes shape {landscapes_per_dimension[dim].shape}"
-        )
 
     return landscapes_per_dimension

@@ -28,6 +28,11 @@ Thumbs.db
 /data/**
 !/data/**/
 !/data/**/.gitkeep
+*.pkl
+RIPSTEST
+*.lower_distance_matrix
+*.out
+*complex_benchmark.py
 
 # visualizations under construction
 *.html

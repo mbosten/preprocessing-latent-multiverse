@@ -29,6 +29,7 @@ dependencies = [
     "plotly>=6.5.2",
     "nbformat>=5.10.4",
     "cython>=3.2.4",
+    "ripser>=0.6.14",
 ]
 
 # Allows cli commands to be run as: uv run acb [cli function] [parameters]

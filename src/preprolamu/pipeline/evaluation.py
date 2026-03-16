@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Dict, Optional
 
@@ -140,6 +141,43 @@ def evaluate_autoencoder_reconstruction(
         out["n_attack"] = int(attack_mask.sum())
 
     return out
+
+
+# CLI wrapper which includes saving
+def evalae(
+    universe: Universe,
+    batch_size: int = 2048,
+    overwrite: bool = False,
+    include_stratified: bool = True,
+):
+    out_path = universe.paths.eval_metrics(split="test")
+    model_path = universe.paths.ae_model()
+
+    if out_path.exists() and not overwrite:
+        logger.info("[AE-EVAL] Skipping existing eval for universe %s", universe.id)
+        return
+    if not model_path.exists():
+        logger.info("[AE-EVAL] Missing model for universe %s", universe.id)
+        return
+
+    try:
+        result = evaluate_autoencoder_reconstruction(
+            universe=universe,
+            split="test",
+            batch_size=batch_size,
+            include_stratified=include_stratified,
+        )
+
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
+
+    except FileNotFoundError as e:
+        logger.warning("[AE-EVAL] Missing file for %s: %s", universe.id, e)
+
+    except Exception as e:
+        logger.exception("[AE-EVAL] Failed for %s: %s", universe.id, e)
+
+    logger.info(f"[AE-EVAL] Evaluation for {universe.id} complete.")
 
 
 # Single use function that has been integrated in the ae_eval function itself.

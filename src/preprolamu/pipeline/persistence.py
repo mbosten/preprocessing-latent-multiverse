@@ -18,6 +18,7 @@ def build_alpha_complex_simplex_tree(points: np.ndarray) -> gd.SimplexTree:
     logger.info(f"Computing alpha complex persistence for data of shape {points.shape}")
     alpha_complex = gd.AlphaComplex(points=points, precision="exact")
     simplex_tree = alpha_complex.create_simplex_tree()
+    # Set field to 2 in the future.
     simplex_tree.compute_persistence()
     return simplex_tree
 

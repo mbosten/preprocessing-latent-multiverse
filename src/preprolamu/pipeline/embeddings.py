@@ -92,25 +92,3 @@ def from_latent_to_point_cloud(
         X_pca_sample = X_pca
 
     return X_pca_sample, diameter
-
-
-# def compute_embeddings_for_universe(universe: Universe):
-#     logger.info(f"[EMB] Computing embeddings for universe={universe.id}")
-
-#     X, _, ds_cfg = get_feature_matrix_from_universe(universe)
-
-#     # Load AE model
-#     logger.info("[EMB] Loading autoencoder model.")
-#     model = load_autoencoder_for_universe(universe, ds_cfg)
-#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#     model.to(device)
-#     model.eval()
-
-#     with torch.no_grad():
-#         X_tensor = torch.from_numpy(X).to(device)
-#         latent_tensor = model.encode(X_tensor)
-#         latent = latent_tensor.cpu().numpy()
-
-#     logger.info(f"[EMB] Computed latent representation with shape {latent.shape}")
-
-#     return latent

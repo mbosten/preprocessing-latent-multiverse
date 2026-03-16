@@ -509,6 +509,7 @@ def presto_global_sensitivity(
     print(out.to_string(index=False))
 
 
+# DEPRECATED IN FAVOR OF PIPELINE CLI INTEGRATION
 # CLI function that evaluates autoencoders and saves reconstruction-error metrics
 @app.command("ae-eval")
 def ae_eval(

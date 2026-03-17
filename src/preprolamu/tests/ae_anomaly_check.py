@@ -126,7 +126,8 @@ def per_column_stats_df(x: np.ndarray) -> pd.DataFrame:
 def get_tensor_feature_matrix(u, split, device):
     path = u.paths.preprocessed(split=split)
     df = pd.read_parquet(path)
-    cols_to_drop = load_dataset_config(u.dataset_id).label_column
+    cfg = load_dataset_config(u.dataset_id)
+    cols_to_drop = [cfg.label_column]
     if "Label" in df.columns and "Label" not in cols_to_drop:
         cols_to_drop.append("Label")
     df = df.drop(columns=cols_to_drop, errors="ignore")

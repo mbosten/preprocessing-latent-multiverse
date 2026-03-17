@@ -132,7 +132,7 @@ def get_tensor_feature_matrix(u, split, device):
         cols_to_drop.append("Label")
     df = df.drop(columns=cols_to_drop, errors="ignore")
     X = df.to_numpy(dtype=np.float32)
-    return np.ascontiguousarray(torch.from_numpy(X).to(device))
+    return np.ascontiguousarray(X)
 
 
 def iter_numpy_batches(x: np.ndarray, batch_size: int):

@@ -93,3 +93,6 @@ class UniversePaths:
             / "preprocessing_status"
             / f"{self.u.id}.status"
         )
+
+    def figures(self, filename) -> Path:
+        return ensure_parent_dir(self.u.base_data_dir / "figures" / f"{filename}.png")

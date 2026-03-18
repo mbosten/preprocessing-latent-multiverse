@@ -29,6 +29,10 @@ OUTDIR = BASE_DATA_DIR / "tests"
 OUTDIR.mkdir(parents=True, exist_ok=True)
 
 REPORT_PATH = OUTDIR / f"ae_debug_{u.id}.txt"
+SUMMARY_DIR = OUTDIR / "ae_debug_summaries"
+SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
+
+SUMMARY_ROW_PATH = SUMMARY_DIR / f"ae_debug_summary_{u.id}.parquet"
 
 N_DEBUG = 4096
 # Sample batch size for layer activation test (same as pipeline)
@@ -37,11 +41,8 @@ if u.dataset_id == "NF-UNSW-NB15-v3":
 else:
     N_ACTIVATION = 512
 N_DISTANCE = 64
-SAVE_LATENT_SAMPLE = True
 RECON_SUMMARY_N = 50000
 BATCH_SIZE = 8192
-
-device = _get_device()
 
 
 # =========================================================
@@ -79,6 +80,17 @@ class ReportWriter:
         self.path.write_text("\n".join(self.lines), encoding="utf-8")
 
 
+def flatten_dict(d: dict, prefix: str = "") -> dict:
+    out = {}
+    for k, v in d.items():
+        key = f"{prefix}{k}" if prefix else k
+        if isinstance(v, dict):
+            out.update(flatten_dict(v, prefix=f"{key}_"))
+        else:
+            out[key] = v
+    return out
+
+
 def load_model(model_path, device):
     """Load checkpoint dict, rebuild Autoencoder, load weights, move to device."""
     obj = torch.load(model_path, map_location=device)
@@ -94,11 +106,6 @@ def load_model(model_path, device):
     model.eval()
 
     return obj, model
-
-
-def df_to_numpy(df: pd.DataFrame) -> np.ndarray:
-    """Convert a dataframe to contiguous float32 NumPy array on CPU."""
-    return np.ascontiguousarray(df.to_numpy(dtype=np.float32))
 
 
 def summarize_numpy_array(x: np.ndarray):
@@ -127,7 +134,7 @@ def per_column_stats_df(x: np.ndarray) -> pd.DataFrame:
     )
 
 
-def get_tensor_feature_matrix(u, split, device):
+def get_tensor_feature_matrix(u, split):
     path = u.paths.preprocessed(split=split)
     df = pd.read_parquet(path)
     cfg = load_dataset_config(u.dataset_id)
@@ -362,6 +369,162 @@ def parameter_summary(model: nn.Module) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# Master table helper function
+def build_master_summary_row(
+    u,
+    obj,
+    model_path,
+    report_path,
+    train_X,
+    val_X,
+    test_X,
+    train_input_summary,
+    val_input_summary,
+    test_input_summary,
+    latent_summary,
+    dist_summary,
+    decoder_summary,
+    activation_df,
+    parameter_df,
+    train_recon_summary,
+    val_recon_summary,
+    test_recon_summary,
+    device,
+):
+    row = {
+        "universe_id": u.id,
+        "dataset_id": getattr(u, "dataset_id", None),
+        "model_path": str(model_path),
+        "report_path": str(report_path),
+        "device": str(device),
+        "input_dim": obj["input_dim"],
+        "latent_dim": obj["latent_dim"],
+        "hidden_dims": str(obj["hidden_dims"]),
+        "dropout": obj["dropout"],
+        "ae_regularization": obj.get("ae_regularization"),
+        "best_epoch": obj.get("best_epoch"),
+        "best_val_loss": obj.get("best_val_loss"),
+        "n_train": int(train_X.shape[0]),
+        "n_val": int(val_X.shape[0]),
+        "n_test": int(test_X.shape[0]),
+        "train_input_min": train_input_summary["min"],
+        "train_input_max": train_input_summary["max"],
+        "val_input_min": val_input_summary["min"],
+        "val_input_max": val_input_summary["max"],
+        "test_input_min": test_input_summary["min"],
+        "test_input_max": test_input_summary["max"],
+        "has_val_below_0": bool(val_input_summary["min"] < 0.0),
+        "has_test_below_0": bool(test_input_summary["min"] < 0.0),
+        "has_val_above_1": bool(val_input_summary["max"] > 1.0),
+        "has_test_above_1": bool(test_input_summary["max"] > 1.0),
+        "latent_dead_dim_fraction": (
+            latent_summary["dead_dims_std_lt_1e_8"] / obj["latent_dim"]
+            if obj["latent_dim"] > 0
+            else np.nan
+        ),
+        "latent_usage_zero_ratio": (
+            decoder_summary["reconstruction_mse_zero"]
+            / decoder_summary["reconstruction_mse_real"]
+            if decoder_summary["reconstruction_mse_real"] > 0
+            else np.nan
+        ),
+        "latent_usage_shuffle_ratio": (
+            decoder_summary["reconstruction_mse_shuffled"]
+            / decoder_summary["reconstruction_mse_real"]
+            if decoder_summary["reconstruction_mse_real"] > 0
+            else np.nan
+        ),
+        "latent_usage_noise_ratio": (
+            decoder_summary["reconstruction_mse_noisy"]
+            / decoder_summary["reconstruction_mse_real"]
+            if decoder_summary["reconstruction_mse_real"] > 0
+            else np.nan
+        ),
+        "generalization_gap_val_minus_train": (
+            val_recon_summary["mean"] - train_recon_summary["mean"]
+        ),
+        "generalization_gap_test_minus_train": (
+            test_recon_summary["mean"] - train_recon_summary["mean"]
+        ),
+        # simple heuristic flags
+        "is_collapsed": bool(
+            (latent_summary["dead_dims_std_lt_1e_8"] / obj["latent_dim"] >= 0.9)
+            and (
+                decoder_summary["reconstruction_mse_zero"]
+                / decoder_summary["reconstruction_mse_real"]
+                < 1.05
+                if decoder_summary["reconstruction_mse_real"] > 0
+                else False
+            )
+            and (dist_summary["mean_distance"] < 1e-6)
+        ),
+        "is_partially_collapsed": bool(
+            (latent_summary["dead_dims_std_lt_1e_8"] / obj["latent_dim"] >= 0.3)
+            or (
+                decoder_summary["reconstruction_mse_zero"]
+                / decoder_summary["reconstruction_mse_real"]
+                < 1.2
+                if decoder_summary["reconstruction_mse_real"] > 0
+                else False
+            )
+        ),
+    }
+
+    row.update(flatten_dict({"latent": latent_summary}))
+    row.update(flatten_dict({"latent_dist": dist_summary}))
+    row.update(flatten_dict({"decoder": decoder_summary}))
+    row.update(flatten_dict({"train_recon": train_recon_summary}))
+    row.update(flatten_dict({"val_recon": val_recon_summary}))
+    row.update(flatten_dict({"test_recon": test_recon_summary}))
+
+    # aggregate activation statistics
+    relu_rows = activation_df[
+        activation_df["layer"].str.endswith(".1")
+        | activation_df["layer"].str.endswith(".4")
+    ]
+    enc_relu_rows = relu_rows[relu_rows["layer"].str.startswith("encoder.")]
+    dec_relu_rows = relu_rows[relu_rows["layer"].str.startswith("decoder.")]
+
+    row["encoder_relu_frac_zero_mean"] = (
+        float(enc_relu_rows["frac_zero"].mean()) if not enc_relu_rows.empty else np.nan
+    )
+    row["decoder_relu_frac_zero_mean"] = (
+        float(dec_relu_rows["frac_zero"].mean()) if not dec_relu_rows.empty else np.nan
+    )
+
+    # aggregate parameter statistics
+    enc_weights = parameter_df[
+        parameter_df["name"].str.contains("encoder")
+        & parameter_df["name"].str.contains("weight")
+    ]
+    dec_weights = parameter_df[
+        parameter_df["name"].str.contains("decoder")
+        & parameter_df["name"].str.contains("weight")
+    ]
+    final_decoder_bias = parameter_df[parameter_df["name"] == "decoder.6.bias"]
+
+    row["encoder_weight_mean_abs_mean"] = (
+        float(enc_weights["mean_abs"].mean()) if not enc_weights.empty else np.nan
+    )
+    row["decoder_weight_mean_abs_mean"] = (
+        float(dec_weights["mean_abs"].mean()) if not dec_weights.empty else np.nan
+    )
+    row["decoder_final_bias_mean_abs"] = (
+        float(final_decoder_bias["mean_abs"].iloc[0])
+        if not final_decoder_bias.empty
+        else np.nan
+    )
+
+    return row
+
+
+def save_summary_row_atomic(row: dict, out_path: Path):
+    df = pd.DataFrame([row])
+    tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
+    df.to_parquet(tmp_path, index=False)
+    tmp_path.replace(out_path)
+
+
 # =========================================================
 # Main
 # =========================================================
@@ -385,18 +548,26 @@ report.add("")
 report.add("Model:")
 report.add(model)
 
-train_X = get_tensor_feature_matrix(u, split="train", device=device)
-val_X = get_tensor_feature_matrix(u, split="val", device=device)
-test_X = get_tensor_feature_matrix(u, split="test", device=device)
+train_X = get_tensor_feature_matrix(u, split="train")
+val_X = get_tensor_feature_matrix(u, split="val")
+test_X = get_tensor_feature_matrix(u, split="test")
 
 report.add_header("Dataset Shapes")
 report.add(f"train: {train_X.shape} {train_X.dtype}")
 report.add(f"val  : {val_X.shape} {val_X.dtype}")
 report.add(f"test : {test_X.shape} {test_X.dtype}")
 
-for split_name, x in [("train", train_X), ("val", val_X), ("test", test_X)]:
+train_input_summary = summarize_numpy_array(train_X)
+val_input_summary = summarize_numpy_array(val_X)
+test_input_summary = summarize_numpy_array(test_X)
+
+for split_name, x, summary in [
+    ("train", train_X, train_input_summary),
+    ("val", val_X, val_input_summary),
+    ("test", test_X, test_input_summary),
+]:
     report.add_header(f"Input Summary: {split_name}")
-    report.add_dict(summarize_numpy_array(x))
+    report.add_dict(summary)
     report.add("")
     report.add("Per-column stats:")
     report.add_dataframe(per_column_stats_df(x), max_rows=200)
@@ -420,18 +591,22 @@ report.add("Top-left of distance matrix:")
 report.add_dataframe(dist_preview, max_rows=20)
 
 # Gauge decoder sensitivity under systematic latent variation.
+decoder_summary = decoder_sensitivity_report(model, x_debug, device, BATCH_SIZE)
 report.add_header("Decoder Sensitivity: test_subset")
-report.add_dict(decoder_sensitivity_report(model, x_debug, device, BATCH_SIZE))
+report.add_dict(decoder_summary)
 
-report.add_header("Layer Activations: test_subset")
-report.add_dataframe(
-    activation_summary(model, test_X[: min(N_ACTIVATION, len(test_X))], device),
-    max_rows=200,
+activation_df = activation_summary(
+    model, test_X[: min(N_ACTIVATION, len(test_X))], device
 )
+report.add_header("Layer Activations: test_subset")
+report.add_dataframe(activation_df, max_rows=200)
 
 # Inspect parameter distributions
+parameter_df = parameter_summary(model)
 report.add_header("Parameter Magnitudes")
-report.add_dataframe(parameter_summary(model), max_rows=200)
+report.add_dataframe(parameter_df, max_rows=200)
+
+recon_summary_map = {}
 
 for split_name, x in [
     ("train_subset", train_X[: min(RECON_SUMMARY_N, len(train_X))]),
@@ -440,9 +615,11 @@ for split_name, x in [
 ]:
     recon = reconstruct_dataset(model, x, device, BATCH_SIZE)
     mse = rowwise_mse(x, recon)
+    recon_summary = percentile_summary(mse)
+    recon_summary_map[split_name] = recon_summary
 
     report.add_header(f"Reconstruction Summary: {split_name}")
-    report.add_dict(percentile_summary(mse))
+    report.add_dict(recon_summary)
     report.add("")
     report.add("First 20 per-row MSE values:")
     report.add(np.array2string(mse[:20], precision=6, separator=", "))
@@ -457,4 +634,29 @@ if device.type == "cuda":
     )
 
 report.save()
+
+summary_row = build_master_summary_row(
+    u=u,
+    obj=obj,
+    model_path=model_path,
+    report_path=REPORT_PATH,
+    train_X=train_X,
+    val_X=val_X,
+    test_X=test_X,
+    train_input_summary=train_input_summary,
+    val_input_summary=val_input_summary,
+    test_input_summary=test_input_summary,
+    latent_summary=latent_summary,
+    dist_summary=dist_summary,
+    decoder_summary=decoder_summary,
+    activation_df=activation_df,
+    parameter_df=parameter_df,
+    train_recon_summary=recon_summary_map["train_subset"],
+    val_recon_summary=recon_summary_map["val_subset"],
+    test_recon_summary=recon_summary_map["test_subset"],
+    device=device,
+)
+
+save_summary_row_atomic(summary_row, SUMMARY_ROW_PATH)
+
 print(f"Done. Report written to: {REPORT_PATH.resolve()}")

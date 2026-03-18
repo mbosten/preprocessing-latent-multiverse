@@ -28,10 +28,14 @@ BASE_DATA_DIR = Path("data")
 OUTDIR = BASE_DATA_DIR / "tests"
 OUTDIR.mkdir(parents=True, exist_ok=True)
 
-REPORT_PATH = OUTDIR / "ae_debug_report.txt"
+REPORT_PATH = OUTDIR / f"ae_debug_{u.id}.txt"
 
 N_DEBUG = 4096
-N_ACTIVATION = 512
+# Sample batch size for layer activation test (same as pipeline)
+if u.dataset_id == "NF-UNSW-NB15-v3":
+    N_ACTIVATION = 256
+else:
+    N_ACTIVATION = 512
 N_DISTANCE = 64
 SAVE_LATENT_SAMPLE = True
 RECON_SUMMARY_N = 50000
@@ -255,19 +259,25 @@ def decoder_sensitivity_report(
     """Test whether reconstructions change when latent codes are altered."""
     z = encode_dataset(model, x, device, batch_size)
 
+    # Decode as is
     recon_real = decode_latents(model, z, device, batch_size)
+
+    # Decode zeros
     recon_zero = decode_latents(model, np.zeros_like(z), device, batch_size)
 
-    perm = np.random.permutation(len(z))
-    recon_shuf = decode_latents(model, z[perm], device, batch_size)
+    # Decode shuffled input
+    rng = np.random.default_rng(seed=42)
+    perm_idx = rng.permutation(len(z))
+    recon_shuf = decode_latents(model, z[perm_idx], device, batch_size)
 
+    # Decode with random noise
     recon_noise = decode_latents(
         model,
-        z + 0.1 * np.random.randn(*z.shape).astype(np.float32),
+        z + 0.1 * rng.standard_normal(*z.shape, dtype=np.float32),
         device,
         batch_size,
     )
-
+    # Fist 3 rows show relative effect wrt default.
     return {
         "decoder_output_mse_real_vs_zero": float(
             np.mean((recon_real - recon_zero) ** 2)
@@ -409,6 +419,7 @@ report.add("")
 report.add("Top-left of distance matrix:")
 report.add_dataframe(dist_preview, max_rows=20)
 
+# Gauge decoder sensitivity under systematic latent variation.
 report.add_header("Decoder Sensitivity: test_subset")
 report.add_dict(decoder_sensitivity_report(model, x_debug, device, BATCH_SIZE))
 
@@ -418,6 +429,7 @@ report.add_dataframe(
     max_rows=200,
 )
 
+# Inspect parameter distributions
 report.add_header("Parameter Magnitudes")
 report.add_dataframe(parameter_summary(model), max_rows=200)
 

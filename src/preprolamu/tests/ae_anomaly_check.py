@@ -280,7 +280,7 @@ def decoder_sensitivity_report(
     # Decode with random noise
     recon_noise = decode_latents(
         model,
-        z + 0.1 * rng.standard_normal(*z.shape, dtype=np.float32),
+        z + 0.1 * rng.standard_normal(z.shape, dtype=np.float32),
         device,
         batch_size,
     )

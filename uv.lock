@@ -1880,7 +1880,7 @@ requires-dist = [
     { name = "plotly", specifier = ">=6.5.2" },
     { name = "polars", specifier = ">=1.35.2" },
     { name = "pre-commit", specifier = ">=4.5.0" },
-    { name = "project-utils", git = "https://github.com/mbosten/project_utils?rev=3e29979" },
+    { name = "project-utils", git = "https://github.com/mbosten/project_utils?rev=d11b221" },
     { name = "pyarrow", specifier = ">=22.0.0" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
@@ -1899,7 +1899,10 @@ dev = [{ name = "ipykernel", specifier = ">=7.1.0" }]
 [[package]]
 name = "project-utils"
 version = "0.1.0"
-source = { git = "https://github.com/mbosten/project_utils?rev=3e29979#3e299792c73a43ff8a973c2311672c2516f84a41" }
+source = { git = "https://github.com/mbosten/project_utils?rev=d11b221#d11b221569071bf624d744bcd17dac37d7099d60" }
+dependencies = [
+    { name = "rich" },
+]
 
 [[package]]
 name = "prompt-toolkit"

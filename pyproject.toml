@@ -51,7 +51,7 @@ torch = [
     { index = "pytorch-cpu", marker = "sys_platform != 'linux'" },
     { index = "pytorch-cu126", marker = "sys_platform == 'linux'" }
 ]
-project-utils = { git = "https://github.com/mbosten/project_utils", rev = "3e29979" }
+project-utils = { git = "https://github.com/mbosten/project_utils", rev = "d11b221" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

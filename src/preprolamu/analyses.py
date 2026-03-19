@@ -9,9 +9,9 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 import typer
+from project_utils import setup_logging
 from typing_extensions import Annotated
 
-from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.evaluation import evaluate_autoencoder_reconstruction
 from preprolamu.pipeline.metrics import (
     build_metrics_table,
@@ -26,17 +26,21 @@ from preprolamu.utils_analyses_plots import (
 )
 
 logger = logging.getLogger(__name__)
-
-
 app = typer.Typer(help="Data analyses based on landscapes and embeddings.")
 
 
 # set up logging.
 @app.callback()
 def main():
-
-    setup_logging(log_dir=Path("logs"))
-    logger = logging.getLogger(__name__)
+    setup_logging(
+        log_dir=Path("logs"),
+        suppress_loggers=[
+            "PIL",
+            "matplotlib.font_manager",
+            "matplotlib.texmanager",
+            "matplotlib.dviread",
+        ],
+    )
     logger.info("CLI started ...")
 
 

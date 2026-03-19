@@ -11,11 +11,9 @@ import pandas as pd
 import polars as pl
 import typer
 import yaml
-
-from preprolamu.logging_config import setup_logging
+from project_utils import setup_logging
 
 logger = logging.getLogger(__name__)
-
 app = typer.Typer()
 
 
@@ -48,9 +46,15 @@ class DatasetConfig:
 # set up logging.
 @app.callback()
 def main():
-
-    setup_logging(log_dir=Path("logs"))
-    logger = logging.getLogger(__name__)
+    setup_logging(
+        log_dir=Path("logs"),
+        suppress_loggers=[
+            "PIL",
+            "matplotlib.font_manager",
+            "matplotlib.texmanager",
+            "matplotlib.dviread",
+        ],
+    )
     logger.info("CLI started ...")
 
 

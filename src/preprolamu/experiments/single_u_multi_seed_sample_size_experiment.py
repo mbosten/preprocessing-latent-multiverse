@@ -15,15 +15,23 @@ import gudhi as gd
 # Regular plots
 import matplotlib.pyplot as plt
 import numpy as np
+from project_utils import setup_logging
 
-from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.landscapes import compute_landscapes
 from preprolamu.pipeline.metrics import compute_landscape_norm
 from preprolamu.pipeline.persistence import mask_infinities
 from preprolamu.pipeline.universes import get_universe
 
-setup_logging(log_dir=Path("logs"))
 logger = logging.getLogger(__name__)
+setup_logging(
+    log_dir=Path("logs"),
+    suppress_loggers=[
+        "PIL",
+        "matplotlib.font_manager",
+        "matplotlib.texmanager",
+        "matplotlib.dviread",
+    ],
+)
 
 parser = argparse.ArgumentParser(
     description="sample size effect on landscape norm under multiple seeds"

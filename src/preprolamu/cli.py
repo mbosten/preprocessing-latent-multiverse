@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Literal
 
 import typer
+from project_utils import setup_logging
 from typing_extensions import Annotated
 
-from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.create_embeddings import get_or_compute_latent
 from preprolamu.pipeline.create_tda import run_tda_for_universe
 from preprolamu.pipeline.evaluation import evalae
@@ -15,15 +15,22 @@ from preprolamu.pipeline.metrics import compute_presto_variance_across_universes
 from preprolamu.pipeline.preprocessing import preprocess_variant
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
 
+logger = logging.getLogger(__name__)
 app = typer.Typer(help="Simulation + TDA pipeline")
 
 
 # set up logging.
 @app.callback()
 def main():
-
-    setup_logging(log_dir=Path("logs"))
-    logger = logging.getLogger(__name__)
+    setup_logging(
+        log_dir=Path("logs"),
+        suppress_loggers=[
+            "PIL",
+            "matplotlib.font_manager",
+            "matplotlib.texmanager",
+            "matplotlib.dviread",
+        ],
+    )
     logger.info("CLI started ...")
 
 

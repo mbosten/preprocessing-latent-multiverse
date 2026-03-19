@@ -9,9 +9,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import typer
+from project_utils import setup_logging
 
 from preprolamu.example_plots import plot_example_figures
-from preprolamu.logging_config import setup_logging
 from preprolamu.pipeline.metrics import (
     build_metrics_table,
     compute_presto_variance_from_metrics_table,
@@ -25,16 +25,21 @@ from preprolamu.utils_analyses_plots import (
 )
 
 logger = logging.getLogger(__name__)
-
 app = typer.Typer(add_completion=False)
 
 
 # set up logging.
 @app.callback()
 def main():
-
-    setup_logging(log_dir=Path("logs"))
-    logger = logging.getLogger(__name__)
+    setup_logging(
+        log_dir=Path("logs"),
+        suppress_loggers=[
+            "PIL",
+            "matplotlib.font_manager",
+            "matplotlib.texmanager",
+            "matplotlib.dviread",
+        ],
+    )
     logger.info("CLI started ...")
 
 

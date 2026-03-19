@@ -28,6 +28,7 @@ dependencies = [
     "ipympl",
     "plotly>=6.5.2",
     "nbformat>=5.10.4",
+    "project_utils",
 ]
 
 # Allows cli commands to be run as: uv run acb [cli function] [parameters]
@@ -50,6 +51,7 @@ torch = [
     { index = "pytorch-cpu", marker = "sys_platform != 'linux'" },
     { index = "pytorch-cu126", marker = "sys_platform == 'linux'" }
 ]
+project-utils = { path = "../project_utils", editable = true }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

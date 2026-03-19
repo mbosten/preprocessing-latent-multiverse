@@ -1850,6 +1850,7 @@ dependencies = [
     { name = "plotly" },
     { name = "polars" },
     { name = "pre-commit" },
+    { name = "project-utils" },
     { name = "pyarrow" },
     { name = "pytest-cov" },
     { name = "pyyaml" },
@@ -1879,6 +1880,7 @@ requires-dist = [
     { name = "plotly", specifier = ">=6.5.2" },
     { name = "polars", specifier = ">=1.35.2" },
     { name = "pre-commit", specifier = ">=4.5.0" },
+    { name = "project-utils", editable = "../project_utils" },
     { name = "pyarrow", specifier = ">=22.0.0" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
@@ -1893,6 +1895,11 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "ipykernel", specifier = ">=7.1.0" }]
+
+[[package]]
+name = "project-utils"
+version = "0.1.0"
+source = { editable = "../project_utils" }
 
 [[package]]
 name = "prompt-toolkit"

@@ -63,7 +63,6 @@ project/
 │       ├── __init__.py
 │       ├── cli.py
 │       ├── config.py
-│       ├── logging_config.py
 │       ├── make_readme_tree.py
 │       └── visualization.py
 └── README.md
@@ -181,8 +180,3 @@ Cluster execution (SLURM job arrays) is straightforward. For a multiverse of siz
 uv run acb run-universe $SLURM_ARRAY_TASK_ID
 ```
 This isolates each universe to one job.
-
-
-## 6. Logging
-Logging is configured in `logging_config.py`
-For both CLI commands, the verbose flag `-v` or `--verbose` prints DEBUG level logs to the console. Otherwise these logs are stored in `logs/debug.log`

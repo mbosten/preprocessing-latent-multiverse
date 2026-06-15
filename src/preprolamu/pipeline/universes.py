@@ -96,9 +96,7 @@ class Universe:
     def to_id_string(self) -> str:
         return self.id
 
-    # -------------------------------------------------------------- #
-    # ----------------------- PATH FUNCTIONS ----------------------- #
-    # -------------------------------------------------------------- #
+    # Path/IO functions reference to their respective files
     @property
     def paths(self) -> UniversePaths:
         return UniversePaths(self)
@@ -106,55 +104,6 @@ class Universe:
     @property
     def io(self) -> UniverseIO:
         return UniverseIO(self)
-
-    # -------------------------------------------------------------- #
-    # ------------------------ IO FUNCTIONS ------------------------ #
-    # -------------------------------------------------------------- #
-    # def load_metrics(self, split: str = "test") -> Dict[str, Any]:
-    #     path = self.metrics_path(split=split)
-    #     with path.open("r", encoding="utf-8") as f:
-    #         return json.load(f)
-
-    # def save_metrics(self, split: str, metrics: Any) -> None:
-    #     path = self.metrics_path(split=split)
-    #     if hasattr(metrics, "__dataclass_fields__"):
-    #         payload = asdict(metrics)
-    #     else:
-    #         payload = dict(metrics)
-
-    #     # Save json
-    #     with path.open("w", encoding="utf-8") as f:
-    #         json.dump(payload, f, indent=2)
-
-    # def load_landscapes(self, split: str = "test") -> dict[int, np.ndarray | None]:
-    #     """
-    #     Read individual landscape .npz files and return as a dict.
-    #     """
-    #     path = self.landscapes_path(split=split)
-
-    #     with np.load(path) as data:
-    #         raw = {k: data[k] for k in data.files}
-
-    #     landscapes: dict[int, np.ndarray | None] = {}
-    #     for key, arr in raw.items():
-    #         if key.startswith("dim") and key.endswith("_landscapes"):
-    #             dim_str = key[3:-11]  # strip "dim" and "_landscapes"
-    #             dim = int(dim_str)
-    #             landscapes[dim] = arr
-    #     if not landscapes:
-    #         raise FileNotFoundError(f"No landscapes found in {path}")
-    #     return landscapes
-
-    # def save_landscapes(self, split: str, landscapes: dict[int, np.ndarray | None]) -> None:
-    #     """
-    #     Write landscape dict to individual .npz files.
-    #     """
-    #     path = self.landscapes_path(split=split)
-    #     arrays = {
-    #         f"dim{d}_landscapes": arr for d, arr in landscapes.items() if arr is not None
-    #     }
-    #     logger.info("Saving npz to %s with keys %s", path, list(arrays.keys()))
-    #     np.savez(path, **arrays)
 
     def to_param_dict(self) -> Dict[str, Any]:
         """

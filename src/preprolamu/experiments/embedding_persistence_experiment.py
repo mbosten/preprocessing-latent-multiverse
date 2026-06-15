@@ -89,7 +89,7 @@ for seed in SEEDS:
         logger.info("Creating simplex tree...")
         st = ac.create_simplex_tree()
         logger.info("Computing persistence...")
-        st.compute_persistence()
+        st.compute_persistence(homology_coeff_field=2)
         logger.info("Combining results.")
 
         per_dim: dict[int, np.ndarray] = {}

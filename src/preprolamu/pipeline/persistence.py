@@ -19,7 +19,7 @@ def build_alpha_complex_simplex_tree(points: np.ndarray) -> gd.SimplexTree:
     alpha_complex = gd.AlphaComplex(points=points, precision="exact")
     simplex_tree = alpha_complex.create_simplex_tree()
     # Set field to 2 in the future.
-    simplex_tree.compute_persistence()
+    simplex_tree.compute_persistence(homology_coeff_field=2)
     return simplex_tree
 
 

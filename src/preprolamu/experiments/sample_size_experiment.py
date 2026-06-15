@@ -165,7 +165,7 @@ for size in sample_sizes:
 
     ac = gd.AlphaComplex(points=Xrng, precision="exact")
     simplex_tree = ac.create_simplex_tree()
-    simplex_tree.compute_persistence()
+    simplex_tree.compute_persistence(homology_coeff_field=2)
 
     per_dim: dict[int, np.ndarray] = {}
     for dim in [0, 1, 2]:

@@ -45,6 +45,7 @@ build-backend = "hatchling.build"
 [tool.uv]
 # Not packaging/building: treat as non-installable project
 package = true
+link-mode = "copy"
 
 [tool.uv.sources]
 torch = [

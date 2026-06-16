@@ -33,10 +33,10 @@ dependencies = [
 
 # Allows cli commands to be run as: uv run acb [cli function] [parameters]
 [project.scripts]
-acb = "preprolamu.cli:app"
+acb = "preprolamu.CLI.cli:app"
 setup = "preprolamu.config:app"
-plot = "preprolamu.plots:app"
-analyze = "preprolamu.analyses:app"
+plot = "preprolamu.CLI.plots:app"
+analyze = "preprolamu.CLI.analyses:app"
 
 [build-system]
 requires = ["hatchling>=1.18"]

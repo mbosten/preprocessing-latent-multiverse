@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Tuple
 import typer
 import yaml
 
-from preprolamu.config import load_dataset_config
 from preprolamu.io.io import UniverseIO
 from preprolamu.io.paths import UniversePaths
 
@@ -130,22 +129,6 @@ DATASET_IDS: List[str] = [
     "NF-UNSW-NB15-v3",
     "NF-CICIDS2018-v3",
 ]
-
-
-def epd(path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def dataset_invariants_for(universe: Universe) -> dict[str, Any]:
-    cfg = load_dataset_config(universe.dataset_id)
-    inv = cfg.raw_cfg.get("dataset_invariants")
-    if inv is None:
-        raise RuntimeError(
-            f"dataset_invariants missing for {universe.dataset_id}. "
-            "Run `initiate` first."
-        )
-    return inv[universe.feature_subset.value]
 
 
 def load_dataset_yaml(dataset_id: str) -> dict[str, Any]:

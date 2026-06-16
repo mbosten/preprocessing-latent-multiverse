@@ -23,31 +23,6 @@ class MetricsResult:
     landscape_l2_per_dim: dict[int, float]
 
 
-def load_landscapes_with_provenance(
-    universes: Iterable[Universe],
-    split: str = "test",
-) -> tuple[list[tuple[Universe, dict[int, np.ndarray]]], int, int]:
-    """Load landscapes and track missing/empty files"""
-    pairs: list[tuple[Universe, dict[int, np.ndarray]]] = []
-    skipped_missing = 0
-    skipped_empty = 0
-
-    for u in universes:
-        path = u.paths.landscapes(split=split)
-        if not path.exists():
-            skipped_missing += 1
-            continue
-
-        L = u.io.load_landscapes(split=split)
-        if not L:
-            skipped_empty += 1
-            continue
-
-        pairs.append((u, L))
-
-    return pairs, skipped_missing, skipped_empty
-
-
 def compute_total_persistence(intervals: np.ndarray) -> float:
     if intervals.size == 0:
         return 0.0
@@ -67,65 +42,6 @@ def compute_landscape_norm(
         k: float(np.linalg.norm(v)) if v is not None else 0.0
         for k, v in landscape.items()
     }
-
-
-def compute_landscape_norm_means(
-    landscapes: list[dict[int, np.ndarray]],
-    homology_dims: list[int] | None = None,
-    return_norms: bool = False,
-) -> dict[int, float] | tuple[dict[int, float], list[dict[int, float]]]:
-    if not landscapes:
-        raise ValueError("landscapes list is empty.")
-
-    landscape_norms: list[dict[int, float]] = []
-    dims_seen: set[int] = set()
-
-    for L in landscapes:
-        norms = compute_landscape_norm(L)
-        landscape_norms.append(norms)
-        dims_seen.update(norms.keys())
-
-    dims = list(homology_dims) if homology_dims is not None else sorted(dims_seen)
-    N = len(landscapes)
-
-    # Per dimension average of norms across all universes.
-    means: dict[int, float] = {
-        d: sum(n.get(d, 0.0) for n in landscape_norms) / N for d in dims
-    }
-
-    return (means, landscape_norms) if return_norms else means
-
-
-def compute_landscape_norm_variance(
-    landscapes: list[dict[int, np.ndarray]],
-    homology_dims: Iterable[int] | None = None,
-) -> float:
-
-    if not landscapes:
-        raise ValueError("landscapes list is empty.")
-
-    if homology_dims is None:
-        homology_dims = range(max(landscapes[0].keys()) + 1)
-    homology_dims = list(homology_dims)
-
-    mean_norms, norms_per_landscape = compute_landscape_norm_means(
-        landscapes, homology_dims=homology_dims, return_norms=True
-    )
-    logger.info("[TDA] Mean landscape norms per dim: %s", mean_norms)
-    dims = list(mean_norms.keys())
-    N = len(norms_per_landscape)
-    print(
-        f"---------------------------------\n{dims}\n---------------------------------\n"
-    )
-    print(f"{homology_dims}\n---------------------------------\n")
-
-    sse = 0.0
-    for d in dims:
-        mu = mean_norms[d]
-        for n in norms_per_landscape:
-            sse += (n.get(d, 0.0) - mu) ** 2
-
-    return sse / N
 
 
 def compute_presto_variance_from_metrics_table(
@@ -167,39 +83,6 @@ def compute_presto_variance_from_metrics_table(
     return float(sse / N)
 
 
-def compute_presto_variance_across_universes(
-    universes: Iterable[Universe],
-    split: str = "test",
-    homology_dims: Iterable[int] | None = (0, 1, 2),
-) -> float:
-    pairs, skipped_missing, skipped_empty = load_landscapes_with_provenance(
-        universes, split=split
-    )
-
-    if not pairs:
-        raise RuntimeError(
-            f"No landscapes found (split={split}, skipped_missing={skipped_missing}, "
-            f"skipped_empty={skipped_empty}). Cannot compute PRESTO variance."
-        )
-
-    landscapes_list = [L for (_, L) in pairs]
-
-    var = compute_landscape_norm_variance(
-        landscapes=landscapes_list, homology_dims=homology_dims
-    )
-
-    logger.info(
-        "[TDA] PRESTO variance across %d universes (split=%s); skipped missing=%d, empty=%d; var=%.6g",
-        len(landscapes_list),
-        split,
-        skipped_missing,
-        skipped_empty,
-        var,
-    )
-
-    return var
-
-
 def compute_metrics_from_tda(
     persistence_per_dimension: dict[int, np.ndarray],
     landscapes_per_dimension: dict[int, np.ndarray | None],
@@ -224,12 +107,15 @@ def build_metrics_table(
     require_exists: bool = True,
     homology_dims: tuple[int, ...] = (0, 1, 2),
 ) -> pd.DataFrame:
-
+    """
+    Build a dataframe from all universe-level metric files that result from the pipeline.
+    """
     rows: list[dict[str, Any]] = []
 
     for u in universes:
         path = u.paths.metrics(split=split)
         if require_exists and not path.exists():
+            logger.warning("[METRICS] ")
             continue
 
         row = u.to_param_dict()

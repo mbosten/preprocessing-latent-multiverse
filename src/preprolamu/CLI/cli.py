@@ -11,7 +11,6 @@ from typing_extensions import Annotated
 from preprolamu.pipeline.create_embeddings import get_or_compute_latent
 from preprolamu.pipeline.create_tda import run_tda_for_universe
 from preprolamu.pipeline.evaluation import evalae
-from preprolamu.pipeline.metrics import compute_presto_variance_across_universes
 from preprolamu.pipeline.preprocessing import preprocess_variant
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
 
@@ -81,22 +80,21 @@ def prepare_embeddings(
 # compute persistent homology and related metrics from embeddings.
 @app.command("prepare-tda")
 def prepare_tda(
-    universe_index: Annotated[int | None, typer.Option()] = None,
+    universe_index: Annotated[int, typer.Option()] = None,
     overwrite: Annotated[bool, typer.Option()] = False,
 ):
-    if universe_index is None:
-        universes = generate_multiverse()
-
-        for u in universes:
-            run_tda_for_universe(u, overwrite=overwrite)
-    else:
-        u = get_universe(universe_index)
+    """
+    Compute PH metrics for a single universe.
+    This function should be parallelized externally to iterate over the multiverse.
+    """
+    if universe_index is not None:
+        try:
+            u = get_universe(universe_index)
+        except Exception:
+            raise typer.BadParameter("Not a valid universe index.")
         run_tda_for_universe(u, overwrite=overwrite)
-
-    if universe_index is None:
-        compute_presto_variance_across_universes(
-            universes,
-        )
+    else:
+        raise typer.BadParameter("Universe parameter can not currently be None!+")
 
 
 # Evaluate each model's performance on test set

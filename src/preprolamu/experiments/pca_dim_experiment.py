@@ -228,7 +228,7 @@ plt.close()
 
 pca_norm_results = {}
 for size, landscapes in pca_landscape_results.items():
-    dim_norms = compute_landscape_norm(landscapes, score_type="separate")
+    dim_norms = compute_landscape_norm(landscapes)
     pca_norm_results[size] = dim_norms
 
 with results_path.open("w", newline="") as f:

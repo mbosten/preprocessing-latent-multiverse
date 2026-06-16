@@ -182,7 +182,7 @@ for seed, size, t in landscape_timings:
 sample_size_norm_results = {}
 
 for (seed, size), landscapes in sample_size_landscape_results.items():
-    dim_norms = compute_landscape_norm(landscapes, score_type="separate")
+    dim_norms = compute_landscape_norm(landscapes)
     sample_size_norm_results[(seed, size)] = dim_norms
 
 

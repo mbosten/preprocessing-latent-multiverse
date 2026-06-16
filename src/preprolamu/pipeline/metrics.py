@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from preprolamu.pipeline.universes import Universe
-from preprolamu.tests.landscape_checks import top_landscape_outliers
 
 logger = logging.getLogger(__name__)
 
@@ -17,17 +17,18 @@ logger = logging.getLogger(__name__)
 # Slightly redundant class to hold metrics results
 @dataclass
 class MetricsResult:
+    """Verbose metric class such that interpretation remains clear down the line"""
 
-    total_persistence_per_dim: Dict[int, float]
-    landscape_l2_per_dim: Dict[int, float]
+    total_persistence_per_dim: dict[int, float]
+    landscape_l2_per_dim: dict[int, float]
 
 
 def load_landscapes_with_provenance(
     universes: Iterable[Universe],
     split: str = "test",
-) -> tuple[List[Tuple[Universe, Dict[int, np.ndarray]]], int, int]:
-
-    pairs: List[Tuple[Universe, Dict[int, np.ndarray]]] = []
+) -> tuple[list[tuple[Universe, dict[int, np.ndarray]]], int, int]:
+    """Load landscapes and track missing/empty files"""
+    pairs: list[tuple[Universe, dict[int, np.ndarray]]] = []
     skipped_missing = 0
     skipped_empty = 0
 
@@ -48,73 +49,55 @@ def load_landscapes_with_provenance(
 
 
 def compute_total_persistence(intervals: np.ndarray) -> float:
-
     if intervals.size == 0:
         return 0.0
-    births = intervals[:, 0]
-    deaths = intervals[:, 1]
-    lengths = np.clip(deaths - births, a_min=0.0, a_max=None)
+    # Subtract births from deaths to get intervals
+    lengths = np.clip(intervals[:, 1] - intervals[:, 0], a_min=0.0, a_max=None)
     return float(lengths.sum())
 
 
-# PRESTO function, slightly adapted
 def compute_landscape_norm(
-    landscape: Dict[int, np.array],
-    score_type: str = "aggregate",
-) -> Dict[int, float] | float:
-    norms = {
+    landscape: dict[int, np.ndarray],
+) -> dict[int, float]:
+    """
+    Compute per-dimension L2 norms of landscape vectors.
+    Sums or means can always be computed afterwards.
+    """
+    return {
         k: float(np.linalg.norm(v)) if v is not None else 0.0
         for k, v in landscape.items()
     }
-    if score_type == "aggregate":
-        return sum(norms.values())
-    elif score_type == "average":
-        return sum(norms.values()) / len(norms.values())
-    elif score_type == "separate":
-        return norms
-    else:
-        raise NotImplementedError(score_type)
 
 
 def compute_landscape_norm_means(
-    landscapes: List[Dict[int, np.array]],
-    homology_dims: List[int] | None = None,
+    landscapes: list[dict[int, np.ndarray]],
+    homology_dims: list[int] | None = None,
     return_norms: bool = False,
-):
+) -> dict[int, float] | tuple[dict[int, float], list[dict[int, float]]]:
     if not landscapes:
         raise ValueError("landscapes list is empty.")
 
-    # per-landscape norms, missing dims -> 0
-    landscape_norms: List[Dict[int, float]] = []
+    landscape_norms: list[dict[int, float]] = []
     dims_seen: set[int] = set()
 
     for L in landscapes:
-        norms = {
-            d: float(np.linalg.norm(arr)) for d, arr in L.items() if arr is not None
-        }
+        norms = compute_landscape_norm(L)
         landscape_norms.append(norms)
         dims_seen.update(norms.keys())
 
     dims = list(homology_dims) if homology_dims is not None else sorted(dims_seen)
     N = len(landscapes)
 
-    # Debugging functionality: log top outliers
-    logger.info("Length landscape norms: %d", len(landscape_norms))
-    for d in dims:
-        top = top_landscape_outliers(landscape_norms, dims=[d], top_k=10)
-        logger.info(
-            "[TDA] Top landscape norm outliers for dim %d (dim, norm, idx_in_list): %s",
-            d,
-            top,
-        )
-
-    means = {d: sum(n.get(d, 0.0) for n in landscape_norms) / N for d in dims}
+    # Per dimension average of norms across all universes.
+    means: dict[int, float] = {
+        d: sum(n.get(d, 0.0) for n in landscape_norms) / N for d in dims
+    }
 
     return (means, landscape_norms) if return_norms else means
 
 
-def compute_presto_variance(
-    landscapes: List[Dict[int, np.ndarray]],
+def compute_landscape_norm_variance(
+    landscapes: list[dict[int, np.ndarray]],
     homology_dims: Iterable[int] | None = None,
 ) -> float:
 
@@ -131,6 +114,10 @@ def compute_presto_variance(
     logger.info("[TDA] Mean landscape norms per dim: %s", mean_norms)
     dims = list(mean_norms.keys())
     N = len(norms_per_landscape)
+    print(
+        f"---------------------------------\n{dims}\n---------------------------------\n"
+    )
+    print(f"{homology_dims}\n---------------------------------\n")
 
     sse = 0.0
     for d in dims:
@@ -197,7 +184,7 @@ def compute_presto_variance_across_universes(
 
     landscapes_list = [L for (_, L) in pairs]
 
-    var = compute_presto_variance(
+    var = compute_landscape_norm_variance(
         landscapes=landscapes_list, homology_dims=homology_dims
     )
 
@@ -214,19 +201,16 @@ def compute_presto_variance_across_universes(
 
 
 def compute_metrics_from_tda(
-    persistence_per_dimension: Dict[int, np.ndarray],
-    landscapes_per_dimension: Dict[int, Optional[np.ndarray]],
+    persistence_per_dimension: dict[int, np.ndarray],
+    landscapes_per_dimension: dict[int, np.ndarray | None],
 ) -> MetricsResult:
-    total_persistence_per_dim: Dict[int, float] = {}
-    landscape_l2_per_dim: Dict[int, float] = {}
+    total_persistence_per_dim: dict[int, float] = {}
+    landscape_l2_per_dim: dict[int, float] = {}
 
     for dim, intervals in persistence_per_dimension.items():
         total_persistence_per_dim[dim] = compute_total_persistence(intervals)
 
-    landscape_l2_per_dim = compute_landscape_norm(
-        landscapes_per_dimension,
-        score_type="separate",
-    )
+    landscape_l2_per_dim = compute_landscape_norm(landscapes_per_dimension)
 
     return MetricsResult(
         total_persistence_per_dim=total_persistence_per_dim,
@@ -241,7 +225,7 @@ def build_metrics_table(
     homology_dims: tuple[int, ...] = (0, 1, 2),
 ) -> pd.DataFrame:
 
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
 
     for u in universes:
         path = u.paths.metrics(split=split)
@@ -273,7 +257,7 @@ def build_metrics_table(
             row["metrics_status"] = "ok"
             row["failure_reason"] = None
 
-            l2_vals: List[float] = []
+            l2_vals: list[float] = []
             for d in homology_dims:
                 v = float(l2.get(d, 0.0))
                 row[f"l2_dim{d}"] = v

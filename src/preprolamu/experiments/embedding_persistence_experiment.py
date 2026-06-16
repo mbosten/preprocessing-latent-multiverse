@@ -154,7 +154,7 @@ for (seed, k), t in landscape_timings:
 norm_results = {}
 
 for (seed, k), landscapes in landscape_results.items():
-    dim_norms = compute_landscape_norm(landscapes, score_type="separate")
+    dim_norms = compute_landscape_norm(landscapes)
     norm_results[(seed, k)] = dim_norms
 
 

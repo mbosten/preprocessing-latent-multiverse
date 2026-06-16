@@ -178,9 +178,3 @@ def evalae(
         logger.exception("[AE-EVAL] Failed for %s: %s", universe.id, e)
 
     logger.info(f"[AE-EVAL] Evaluation for {universe.id} complete.")
-
-
-# Single use function that has been integrated in the ae_eval function itself.
-# def save_eval_metrics(payload: Dict[str, Any], path) -> None:
-#     with open(path, "w", encoding="utf-8") as f:
-#         json.dump(payload, f, indent=2)

@@ -12,8 +12,8 @@ from project_utils import setup_logging
 
 from preprolamu.pipeline.create_tda import compute_landscapes
 from preprolamu.pipeline.metrics import compute_landscape_norm
-from preprolamu.pipeline.persistence import mask_infinities
 from preprolamu.pipeline.universes import get_universe
+from preprolamu.utils.utils import mask_infinities
 
 # --------- Logistics ---------
 logger = logging.getLogger(__name__)

@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from project_utils import setup_logging
 
+from preprolamu.pipeline.create_tda import compute_landscapes
 from preprolamu.pipeline.embeddings import normalize_space, project_PCA
-from preprolamu.pipeline.landscapes import compute_landscapes
 from preprolamu.pipeline.metrics import compute_landscape_norm
 from preprolamu.pipeline.persistence import mask_infinities
 from preprolamu.pipeline.universes import get_universe

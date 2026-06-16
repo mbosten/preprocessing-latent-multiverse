@@ -2,13 +2,61 @@ from __future__ import annotations
 
 import logging
 
+import gudhi as gd
+import numpy as np
+from gudhi.representations import Landscape
+
 from preprolamu.pipeline.embeddings import from_latent_to_point_cloud
-from preprolamu.pipeline.landscapes import compute_landscapes
 from preprolamu.pipeline.metrics import compute_metrics_from_tda
-from preprolamu.pipeline.persistence import compute_alpha_complex_persistence
+from preprolamu.pipeline.persistence import mask_infinities
 from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
+
+
+def compute_alpha_complex_persistence(
+    data: np.ndarray, homology_dimensions: list[int] = [0, 1, 2]
+):
+
+    logger.info(f"Computing alpha complex persistence for data of shape {data.shape}")
+    ac = gd.AlphaComplex(points=data, precision="exact")
+    st = ac.create_simplex_tree()
+    st.compute_persistence(homology_coeff_field=2)
+
+    logger.info(f"Computed persistence with {len(st.persistence_pairs())} intervals")
+
+    per_dim: dict[int, np.ndarray] = {}
+    for dim in homology_dimensions:
+        per_dim[dim] = mask_infinities(st.persistence_intervals_in_dimension(dim))
+        logger.info(f"Dim {dim}: {per_dim[dim].shape[0]} intervals after masking")
+    return per_dim
+
+
+def compute_landscapes(
+    persistence_per_dimension: dict[int, np.ndarray],
+    num_landscapes: int = 5,
+    resolution: int = 1000,
+    homology_dimensions: list[int] = [0, 1, 2],
+) -> dict[int, np.ndarray | None]:
+
+    LS = Landscape(
+        resolution=resolution, keep_endpoints=False, num_landscapes=num_landscapes
+    )
+
+    landscapes_per_dimension: dict[int, np.ndarray | None] = {}
+
+    for dim in homology_dimensions:
+        persistence_pairs = persistence_per_dimension.get(dim, [])
+        if len(persistence_pairs) == 0:
+            logger.warning(
+                f"No persistence pairs for dim {dim}; landscapes will be None"
+            )
+            landscapes_per_dimension[dim] = None
+            continue
+
+        landscapes_per_dimension[dim] = LS.fit_transform([persistence_pairs])
+
+    return landscapes_per_dimension
 
 
 def run_tda_for_universe(

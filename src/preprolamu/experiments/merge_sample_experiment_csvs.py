@@ -1,6 +1,8 @@
 import csv
 from pathlib import Path
 
+# Run this file only after the sample size experiment has been run in parallel.
+
 results_dir = Path("data/experiments/sample_size_experiment")
 out_path = results_dir / "ALL_landscape_norms_sample_sizes.csv"
 

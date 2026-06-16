@@ -1,6 +1,8 @@
 import csv
 from pathlib import Path
 
+# Run this file only after the PCA experiment has been run in parallel.
+
 results_dir = Path("data/experiments/pca_dim_experiment/100k_sample")
 out_path = results_dir / "ALL_landscape_norms_pca_dims.csv"
 

@@ -19,14 +19,6 @@ def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
     return df[df["metrics_status"] == "ok"].copy()
 
 
-# Format a float in scientific notation with 2 significant digits, or empty string if nan.
-def _format_sci(x: float) -> str:
-    if pd.isna(x):
-        return ""
-    # 2 significant digits in scientific notation
-    return f"{x:.2e}"
-
-
 # Cap the L2 norm dataframe to exclude norms above a certain threshold.
 # Caps average l2 across homology dimensions.
 def filter_by_norm_threshold(
@@ -141,10 +133,3 @@ def spearmanr_permutation(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
 
 
 _L2_DIMS = (0, 1, 2)
-
-
-def _get_l2_dim_cols(df: pd.DataFrame) -> list[str]:
-    cols = [f"l2_dim{d}" for d in _L2_DIMS if f"l2_dim{d}" in df.columns]
-    if not cols:
-        raise typer.BadParameter("No l2_dim* columns found in metrics table.")
-    return cols

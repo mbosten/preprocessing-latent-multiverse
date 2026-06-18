@@ -10,15 +10,6 @@ from scipy.stats import permutation_test, spearmanr
 logger = logging.getLogger(__name__)
 
 
-# Keep only universes with metrics_status == 'ok'
-def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
-    logger.info(
-        "Dropping %d universes with metrics_status != 'ok'",
-        len(df) - df[df["metrics_status"] == "ok"].shape[0],
-    )
-    return df[df["metrics_status"] == "ok"].copy()
-
-
 # DEPRECATED IN FAVOR OF FUNCTIONS IN HELPER/RESULTS FOLDER
 # Cap the L2 norm dataframe to exclude norms above a certain threshold.
 # Caps average l2 across homology dimensions.

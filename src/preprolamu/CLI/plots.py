@@ -17,7 +17,6 @@ from preprolamu.pipeline.metrics import (
 )
 from preprolamu.pipeline.universes import generate_multiverse
 from preprolamu.utils_analyses_plots import (
-    _ok_only,
     filter_by_norm_threshold,
     filter_exclude_zero_norms,
     spearmanr_permutation,
@@ -268,7 +267,7 @@ def presto_individual_violin(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     universes = generate_multiverse()
-    df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
+    df = build_metrics_table(universes, split=split, require_exists=True)
     df = filter_by_norm_threshold(df, threshold=norm_threshold)
     df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
 
@@ -449,7 +448,6 @@ def topology_vs_performance_plot(
 
     universes = generate_multiverse()
     df = build_metrics_table(universes, split=split, require_exists=True)
-    df = _ok_only(df)
 
     df = filter_by_norm_threshold(df, threshold=norm_threshold)
     df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)

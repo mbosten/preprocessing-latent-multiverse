@@ -115,7 +115,27 @@ def build_metrics_table(
     for u in universes:
         path = u.paths.metrics(split=split)
         if require_exists and not path.exists():
-            logger.warning("[METRICS] ")
+            logger.warning("[METRICS] Missing metrics path for universe: %s", u.id)
+            continue
+
+        try:
+            payload = u.io.load_metrics(split=split)
+
+        except FileNotFoundError as e:
+            logger.warning("[METRICS] Skipping %s: metrics file missing: %s", u.id, e)
+            continue
+
+        except Exception as e:
+            logger.warning(
+                "[METRICS] Skipping %s: failed to load metrics: %s: %s",
+                u.id,
+                type(e).__name__,
+                e,
+            )
+            continue
+
+        if not payload:
+            logger.warning("[METRICS] Skipping %s: metrics JSON is empty", u.id)
             continue
 
         row = u.to_param_dict()
@@ -123,88 +143,60 @@ def build_metrics_table(
         row["split"] = split
         row["metrics_path"] = str(path)
 
-        try:
-            payload = u.io.load_metrics(split=split)
-            if not payload:
-                row["metrics_status"] = "empty_metrics"
-                row["failure_reason"] = "metrics JSON is empty"
-                row["l2_aggregate"] = np.nan
-                row["l2_average"] = np.nan
-                rows.append(row)
-                continue
+        # Retrieve metrics stored as json dicts
+        l2_raw = payload.get("landscape_l2_per_dim", {}) or {}
+        tp_raw = payload.get("total_persistence_per_dim", {}) or {}
 
-            # Retrieve metrics stored as json dicts
-            l2_raw = payload.get("landscape_l2_per_dim", {}) or {}
-            tp_raw = payload.get("total_persistence_per_dim", {}) or {}
+        l2 = {int(k): float(v) for k, v in l2_raw.items()}
+        tp = {int(k): float(v) for k, v in tp_raw.items()}
 
-            l2 = {int(k): float(v) for k, v in l2_raw.items()}
-            tp = {int(k): float(v) for k, v in tp_raw.items()}
+        l2_vals: list[float] = []
 
-            row["metrics_status"] = "ok"
-            row["failure_reason"] = None
+        for d in homology_dims:
+            v = float(l2.get(d, 0.0))
+            row[f"l2_dim{d}"] = v
+            row[f"tp_dim{d}"] = float(tp.get(d, 0.0))
+            l2_vals.append(v)
 
-            l2_vals: list[float] = []
-            for d in homology_dims:
-                v = float(l2.get(d, 0.0))
-                row[f"l2_dim{d}"] = v
-                l2_vals.append(v)
+        row["l2_aggregate"] = float(sum(l2_vals))
+        row["l2_average"] = float(sum(l2_vals) / max(len(l2_vals), 1))
 
-                row[f"tp_dim{d}"] = float(tp.get(d, 0.0))
+        # Load evaluation metrics if available
+        eval_path = u.paths.eval_metrics(split=split)
+        if eval_path.exists():
+            try:
+                with eval_path.open("r", encoding="utf-8") as f:
+                    eval_payload = json.load(f) or {}
 
-            # Sum of L2 norms across dims per universe
-            row["l2_aggregate"] = float(sum(l2_vals))
+                recon = eval_payload.get("recon", {}) or {}
 
-            # Per universe average of L2 norms across dims (so typically divide by 3 for hom dim 0,1,2)
-            row["l2_average"] = float(sum(l2_vals) / max(len(l2_vals), 1))
+                row["recon_n"] = recon.get("n")
+                row["recon_mse_mean"] = recon.get("mse_mean")
+                row["recon_mse_median"] = recon.get("mse_median")
+                row["recon_mse_std"] = recon.get("mse_std")
+                row["recon_mse_p95"] = recon.get("mse_p95")
+                row["recon_mse_p99"] = recon.get("mse_p99")
+                row["recon_mse_max"] = recon.get("mse_max")
 
-            # Load evaluation metrics if available
-            eval_path = u.paths.eval_metrics(split=split)
-            if eval_path.exists():
-                try:
-                    with eval_path.open("r", encoding="utf-8") as f:
-                        eval_payload = json.load(f) or {}
+                row["recon_n_benign"] = eval_payload.get("n_benign")
+                row["recon_n_attack"] = eval_payload.get("n_attack")
 
-                    # keep names standardized
-                    recon = eval_payload.get("recon", {}) or {}
-                    row["recon_n"] = recon.get("n")
-                    row["recon_mse_mean"] = recon.get("mse_mean")
-                    row["recon_mse_median"] = recon.get("mse_median")
-                    row["recon_mse_std"] = recon.get("mse_std")
-                    row["recon_mse_p95"] = recon.get("mse_p95")
-                    row["recon_mse_p99"] = recon.get("mse_p99")
-                    row["recon_mse_max"] = recon.get("mse_max")
+                rb = eval_payload.get("recon_benign", {}) or {}
+                ra = eval_payload.get("recon_attack", {}) or {}
 
-                    # Likely redundant.
-                    row["recon_n_benign"] = eval_payload.get("n_benign")
-                    row["recon_n_attack"] = eval_payload.get("n_attack")
+                row["recon_benign_mse_mean"] = rb.get("mse_mean")
+                row["recon_benign_mse_median"] = rb.get("mse_median")
+                row["recon_attack_mse_mean"] = ra.get("mse_mean")
+                row["recon_attack_mse_median"] = ra.get("mse_median")
 
-                    rb = eval_payload.get("recon_benign", {}) or {}
-                    ra = eval_payload.get("recon_attack", {}) or {}
-
-                    row["recon_benign_mse_mean"] = rb.get("mse_mean")
-                    row["recon_benign_mse_median"] = rb.get("mse_median")
-                    row["recon_attack_mse_mean"] = ra.get("mse_mean")
-                    row["recon_attack_mse_median"] = ra.get("mse_median")
-
-                except Exception as e:
-                    logger.warning(
-                        "[METRICS] Failed to load eval metrics for %s: %s", u.id, e
-                    )
-
-        except FileNotFoundError as e:
-            row["metrics_status"] = "missing_metrics"
-            row["failure_reason"] = str(e)
-            row["l2_aggregate"] = np.nan
-            row["l2_average"] = np.nan
-
-        except Exception as e:
-            row["metrics_status"] = "metrics_load_error"
-            row["failure_reason"] = f"{type(e).__name__}: {e}"
-            row["l2_aggregate"] = np.nan
-            row["l2_average"] = np.nan
+            except Exception as e:
+                logger.warning(
+                    "[METRICS] Failed to load eval metrics for %s: %s", u.id, e
+                )
 
         rows.append(row)
 
     if not rows:
-        raise RuntimeError(f"No metrics files found for split={split!r}.")
+        raise RuntimeError("No metrics files found for split = %s.", split)
+
     return pd.DataFrame(rows)

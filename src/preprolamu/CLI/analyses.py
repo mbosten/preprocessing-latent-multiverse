@@ -22,7 +22,6 @@ from preprolamu.pipeline.metrics import (
     compute_presto_variance_from_metrics_table,
 )
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
-from preprolamu.utils_analyses_plots import _ok_only
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(help="Data analyses based on landscapes and embeddings.")
@@ -318,7 +317,7 @@ def dataset_summary(
     ),
 ):
     universes = generate_multiverse()
-    df = _ok_only(build_metrics_table(universes, split=split))
+    df = build_metrics_table(universes, split=split)
 
     if norm_threshold is not None:
         df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
@@ -378,7 +377,7 @@ def presto_variance(
     keys = list(split_by)
 
     universes = generate_multiverse()
-    df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
+    df = build_metrics_table(universes, split=split, require_exists=True)
 
     if norm_threshold is not None:
         df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
@@ -455,7 +454,7 @@ def presto_local_sensitivity(
         raise typer.BadParameter(f"--param must be one of {sorted(allowed)}")
 
     universes = generate_multiverse()
-    df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
+    df = build_metrics_table(universes, split=split, require_exists=True)
 
     if norm_threshold is not None:
         df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
@@ -514,7 +513,7 @@ def presto_global_sensitivity(
 ):
 
     universes = generate_multiverse()
-    df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
+    df = build_metrics_table(universes, split=split, require_exists=True)
 
     if norm_threshold is not None:
         df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
@@ -669,7 +668,7 @@ def presto_stability_regions(
         raise typer.BadParameter("Require 0 < q_low < q_high < 1.")
 
     universes = generate_multiverse()
-    df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
+    df = build_metrics_table(universes, split=split, require_exists=True)
 
     if norm_threshold is not None:
         df = filter_output_by_norm_threshold(df, threshold=norm_threshold)

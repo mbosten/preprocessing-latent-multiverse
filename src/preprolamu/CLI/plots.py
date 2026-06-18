@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -160,7 +159,7 @@ def presto_variance_violin(
     ),
     out_dir: Path = typer.Option(Path("data/figures"), help="Output directory"),
     show: bool = typer.Option(False, help="Show interactive window after saving."),
-    norm_threshold: Optional[float] = typer.Option(
+    norm_threshold: float | None = typer.Option(
         None,
         help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
     ),
@@ -371,7 +370,7 @@ def performance_summary_plot(
     split: str = typer.Option("test"),
     out_dir: Path = typer.Option(Path("data/figures")),
     perf_col: str = typer.Option("recon_mse_mean"),
-    norm_threshold: Optional[float] = typer.Option(
+    norm_threshold: float | None = typer.Option(
         None,
         help="Exclude universes where any l2_dim* exceeds this threshold (optional).",
     ),
@@ -436,7 +435,7 @@ def topology_vs_performance_plot(
     log_topology: bool = typer.Option(
         False, help="If set, plot log10(topo_col) for readability."
     ),
-    norm_threshold: Optional[float] = typer.Option(
+    norm_threshold: float | None = typer.Option(
         None,
         help="Exclude universes where any l2_dim* exceeds this threshold (optional).",
     ),

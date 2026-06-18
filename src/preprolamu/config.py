@@ -4,7 +4,7 @@ import gc
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -31,11 +31,11 @@ class AutoencoderConfig:
 class DatasetConfig:
     dataset_id: str
     raw_path: Path
-    non_numerical_columns: List[str]
-    features_to_exclude: Optional[List[str]] = None
-    label_column: Optional[str] = None
-    benign_label: Optional[str] = None
-    label_classes: Optional[List[str]] = None
+    non_numerical_columns: list[str]
+    features_to_exclude: list[str] | None = None
+    label_column: str | None = None
+    benign_label: str | None = None
+    label_classes: list[str] | None = None
     autoencoder: AutoencoderConfig = AutoencoderConfig
 
     @property
@@ -69,7 +69,7 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
         )
 
     with config_path.open("r", encoding="utf-8") as f:
-        raw_cfg: Dict[str, Any] = yaml.safe_load(f)
+        raw_cfg: dict[str, Any] = yaml.safe_load(f)
 
     ae_raw = raw_cfg.get("autoencoder", {}) or {}
 

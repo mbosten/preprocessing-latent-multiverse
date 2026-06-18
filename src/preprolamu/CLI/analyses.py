@@ -4,7 +4,7 @@ import json
 import logging
 import math
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -297,7 +297,7 @@ def dataset_summary(
         ),
     ] = "l2_average",
     split: str = typer.Option("test"),
-    norm_threshold: Optional[float] = typer.Option(
+    norm_threshold: float | None = typer.Option(
         None,
         help="Only include universes with norm <= this threshold (for outlier-robust summaries).",
     ),
@@ -339,7 +339,7 @@ def presto_variance(
         help="Comma-separated grouping keys (max 2). Examples: 'dataset' or 'dataset,scaling'."
         'Use two double quotes ("") for no grouping (all universes together).',
     ),
-    norm_threshold: Optional[float] = typer.Option(
+    norm_threshold: float | None = typer.Option(
         None,
         help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
     ),
@@ -415,7 +415,7 @@ def presto_local_sensitivity(
         "all",
         help="One of: scaling, log_transform, feature_subset, duplicate_handling, missingness, seed, or 'all'.",
     ),
-    norm_threshold: Optional[float] = typer.Option(
+    norm_threshold: float | None = typer.Option(
         None,
         help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
     ),
@@ -474,7 +474,7 @@ def presto_local_sensitivity(
 @app.command("presto-global-sensitivity")
 def presto_global_sensitivity(
     split: str = typer.Option("test"),
-    norm_threshold: Optional[float] = typer.Option(
+    norm_threshold: float | None = typer.Option(
         None,
         help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
     ),

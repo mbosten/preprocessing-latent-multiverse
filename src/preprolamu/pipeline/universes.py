@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import typer
 import yaml
@@ -45,7 +45,7 @@ class Missingness(str, Enum):
 
 @dataclass(frozen=True)
 class TdaConfig:
-    homology_dimensions: Tuple[int, ...] = (0, 1, 2)
+    homology_dimensions: tuple[int, ...] = (0, 1, 2)
     num_landscapes: int = 5
     resolution: int = 1000
     subsample_size: int = 500_000  # points used for TDA
@@ -104,11 +104,11 @@ class Universe:
     def io(self) -> UniverseIO:
         return UniverseIO(self)
 
-    def to_param_dict(self) -> Dict[str, Any]:
+    def to_param_dict(self) -> dict[str, Any]:
         """
         Flatten Universe into a dict of multiverse parameters used for grouping.
         """
-        out: Dict[str, Any] = {
+        out: dict[str, Any] = {
             "dataset_id": self.dataset_id,
             "scaling": getattr(self.scaling, "value", self.scaling),
             "log_transform": getattr(self.log_transform, "value", self.log_transform),
@@ -124,7 +124,7 @@ class Universe:
         return out
 
 
-DATASET_IDS: List[str] = [
+DATASET_IDS: list[str] = [
     "NF-ToN-IoT-v3",
     "NF-UNSW-NB15-v3",
     "NF-CICIDS2018-v3",
@@ -159,7 +159,7 @@ def prune_multiverse(universes: list[Universe]) -> list[Universe]:
     return kept
 
 
-def generate_multiverse() -> List[Universe]:
+def generate_multiverse() -> list[Universe]:
 
     scalings = [Scaling.ZSCORE, Scaling.MINMAX, Scaling.QUANTILE]
     log_transforms = [LogTransform.NONE, LogTransform.LOG1P]
@@ -168,7 +168,7 @@ def generate_multiverse() -> List[Universe]:
     missingness_opts = [Missingness.DROP_ROWS, Missingness.IMPUTE_MEDIAN]
     seeds = [42, 420, 4200, 42000]
 
-    universes: List[Universe] = []
+    universes: list[Universe] = []
 
     for ds_id in DATASET_IDS:
         for sc in scalings:

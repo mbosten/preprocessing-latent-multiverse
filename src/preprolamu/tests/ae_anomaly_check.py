@@ -1,3 +1,8 @@
+"""
+This script is for debugging purposes and should be deleted after fixing issues.
+The functions below print various AE training statistics to console to validate whether training is done successfully.
+"""
+
 import argparse
 from pathlib import Path
 

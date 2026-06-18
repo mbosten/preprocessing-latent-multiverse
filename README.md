@@ -146,7 +146,7 @@ This can be run from the command line with the following keybind:
 uv run acb [function] [parameters]
 ```
 
-### List all universes
+### list all universes
 ```bash
 uv run acb list-universes
 ```

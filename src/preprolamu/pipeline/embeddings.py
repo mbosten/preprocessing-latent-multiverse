@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import numpy as np
 from scipy.spatial.distance import cdist
@@ -58,8 +57,8 @@ def from_latent_to_point_cloud(
     target_size: int,
     seed: int,
     normalize: bool = True,
-    save_projected_to: Optional[tuple[Universe, str]] = None,
-    save_projected_raw_to: Optional[tuple[Universe, str]] = None,
+    save_projected_to: tuple[Universe, str] | None = None,
+    save_projected_raw_to: tuple[Universe, str] | None = None,
     dtype: type = np.float32,
 ):
     # Store unnormalized PCA projection

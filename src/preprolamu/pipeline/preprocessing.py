@@ -3,7 +3,6 @@ from __future__ import annotations
 import gc
 import logging
 from pathlib import Path
-from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -291,7 +290,7 @@ def transform_with_scaler(df: pd.DataFrame, scaler, numeric_cols) -> pd.DataFram
 # Orchestrator function to call in cli.py
 def preprocess_variant(
     universe: Universe, overwrite: bool = False
-) -> Tuple[Path, Path]:
+) -> tuple[Path, Path]:
 
     logger.info(f"Preprocessing dataset for universe={universe.id}")
 

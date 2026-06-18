@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import random
 from pathlib import Path
-from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -23,7 +22,7 @@ class Autoencoder(nn.Module):
     def __init__(
         self,
         input_dim: int,
-        hidden_dims: Tuple[int, ...],
+        hidden_dims: tuple[int, ...],
         latent_dim: int,
         dropout: float = 0.0,
     ) -> None:
@@ -123,7 +122,7 @@ def _get_feature_matrix_for_ae(df: pd.DataFrame, ds_cfg: DatasetConfig) -> np.nd
 
 def get_feature_matrix_from_universe(
     universe: Universe, split: str = "train"
-) -> Tuple[np.ndarray, np.ndarray, DatasetConfig]:
+) -> tuple[np.ndarray, np.ndarray, DatasetConfig]:
 
     ds_cfg: DatasetConfig = load_dataset_config(universe.dataset_id)
 
@@ -160,8 +159,6 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
     X_train, feature_names, ds_cfg = get_feature_matrix_from_universe(
         universe, split="train"
     )
-
-    # log_feature_stats(X_train, feature_names, "train", universe)
 
     X_val, _, _ = get_feature_matrix_from_universe(universe, split="val")
 

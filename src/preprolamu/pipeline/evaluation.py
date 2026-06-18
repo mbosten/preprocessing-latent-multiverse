@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ def _split_to_path(universe: Universe, split: str):
     raise ValueError("split must be 'train', 'val'/'validation', or 'test'")
 
 
-def _labels_from_df(df: pd.DataFrame, label_col: str) -> Optional[np.ndarray]:
+def _labels_from_df(df: pd.DataFrame, label_col: str) -> np.ndarray | None:
     if label_col not in df.columns:
         return None
     y = df[label_col].astype(str).to_numpy()
@@ -70,7 +70,7 @@ def _recon_error_per_sample(
     return np.concatenate(errs, axis=0) if errs else np.array([], dtype=float)
 
 
-def _summarize_errors(err: np.ndarray) -> Dict[str, Any]:
+def _summarize_errors(err: np.ndarray) -> dict[str, Any]:
     err = np.asarray(err, dtype=float)
     err = err[np.isfinite(err)]
 
@@ -106,7 +106,7 @@ def evaluate_autoencoder_reconstruction(
     split: str = "test",
     batch_size: int = 2048,
     include_stratified: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     ds_cfg = load_dataset_config(universe.dataset_id)
     label_col = ds_cfg.label_column
 
@@ -122,7 +122,7 @@ def evaluate_autoencoder_reconstruction(
     # Compute per-sample recon MSE
     err = _recon_error_per_sample(model, X, batch_size=batch_size)
 
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "universe_id": universe.id,
         "dataset_id": universe.dataset_id,
         "split": split,

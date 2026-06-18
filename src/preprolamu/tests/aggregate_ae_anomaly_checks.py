@@ -1,3 +1,7 @@
+"""
+This script aggregates the universe-level output of ae_anomaly_check.py into a single master CSV file.
+"""
+
 from pathlib import Path
 
 import pandas as pd

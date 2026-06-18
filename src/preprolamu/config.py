@@ -294,7 +294,13 @@ def save_clean_dataset(df: pd.DataFrame, cfg: DatasetConfig) -> None:
     logger.info(f"[PREP] Saved cleaned dataset with shape {df.shape}")
 
 
-def prepare_dataset(dataset_id: str) -> None:
+@app.command()
+def prepare_dataset(
+    dataset_id: str = typer.Argument(
+        ..., help="Dataset id to prepare, e.g. NF-CICIDS2018-v3"
+    ),
+) -> None:
+
     cfg = load_dataset_config(dataset_id)
     logger.info(f"[PREP] Preparing dataset_id={cfg.dataset_id}")
 
@@ -310,15 +316,6 @@ def prepare_dataset(dataset_id: str) -> None:
 
     df = None
     gc.collect()
-
-
-# CLI function to run the initial data cleaning. Much complicated
-@app.command()
-def initiate(
-    dataset_id: str = typer.Argument(..., help="Dataset id to prepare, e.g. base_v1"),
-):
-
-    prepare_dataset(dataset_id)
 
 
 if __name__ == "__main__":

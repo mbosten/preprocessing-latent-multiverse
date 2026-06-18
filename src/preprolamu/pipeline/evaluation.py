@@ -10,12 +10,14 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from preprolamu.config import load_dataset_config
+from preprolamu.helpers import feature_matrix_from_df, labels_from_df
 from preprolamu.pipeline.autoencoder import _get_device, load_autoencoder_for_universe
 from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
 
+# DEPRECATED
 def _labels_from_df(df: pd.DataFrame, label_col: str) -> np.ndarray | None:
     if label_col not in df.columns:
         return None
@@ -23,6 +25,7 @@ def _labels_from_df(df: pd.DataFrame, label_col: str) -> np.ndarray | None:
     return y
 
 
+# DEPRECATED
 def _feature_matrix_from_df(df: pd.DataFrame, label_col: str) -> np.ndarray:
     cols_to_drop = [label_col]
     if "Label" in df.columns and "Label" not in cols_to_drop:
@@ -103,8 +106,8 @@ def evaluate_autoencoder_reconstruction(
     path = universe.paths.preprocessed(split=split)
     df = pd.read_parquet(path)
 
-    y = _labels_from_df(df, label_col=label_col)
-    X = _feature_matrix_from_df(df, label_col=label_col)
+    y = labels_from_df(df, label_col=label_col)
+    X = feature_matrix_from_df(df, label_col=label_col)
 
     # Load trained AE
     model = load_autoencoder_for_universe(universe, ds_cfg)

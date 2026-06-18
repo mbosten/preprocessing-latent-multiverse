@@ -8,9 +8,8 @@ from scipy.stats import permutation_test, spearmanr
 logger = logging.getLogger(__name__)
 
 
-# permutation test for Spearman's rank-order correlation (as is advised)
 def spearmanr_permutation(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
-
+    """Permutation test of Spearman's rank"""
     rs = spearmanr(x, y).statistic
 
     def spearmanr_statistic(x_perm):
@@ -25,6 +24,3 @@ def spearmanr_permutation(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
         random_state=0,
     )
     return float(rs), float(res.pvalue)
-
-
-_L2_DIMS = (0, 1, 2)

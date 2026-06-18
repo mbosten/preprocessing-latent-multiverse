@@ -14,13 +14,13 @@ from preprolamu.example_plots import plot_example_figures
 from preprolamu.helpers import (
     exclude_zero_norms_from_output,
     filter_output_by_norm_threshold,
+    spearmanr_permutation,
 )
 from preprolamu.pipeline.metrics import (
     build_metrics_table,
     compute_presto_variance_from_metrics_table,
 )
 from preprolamu.pipeline.universes import generate_multiverse
-from preprolamu.utils_analyses_plots import spearmanr_permutation
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(add_completion=False)

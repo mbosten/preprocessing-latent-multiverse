@@ -11,16 +11,16 @@ import typer
 from project_utils import setup_logging
 
 from preprolamu.example_plots import plot_example_figures
+from preprolamu.helpers import (
+    exclude_zero_norms_from_output,
+    filter_output_by_norm_threshold,
+)
 from preprolamu.pipeline.metrics import (
     build_metrics_table,
     compute_presto_variance_from_metrics_table,
 )
 from preprolamu.pipeline.universes import generate_multiverse
-from preprolamu.utils_analyses_plots import (
-    filter_by_norm_threshold,
-    filter_exclude_zero_norms,
-    spearmanr_permutation,
-)
+from preprolamu.utils_analyses_plots import spearmanr_permutation
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(add_completion=False)
@@ -181,7 +181,7 @@ def presto_variance_violin(
 
     universes = generate_multiverse()
     df = build_metrics_table(universes, split=split, require_exists=True)
-    df = df[df["metrics_status"] == "ok"].copy()
+
     if df.empty:
         raise typer.BadParameter("No 'ok' rows found in metrics table for this split.")
 
@@ -193,9 +193,12 @@ def presto_variance_violin(
             f"Missing required columns in metrics table: {missing}"
         )
 
-    # Apply filters
-    df = filter_by_norm_threshold(df, threshold=norm_threshold)
-    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+    if norm_threshold is not None:
+        df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
+
+    if exclude_zero_norms:
+        df = exclude_zero_norms_from_output(df)
+
     if df.empty:
         raise typer.BadParameter("No rows remain after filtering.")
 
@@ -268,8 +271,12 @@ def presto_individual_violin(
 
     universes = generate_multiverse()
     df = build_metrics_table(universes, split=split, require_exists=True)
-    df = filter_by_norm_threshold(df, threshold=norm_threshold)
-    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+
+    if norm_threshold is not None:
+        df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
+
+    if exclude_zero_norms:
+        df = exclude_zero_norms_from_output(df)
 
     if dataset.lower() != "all":
         df = df[df["dataset_id"] == dataset].copy()
@@ -383,10 +390,12 @@ def performance_summary_plot(
 
     universes = generate_multiverse()
     df = build_metrics_table(universes, split=split, require_exists=True)
-    df = df[df["metrics_status"] == "ok"].copy()
 
-    df = filter_by_norm_threshold(df, threshold=norm_threshold)
-    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+    if norm_threshold is not None:
+        df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
+
+    if exclude_zero_norms:
+        df = exclude_zero_norms_from_output(df)
 
     if perf_col not in df.columns:
         raise typer.BadParameter(f"Missing {perf_col!r} in metrics table.")
@@ -449,8 +458,11 @@ def topology_vs_performance_plot(
     universes = generate_multiverse()
     df = build_metrics_table(universes, split=split, require_exists=True)
 
-    df = filter_by_norm_threshold(df, threshold=norm_threshold)
-    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+    if norm_threshold is not None:
+        df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
+
+    if exclude_zero_norms:
+        df = exclude_zero_norms_from_output(df)
 
     for c in [topo_col, perf_col, "dataset_id"]:
         if c not in df.columns:

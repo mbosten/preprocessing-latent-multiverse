@@ -16,16 +16,6 @@ from preprolamu.pipeline.universes import Universe
 logger = logging.getLogger(__name__)
 
 
-def _split_to_path(universe: Universe, split: str):
-    if split == "train":
-        return universe.paths.preprocessed(split="train")
-    if split in {"val", "validation"}:
-        return universe.paths.preprocessed(split="val")
-    if split == "test":
-        return universe.paths.preprocessed(split="test")
-    raise ValueError("split must be 'train', 'val'/'validation', or 'test'")
-
-
 def _labels_from_df(df: pd.DataFrame, label_col: str) -> np.ndarray | None:
     if label_col not in df.columns:
         return None
@@ -110,7 +100,7 @@ def evaluate_autoencoder_reconstruction(
     ds_cfg = load_dataset_config(universe.dataset_id)
     label_col = ds_cfg.label_column
 
-    path = _split_to_path(universe, split)
+    path = universe.paths.preprocessed(split=split)
     df = pd.read_parquet(path)
 
     y = _labels_from_df(df, label_col=label_col)

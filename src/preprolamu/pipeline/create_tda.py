@@ -6,10 +6,10 @@ import gudhi as gd
 import numpy as np
 from gudhi.representations import Landscape
 
+from preprolamu.helpers import mask_infinities
 from preprolamu.pipeline.embeddings import from_latent_to_point_cloud
 from preprolamu.pipeline.metrics import compute_metrics_from_tda
 from preprolamu.pipeline.universes import Universe
-from preprolamu.utils.utils import mask_infinities
 
 logger = logging.getLogger(__name__)
 

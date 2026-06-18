@@ -19,6 +19,7 @@ def _ok_only(df: pd.DataFrame) -> pd.DataFrame:
     return df[df["metrics_status"] == "ok"].copy()
 
 
+# DEPRECATED IN FAVOR OF FUNCTIONS IN HELPER/RESULTS FOLDER
 # Cap the L2 norm dataframe to exclude norms above a certain threshold.
 # Caps average l2 across homology dimensions.
 def filter_by_norm_threshold(
@@ -50,6 +51,7 @@ def filter_by_norm_threshold(
     return df2
 
 
+# DEPRECATED IN FAVOR OF FUNCTIONS IN HELPER/RESULTS FOLDER
 # Drop L2 norm rows that are all exactly zero across dimensions.
 def filter_exclude_zero_norms(df: pd.DataFrame, *, exclude_zero: bool) -> pd.DataFrame:
 
@@ -78,7 +80,7 @@ def filter_exclude_zero_norms(df: pd.DataFrame, *, exclude_zero: bool) -> pd.Dat
     return df2
 
 
-# used for splitting the data by two parameters in some analyses functions
+# DEPRECATED
 def _parse_split_by(spec: str) -> list[str]:
 
     spec = (spec or "").strip()

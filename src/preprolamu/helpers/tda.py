@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def mask_infinities(array: np.ndarray) -> np.ndarray:

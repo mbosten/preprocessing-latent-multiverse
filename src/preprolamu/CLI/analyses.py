@@ -12,18 +12,17 @@ import typer
 from project_utils import setup_logging
 from typing_extensions import Annotated
 
+from preprolamu.helpers import (
+    exclude_zero_norms_from_output,
+    filter_output_by_norm_threshold,
+)
 from preprolamu.pipeline.evaluation import evaluate_autoencoder_reconstruction
 from preprolamu.pipeline.metrics import (
     build_metrics_table,
     compute_presto_variance_from_metrics_table,
 )
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
-from preprolamu.utils_analyses_plots import (
-    _ok_only,
-    _parse_split_by,
-    filter_by_norm_threshold,
-    filter_exclude_zero_norms,
-)
+from preprolamu.utils_analyses_plots import _ok_only
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(help="Data analyses based on landscapes and embeddings.")
@@ -52,6 +51,18 @@ _PRESTO_PARAMS: list[str] = [
     "duplicate_handling",
     "missingness",
     "seed",
+]
+
+
+# Keys for splitting the dataset in the l2 norm variance function
+# Combine with PRESOT PARAMS and drop the dataset id in the latter implementations
+SplitKey = Literal[
+    "dataset_id",
+    "scaling",
+    "feature_subset",
+    "log_transform",
+    "duplicate_handling",
+    "missingness",
 ]
 
 
@@ -309,8 +320,11 @@ def dataset_summary(
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split))
 
-    df = filter_by_norm_threshold(df, threshold=norm_threshold)
-    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+    if norm_threshold is not None:
+        df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
+
+    if exclude_zero_norms:
+        df = exclude_zero_norms_from_output(df)
 
     # The actual data
     summary = (
@@ -334,32 +348,43 @@ def dataset_summary(
 @app.command("presto-variance")
 def presto_variance(
     split: str = typer.Option("test"),
-    split_by: str = typer.Option(
-        "dataset",
-        help="Comma-separated grouping keys (max 2). Examples: 'dataset' or 'dataset,scaling'."
-        'Use two double quotes ("") for no grouping (all universes together).',
-    ),
-    norm_threshold: float | None = typer.Option(
-        None,
-        help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
-    ),
-    exclude_zero_norms: bool = typer.Option(
-        False,
-        help="Exclude universes where all l2_dim* norms are exactly zero.",
-    ),
+    split_by: Annotated[
+        list[SplitKey],
+        typer.Option(
+            "--split-by",
+            help="Grouping key. Can be used up to twice.",
+        ),
+    ] = ["dataset"],
+    norm_threshold: Annotated[
+        float | None,
+        typer.Option(
+            help="Exclude universes where any l2_dim* exceeds this threshold (e.g. 100).",
+        ),
+    ] = None,
+    exclude_zero_norms: Annotated[
+        bool,
+        typer.Option(
+            help="Exclude universes where all l2_dim* norms are exactly zero.",
+        ),
+    ] = False,
 ):
+    """
+    --split-by can be used at max 2 times as follows: --split-by X --split-by Y.
+    """
 
-    # parse split_by (to handle two splits)
-    keys = _parse_split_by(split_by)
+    if len(split_by) > 2:
+        raise typer.BadParameter("--split-by supports at most 2 keys.")
+
+    keys = list(split_by)
 
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
 
-    # filter data by maximum norm threshold
-    df = filter_by_norm_threshold(df, threshold=norm_threshold)
+    if norm_threshold is not None:
+        df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
 
-    # exclude all-zero-valued norms
-    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+    if exclude_zero_norms:
+        df = exclude_zero_norms_from_output(df)
 
     needed = [f"l2_dim{d}" for d in (0, 1, 2)]
     for c in needed:
@@ -431,8 +456,12 @@ def presto_local_sensitivity(
 
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
-    df = filter_by_norm_threshold(df, threshold=norm_threshold)
-    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+
+    if norm_threshold is not None:
+        df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
+
+    if exclude_zero_norms:
+        df = exclude_zero_norms_from_output(df)
 
     datasets = sorted(df["dataset_id"].dropna().unique().tolist())
     if not datasets:
@@ -486,8 +515,12 @@ def presto_global_sensitivity(
 
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
-    df = filter_by_norm_threshold(df, threshold=norm_threshold)
-    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+
+    if norm_threshold is not None:
+        df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
+
+    if exclude_zero_norms:
+        df = exclude_zero_norms_from_output(df)
 
     datasets = sorted(df["dataset_id"].dropna().unique().tolist())
     if not datasets:
@@ -638,8 +671,11 @@ def presto_stability_regions(
     universes = generate_multiverse()
     df = _ok_only(build_metrics_table(universes, split=split, require_exists=True))
 
-    df = filter_by_norm_threshold(df, threshold=norm_threshold)
-    df = filter_exclude_zero_norms(df, exclude_zero=exclude_zero_norms)
+    if norm_threshold is not None:
+        df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
+
+    if exclude_zero_norms:
+        df = exclude_zero_norms_from_output(df)
 
     # Determine params to run
     if param != "all":

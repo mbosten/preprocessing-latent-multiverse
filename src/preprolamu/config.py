@@ -18,9 +18,6 @@ app = typer.Typer()
 
 DatasetConfig = dict[str, Any]
 
-DATASET_CONFIG_DIR = Path("config") / "datasets"
-CLEAN_DATA_DIR = Path("data") / "raw"
-
 
 # set up logging.
 @app.callback()
@@ -48,7 +45,7 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
 
     cfg["dataset_id"] = cfg.get("dataset_id", dataset_id)
     cfg["raw_path"] = Path(cfg["raw_path"])
-    cfg["clean_path"] = CLEAN_DATA_DIR / f"{dataset_id}_clean.parquet"
+    cfg["clean_path"] = Path("data") / "raw" / f"{dataset_id}_clean.parquet"
     cfg["non_numerical_columns"] = list(cfg.get("non_numerical_columns", []) or [])
     cfg["features_to_exclude"] = list(cfg.get("features_to_exclude", []) or [])
     cfg["label_column"] = cfg.get("label_column")

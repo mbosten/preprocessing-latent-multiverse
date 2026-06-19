@@ -94,10 +94,6 @@ class Universe:
             ),
         )
 
-    # Will likely be deprecated
-    def to_id_string(self) -> str:
-        return self.id
-
     # Path/IO functions reference to their respective files
     @property
     def paths(self) -> UniversePaths:

@@ -59,30 +59,6 @@ def _absdev_sum_for_dataset(gdf: pd.DataFrame, *, dims: list[int]) -> pd.DataFra
     )
 
 
-# Presto variance violin function
-# Deprecated but kept for bugfixing original PV code comparison
-# Reason: Using squared deviation makes distribution graphs difficult to interpret
-# Therefore the absolute deviation version is preferred,
-# which keeps the relative ordering and distribution information.
-def _sqdev_long_for_dataset(gdf: pd.DataFrame, *, dims: list[int]) -> pd.DataFrame:
-
-    cols = [f"l2_dim{d}" for d in dims]
-    X = gdf[cols].to_numpy(dtype=float)
-    X = np.where(np.isfinite(X), X, 0.0)
-    mu = X.mean(axis=0)  # per-dimension means within this dataset
-
-    sq = (X - mu) ** 2  # shape (N, D)
-
-    out = pd.DataFrame(
-        {
-            "dataset_id": np.repeat(gdf["dataset_id"].to_numpy(), len(dims)),
-            "dimension": np.tile([f"dim {d}" for d in dims], X.shape[0]),
-            "sq_dev": sq.reshape(-1),
-        }
-    )
-    return out
-
-
 # individual violin plot helper
 PARAMS = [
     "scaling",

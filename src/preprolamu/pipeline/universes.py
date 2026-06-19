@@ -3,15 +3,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
 
-import pandas as pd
 import typer
 import yaml
 
-from preprolamu.config import load_dataset_config
 from preprolamu.io.io import UniverseIO
 from preprolamu.io.paths import UniversePaths
 
@@ -128,20 +125,6 @@ DATASET_IDS: list[str] = [
     "NF-UNSW-NB15-v3",
     "NF-CICIDS2018-v3",
 ]
-
-
-@lru_cache(maxsize=None)
-def load_clean_dataset(dataset_id: str) -> pd.DataFrame:
-    cfg = load_dataset_config(dataset_id)
-    path = cfg["clean_path"]
-
-    if not path.exists():
-        raise FileNotFoundError(
-            f"Clean datast not found: {path}. "
-            f"Run `prepare-dataset {dataset_id}` first."
-        )
-
-    return pd.read_parquet(path)
 
 
 def load_dataset_profile(dataset_id: str) -> dict[str, dict[str, Any]]:

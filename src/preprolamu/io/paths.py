@@ -78,6 +78,14 @@ class UniversePaths:
             / f"{self.u.id}_eval_{split}.json"
         )
 
+    def cross_eval_metrics(self, split: Split = "test") -> Path:
+        return ensure_parent_dir(
+            self.u.base_data_dir
+            / "processed"
+            / "cross_eval_metrics"
+            / f"{self.u.id}_cross_eval_{split}.json"
+        )
+
     def preprocessed(self, split: Split) -> Path:
         return ensure_parent_dir(
             self.u.base_data_dir

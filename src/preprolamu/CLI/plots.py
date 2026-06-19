@@ -10,7 +10,6 @@ import seaborn as sns
 import typer
 from project_utils import setup_logging
 
-from preprolamu.example_plots import plot_example_figures
 from preprolamu.helpers import (
     exclude_zero_norms_from_output,
     filter_output_by_norm_threshold,
@@ -116,14 +115,6 @@ def _individual_sensitivities_for_param(
         "singletons": int(singletons),
         "mean_class_size": float(np.mean(sizes)) if sizes else np.nan,
     }
-
-
-# Example plot function
-@app.command("example-plots")
-def example_plots(
-    out_dir: Path = typer.Option(Path("data/figures"), help="Output directory"),
-):
-    plot_example_figures(out_dir=out_dir)
 
 
 @app.command("presto-variance-violin")

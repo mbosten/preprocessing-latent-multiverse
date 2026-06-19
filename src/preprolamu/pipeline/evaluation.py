@@ -101,7 +101,7 @@ def evaluate_autoencoder_reconstruction(
     include_stratified: bool = True,
 ) -> dict[str, Any]:
     ds_cfg = load_dataset_config(universe.dataset_id)
-    label_col = ds_cfg.label_column
+    label_col = ds_cfg["label_column"]
 
     path = universe.paths.preprocessed(split=split)
     df = pd.read_parquet(path)

@@ -130,7 +130,7 @@ def apply_missingness(
     universe: Universe,
     ds_cfg,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    label_col = ds_cfg.label_column
+    label_col = ds_cfg["label_column"]
 
     # Numeric columns only
     numeric_cols = [
@@ -206,7 +206,7 @@ def apply_log_transform(
     if universe.log_transform == LogTransform.NONE:
         return df_train, df_val, df_test
 
-    label_col = ds_cfg.label_column
+    label_col = ds_cfg["label_column"]
     numeric_cols = [
         c
         for c in df_train.select_dtypes(include="number").columns
@@ -255,7 +255,7 @@ def fit_scaler(df_train: pd.DataFrame, universe: Universe, ds_cfg):
     numeric_cols = [
         c
         for c in df_train.select_dtypes(include="number").columns
-        if c != ds_cfg.label_column and c != "Label"
+        if c != ds_cfg["label_column"] and c != "Label"
     ]
     seed = universe.seed
 
@@ -328,8 +328,8 @@ def preprocess_variant(
         df = apply_duplicate_handling(df, universe)
         df_train, df_val, df_test = split_train_test(
             df,
-            label_col=ds_cfg.label_column,
-            benign_label=ds_cfg.benign_label,
+            label_col=ds_cfg["label_column"],
+            benign_label=ds_cfg["benign_label"],
             train_frac=0.6,
             val_frac=0.2,
             seed=universe.seed,

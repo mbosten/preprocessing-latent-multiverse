@@ -3,12 +3,15 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
+import pandas as pd
 import typer
 import yaml
 
+from preprolamu.config import load_dataset_config
 from preprolamu.io.io import UniverseIO
 from preprolamu.io.paths import UniversePaths
 
@@ -131,35 +134,71 @@ DATASET_IDS: list[str] = [
 ]
 
 
-def load_dataset_yaml(dataset_id: str) -> dict[str, Any]:
-    path = Path("config") / "datasets" / f"{dataset_id}.yml"
-    with path.open("r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+@lru_cache(maxsize=None)
+def load_clean_dataset(dataset_id: str) -> pd.DataFrame:
+    cfg = load_dataset_config(dataset_id)
+    path = cfg["clean_path"]
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Clean datast not found: {path}. "
+            f"Run `prepare-dataset {dataset_id}` first."
+        )
+
+    return pd.read_parquet(path)
 
 
-def prune_multiverse(universes: list[Universe]) -> list[Universe]:
-    kept = []
-    cache: dict[str, dict[str, Any]] = {}
+def load_dataset_profile(dataset_id: str) -> dict[str, dict[str, Any]]:
+    path = Path("data") / "metadata" / f"{dataset_id}_profile.yml"
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Dataset profile not found: {path}. "
+            f"Run `prepare-dataset {dataset_id}` first."
+        )
+
+    with path.open("r", encoding="utf-8") as file:
+        return yaml.safe_load(file) or {}
+
+
+def build_dataset_profiles(
+    dataset_ids: Iterable[str],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    return {
+        dataset_id: load_dataset_profile(dataset_id)
+        for dataset_id in sorted(set(dataset_ids))
+    }
+
+
+def prune_multiverse(
+    universes: list[Universe],
+    profiles_by_dataset: dict[str, dict[str, dict[str, Any]]],
+) -> list[Universe]:
+
+    kept: list[Universe] = []
 
     for u in universes:
-        if u.dataset_id not in cache:
-            yml = load_dataset_yaml(u.dataset_id)
-            cache[u.dataset_id] = yml["dataset_invariants"]
+        profile = profiles_by_dataset[u.dataset_id][u.feature_subset.value]
 
-        inv = cache[u.dataset_id][u.feature_subset.value]
-
-        if not inv["has_duplicates"] and u.duplicate_handling == DuplicateHandling.DROP:
+        if (
+            not profile["has_duplicates"]
+            and u.duplicate_handling == DuplicateHandling.DROP
+        ):
             continue
-        if not inv["has_missing_numeric"] and u.missingness == Missingness.DROP_ROWS:
+
+        if (
+            not profile["has_missing_numeric"]
+            and u.missingness == Missingness.DROP_ROWS
+        ):
             continue
 
         kept.append(u)
 
-    logger.info("[MV] Pruned multiverse: %d -> %d", len(universes), len(kept))
+    logger.info("[MV] Pruned Multiverse: %d -> %d", len(universes), len(kept))
     return kept
 
 
-def generate_multiverse() -> list[Universe]:
+def generate_full_multiverse() -> list[Universe]:
 
     scalings = [Scaling.ZSCORE, Scaling.MINMAX, Scaling.QUANTILE]
     log_transforms = [LogTransform.NONE, LogTransform.LOG1P]
@@ -188,14 +227,23 @@ def generate_multiverse() -> list[Universe]:
                                         seed=sd,
                                     )
                                 )
-    return prune_multiverse(universes)
+    return universes
+
+
+def generate_multiverse() -> list[Universe]:
+    universes = generate_full_multiverse()
+
+    profiles = build_dataset_profiles(universe.dataset_id for universe in universes)
+
+    return prune_multiverse(universes, profiles)
 
 
 def get_universe(index: int) -> Universe:
-
     universes = generate_multiverse()
+
     if index < 0 or index >= len(universes):
         raise typer.BadParameter(f"universe_index must be in [0, {len(universes)-1}]")
+
     universe = universes[index]
     logger.info("[EXP] Using universe: %s", universe)
     return universe

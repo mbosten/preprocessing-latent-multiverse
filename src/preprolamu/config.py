@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import gc
 import logging
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -17,30 +16,10 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
-@dataclass
-class AutoencoderConfig:
-    latent_dim: int
-    hidden_dims: tuple[int, ...]
-    epochs: int
-    batch_size: int
-    dropout: float
-    regularization: float
+DatasetConfig = dict[str, Any]
 
-
-@dataclass
-class DatasetConfig:
-    dataset_id: str
-    raw_path: Path
-    non_numerical_columns: list[str]
-    features_to_exclude: list[str] | None = None
-    label_column: str | None = None
-    benign_label: str | None = None
-    label_classes: list[str] | None = None
-    autoencoder: AutoencoderConfig = AutoencoderConfig
-
-    @property
-    def output_path(self) -> Path:
-        return Path("data") / "raw" / f"{self.dataset_id}_clean.parquet"
+DATASET_CONFIG_DIR = Path("config") / "datasets"
+CLEAN_DATA_DIR = Path("data") / "raw"
 
 
 # set up logging.
@@ -59,61 +38,30 @@ def main():
 
 
 def load_dataset_config(dataset_id: str) -> DatasetConfig:
-
     config_path = Path("config") / "datasets" / f"{dataset_id}.yml"
 
     if not config_path.exists():
-        raise FileNotFoundError(
-            f"Dataset config not found at {config_path}. "
-            f"Create it to specify dataset-specific settings for {dataset_id}."
-        )
+        raise FileNotFoundError("Dataset config not found: %s", config_path)
 
-    with config_path.open("r", encoding="utf-8") as f:
-        raw_cfg: dict[str, Any] = yaml.safe_load(f)
+    with config_path.open("r", encoding="utf-8") as file:
+        cfg = yaml.safe_load(file) or {}
 
-    ae_raw = raw_cfg.get("autoencoder", {}) or {}
+    cfg["dataset_id"] = cfg.get("dataset_id", dataset_id)
+    cfg["raw_path"] = Path(cfg["raw_path"])
+    cfg["clean_path"] = CLEAN_DATA_DIR / f"{dataset_id}_clean.parquet"
+    cfg["non_numerical_columns"] = list(cfg.get("non_numerical_columns", []) or [])
+    cfg["features_to_exclude"] = list(cfg.get("features_to_exclude", []) or [])
+    cfg["label_column"] = cfg.get("label_column")
+    cfg["benign_label"] = cfg.get("benign_label")
+    cfg["label_classes"] = list(cfg.get("label_classes", []) or []) or None
+    cfg["autoencoder"] = cfg.get("autoencoder", {}) or {}
 
-    # Default to Ton-IoT-v3 AE config if not specified (but should be specified tbh)
-    ae_cfg = AutoencoderConfig(
-        latent_dim=ae_raw.get("latent_dim", 12),
-        hidden_dims=tuple(ae_raw.get("hidden_dims", (26,))),
-        epochs=ae_raw.get("epochs", 10),
-        batch_size=ae_raw.get("batch_size", 256),
-        dropout=ae_raw.get("dropout", 0.0377),
-        regularization=ae_raw.get("regularization", 0.0019),
-    )
-
-    cfg = DatasetConfig(
-        dataset_id=raw_cfg.get("dataset_id", dataset_id),
-        raw_path=Path(raw_cfg["raw_path"]),
-        non_numerical_columns=list(raw_cfg.get("non_numerical_columns", []) or []),
-        features_to_exclude=list(raw_cfg.get("features_to_exclude", []) or []),
-        label_column=raw_cfg.get("label_column"),
-        benign_label=raw_cfg.get("benign_label"),
-        label_classes=list(raw_cfg.get("label_classes", [])) or None,
-        autoencoder=ae_cfg,
-    )
     return cfg
-
-
-def update_dataset_yaml_with_invariants(
-    dataset_id: str, invariants: dict[str, Any]
-) -> None:
-    path = Path("config") / "datasets" / f"{dataset_id}.yml"
-    with path.open("r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-
-    cfg["dataset_invariants"] = invariants
-
-    with path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(cfg, f, sort_keys=False)
-
-    logger.info("[PREP] Updated %s with dataset invariants", path)
 
 
 # load OG data
 def load_raw_source(cfg: DatasetConfig) -> pd.DataFrame:
-    path = cfg.raw_path
+    path = path = cfg["raw_path"]
 
     logger.info(f"[PREP] Loading raw source from {path}")
 
@@ -141,7 +89,7 @@ def load_raw_source(cfg: DatasetConfig) -> pd.DataFrame:
 
 # drop columns if these are indicated in config (but aint the case)
 def apply_drop_columns(df: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
-    cols_to_drop = [c for c in cfg.features_to_exclude if c in df.columns]
+    cols_to_drop = [c for c in cfg["features_to_exclude"] if c in df.columns]
     if cols_to_drop:
         logger.info(f"[PREP] Dropping columns: {cols_to_drop}")
         df = df.drop(columns=cols_to_drop)
@@ -150,12 +98,13 @@ def apply_drop_columns(df: pd.DataFrame, cfg: DatasetConfig) -> pd.DataFrame:
 
 # cat encoding
 def apply_one_time_categorical_encoding(
-    df: pd.DataFrame, cfg: DatasetConfig
+    df: pd.DataFrame,
+    cfg: DatasetConfig,
 ) -> pd.DataFrame:
     df_out = df.copy()
 
-    label_col = cfg.label_column
-    non_num_cols = cfg.non_numerical_columns or []
+    label_col = cfg["label_column"]
+    non_num_cols = cfg["non_numerical_columns"]
 
     cols_to_encode: list[str] = [
         c for c in non_num_cols if c in df_out.columns and c != label_col
@@ -247,51 +196,57 @@ def df_shrink(df, skip=[], obj2cat=True, int2uint=False):
     return df.astype(dt)
 
 
-def compute_dataset_invariants(
-    df: pd.DataFrame, cfg: DatasetConfig
+def compute_dataset_profile(
+    df: pd.DataFrame,
+    cfg: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    label_col = cfg.label_column
+    label_col = cfg.get("label_column")
+    features_to_exclude = cfg.get("features_to_exclude", []) or []
 
-    out: dict[str, dict[str, Any]] = {}
+    profile: dict[str, dict[str, Any]] = {}
 
-    for fs in ["all", "without_confounders"]:
-        if fs == "without_confounders" and cfg.features_to_exclude:
-            df_fs = df.drop(
-                columns=[c for c in cfg.features_to_exclude if c in df.columns]
-            )
+    for feature_subset in ["all", "without_confounders"]:
+        if feature_subset == "without_confounders":
+            df_subset = df.drop(columns=features_to_exclude, errors="ignore")
         else:
-            df_fs = df
-
-        has_duplicates = bool(df_fs.duplicated().any())
+            df_subset = df
 
         numeric_cols = [
-            c
-            for c in df_fs.select_dtypes(include="number").columns
-            if c not in (label_col, "Label")
+            col
+            for col in df_subset.select_dtypes(include="number").columns
+            if col not in {label_col, "Label"}
         ]
-        if numeric_cols:
-            x = df_fs[numeric_cols].replace([np.inf, -np.inf], np.nan)
-            has_missing_numeric = bool(x.isna().any().any())
-        else:
-            has_missing_numeric = False
 
-        out[fs] = {
-            "has_duplicates": has_duplicates,
-            "has_missing_numeric": has_missing_numeric,
-            "n_rows": int(len(df_fs)),
-            "n_cols": int(df_fs.shape[1]),
+        numeric = df_subset[numeric_cols].replace([np.inf, -np.inf], np.nan)
+
+        profile[feature_subset] = {
+            "has_duplicates": bool(df_subset.duplicated().any()),
+            "has_missing_numeric": bool(numeric.isna().any().any()),
         }
 
-    return out
+    return profile
+
+
+def save_dataset_profile(
+    dataset_id: str,
+    profile: dict[str, dict[str, Any]],
+) -> None:
+    path = Path("data") / "metadata" / f"{dataset_id}_profile.yml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with path.open("w", encoding="utf-8") as file:
+        yaml.safe_dump(profile, file, sort_keys=False)
+
+    logger.info("[PREP] Saved dataset profile to %s", path)
 
 
 def save_clean_dataset(df: pd.DataFrame, cfg: DatasetConfig) -> None:
-    out_path = cfg.output_path
+    out_path = cfg["clean_path"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"[PREP] Saving cleaned dataset to {out_path}")
+    logger.info("[PREP] Saving cleaned dataset to %s", out_path)
     df.to_parquet(out_path)
-    logger.info(f"[PREP] Saved cleaned dataset with shape {df.shape}")
+    logger.info("[PREP] Saved cleaned dataset with shape %s", df.shape)
 
 
 @app.command()
@@ -302,17 +257,17 @@ def prepare_dataset(
 ) -> None:
 
     cfg = load_dataset_config(dataset_id)
-    logger.info(f"[PREP] Preparing dataset_id={cfg.dataset_id}")
+    logger.info("[PREP] Preparing dataset_id=%s", cfg["dataset_id"])
 
     df = load_raw_source(cfg)
     df = df_shrink(df, obj2cat=False, int2uint=False)
     df = apply_drop_columns(df, cfg)
     df = apply_one_time_categorical_encoding(df, cfg)
 
-    invariants = compute_dataset_invariants(df, cfg)
-    update_dataset_yaml_with_invariants(cfg.dataset_id, invariants)
+    profile = compute_dataset_profile(df, cfg)
 
     save_clean_dataset(df, cfg)
+    save_dataset_profile(cfg["dataset_id"], profile)
 
     df = None
     gc.collect()

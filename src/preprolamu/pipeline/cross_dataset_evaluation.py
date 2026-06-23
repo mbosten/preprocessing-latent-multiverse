@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from typing import Any
 
 import pandas as pd
+from sklearn.metrics import roc_auc_score
 
 from preprolamu.config import load_dataset_config
 from preprolamu.helpers import feature_matrix_from_df, labels_from_df
@@ -66,6 +67,10 @@ def _eval_model_on_universe(
         "label_column": label_col,
         "recon": _summarize_errors(err),
     }
+
+    if y is not None:
+        y_true = (y != "Benign").astype(int)
+        out["roc_auc"] = float(roc_auc_score(y_true, err))
 
     if include_stratified and (y is not None) and (len(y) == len(err)):
         benign_mask = y == "Benign"

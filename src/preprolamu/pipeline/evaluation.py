@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
+from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, TensorDataset
 
 from preprolamu.config import load_dataset_config
@@ -103,6 +104,10 @@ def evaluate_autoencoder_reconstruction(
         "label_column": label_col,
         "recon": _summarize_errors(err),
     }
+
+    if y is not None:
+        y_true = (y != "Benign").astype(int)
+        out["roc_auc"] = float(roc_auc_score(y_true, err))
 
     if include_stratified and (y is not None) and (len(y) == len(err)):
         benign_mask = y == "Benign"

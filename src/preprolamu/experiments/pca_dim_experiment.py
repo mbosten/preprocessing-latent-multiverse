@@ -14,7 +14,7 @@ from project_utils import setup_logging
 
 from preprolamu.helpers import mask_infinities
 from preprolamu.pipeline.create_tda import compute_landscapes
-from preprolamu.pipeline.embeddings import normalize_space, project_PCA
+from preprolamu.pipeline.embeddings import diameter_approximation, project_PCA
 from preprolamu.pipeline.metrics import compute_landscape_norm
 from preprolamu.pipeline.universes import get_universe
 
@@ -119,7 +119,8 @@ del latent
 gc.collect()
 
 # Diameter division to normalize the data
-Xnorm, diameter = normalize_space(X, seed=seed, diameter_iterations=1000)
+diameter = diameter_approximation(X, seed=seed, iterations=1000)
+Xnorm = X / diameter
 
 # Active memory management
 del X

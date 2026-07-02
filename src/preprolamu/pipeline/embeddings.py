@@ -11,11 +11,10 @@ from preprolamu.pipeline.universes import Universe
 logger = logging.getLogger(__name__)
 
 
-# Normalize embedding space by approximate diameter
-def normalize_space(X, seed: int, diameter_iterations=1000):
+def diameter_approximation(X, seed: int, iterations=1000):
     rng = np.random.default_rng(seed)
     subset = [rng.choice(len(X))]
-    for _ in range(diameter_iterations - 1):
+    for _ in range(iterations - 1):
         distances = cdist([X[subset[-1]]], X).ravel()
         new_point = np.argmax(distances)
         subset.append(new_point)
@@ -31,7 +30,7 @@ def normalize_space(X, seed: int, diameter_iterations=1000):
         )
         diameter = 1.0
 
-    return X / diameter, diameter
+    return diameter
 
 
 def project_PCA(normalized_latent_space: np.ndarray, n_components: int, seed: int):
@@ -71,9 +70,10 @@ def from_latent_to_point_cloud(
             arr=X_pca_raw.astype(dtype, copy=False),
         )
 
-    diameter = None
+    diameter = diameter_approximation(X, seed=seed, iterations=1000)
+
     if normalize:
-        X, diameter = normalize_space(X, diameter_iterations=1000, seed=seed)
+        X = X / diameter
 
     X_pca = project_PCA(X, n_components=pca_dim, seed=seed)
 

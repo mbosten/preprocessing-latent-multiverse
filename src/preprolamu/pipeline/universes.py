@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable
@@ -64,9 +64,13 @@ class Universe:
     missingness: Missingness
     seed: int
 
+    # PERHAPS REMOVE, MIGHT BE REDUNDANT
     pca_dim: int = 3
 
     tda_config: TdaConfig = TdaConfig()
+
+    # hard-code universe index into object
+    universe_index: int | None = field(default=None, compare=False, hash=False)
 
     # Parsed ID string
     id: str = field(init=False)
@@ -77,10 +81,15 @@ class Universe:
 
     def __post_init__(self):
         # Compute once
+        prefix = (
+            f"u-{self.universe_index:04d}_" if self.universe_index is not None else ""
+        )
+
         object.__setattr__(
             self,
             "id",
             (
+                f"{prefix}"
                 f"ds-{self.dataset_id}"
                 f"_sc-{self.scaling.value}"
                 f"_log-{self.log_transform.value}"
@@ -214,15 +223,21 @@ def generate_multiverse() -> list[Universe]:
 
     profiles = build_dataset_profiles(universe.dataset_id for universe in universes)
 
-    return prune_multiverse(universes, profiles)
+    pruned = prune_multiverse(universes, profiles)
+
+    return [
+        replace(universe, universe_index=index) for index, universe in enumerate(pruned)
+    ]
 
 
 def get_universe(index: int) -> Universe:
     universes = generate_multiverse()
+    universe_lookup = {u.universe_index: u for u in universes}
 
-    if index < 0 or index >= len(universes):
-        raise typer.BadParameter(f"universe_index must be in [0, {len(universes)-1}]")
+    try:
+        universe = universe_lookup[index]
+    except KeyError:
+        raise typer.BadParameter(f"universe_index must be in [0, {len(universes) - 1}]")
 
-    universe = universes[index]
     logger.info("[EXP] Using universe: %s", universe)
     return universe

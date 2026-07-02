@@ -818,6 +818,15 @@ wheels = [
 ]
 
 [[package]]
+name = "isoscore"
+version = "2.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/1e/b798a831d671675a21065b417ecc33ed0898a10a57f089dcfaf98f870735/IsoScore-2.0.1.tar.gz", hash = "sha256:61997ebaaa47e32ad11b54362453b901d142f9611fd57df3c0bbc13fdc140b39", size = 4159, upload-time = "2023-07-04T01:56:45.943Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ad/72/df1889f255287a953f27e5216461750fd97a9bb996f75c7764ad6dedfb81/IsoScore-2.0.1-py3-none-any.whl", hash = "sha256:1aff463cf13ab366df2831d3f4b37250c12b65da5523522df49f9cf8ebbec0a9", size = 4566, upload-time = "2023-07-04T01:56:43.487Z" },
+]
+
+[[package]]
 name = "jedi"
 version = "0.20.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2015,6 +2024,7 @@ source = { editable = "." }
 dependencies = [
     { name = "gudhi" },
     { name = "ipympl" },
+    { name = "isoscore" },
     { name = "matplotlib" },
     { name = "nbformat" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -2048,6 +2058,7 @@ dev = [
 requires-dist = [
     { name = "gudhi", specifier = ">=3.9.0" },
     { name = "ipympl" },
+    { name = "isoscore", specifier = ">=2.0.1" },
     { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "nbformat", specifier = ">=5.10.4" },
     { name = "numpy", specifier = ">=1.26" },

@@ -29,6 +29,7 @@ dependencies = [
     "plotly>=6.5.2",
     "nbformat>=5.10.4",
     "project_utils",
+    "isoscore>=2.0.1",
 ]
 
 # Allows cli commands to be run as: uv run acb [cli function] [parameters]

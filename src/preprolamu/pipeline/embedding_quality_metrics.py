@@ -19,6 +19,7 @@
 """A library for computing unsupervised embedding quality metrics."""
 
 import numpy as np
+from IsoScore import IsoScore
 
 
 def report_all_metrics(tensor):
@@ -40,6 +41,7 @@ def report_all_metrics(tensor):
         stable_rank,
         ne_sum,
         self_clustering,
+        isoscore,
     ]
     return dict((fn.__name__, fn(tensor, u=u, s=s)) for fn in fns)
 
@@ -174,3 +176,18 @@ def alpha_req(tensor, s=None, epsilon=1e-12, **_):
     features = np.vstack([np.linspace(1, 0, n), np.ones(n)]).T
     a, _, _, _ = np.linalg.lstsq(features, np.log(s), rcond=None)
     return a[0]
+
+
+def isoscore(points, **_):
+    """Implementation wrapper for the IsoScore metric.
+
+    This metric is defined in "IsoScore: Measuring the Uniformity
+    of Embedding Space Utilization". Rudman et al., ACL 2022.
+
+    Args:
+      points (dense matrix): Input embeddings.
+
+    Returns:
+      float: IsoScore metric value.
+    """
+    return IsoScore.IsoScore(points)

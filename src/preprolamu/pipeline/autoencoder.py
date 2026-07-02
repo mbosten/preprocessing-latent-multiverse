@@ -83,8 +83,14 @@ def _get_device() -> torch.device:
     return device
 
 
-def _seed_everything(seed: int) -> torch.Generator:
-    logger.info("[AE] Seeding RNGs with seed=%d", seed)
+def _seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+    logger.info("[AE] Seeding worker RNGs with seed=%d", worker_seed)
+
+
+def _seed_generator(seed) -> torch.Generator:
 
     random.seed(seed)
     np.random.seed(seed)
@@ -93,7 +99,6 @@ def _seed_everything(seed: int) -> torch.Generator:
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-    # For dataloader shuffling
     g = torch.Generator()
     g.manual_seed(seed)
     return g
@@ -154,7 +159,8 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
     logger.info(f"[AE] Training autoencoder for universe = {universe.id}")
 
     seed = universe.seed
-    generator = _seed_everything(seed)
+
+    g = _seed_generator(seed)
 
     X_train, feature_names, ds_cfg = get_feature_matrix_from_universe(
         universe, split="train"
@@ -185,7 +191,8 @@ def train_autoencoder_for_universe(universe: Universe) -> Path:
         batch_size=ae_cfg["batch_size"],
         shuffle=True,
         drop_last=False,
-        generator=generator,
+        generator=g,
+        worker_init_fn=_seed_worker,
     )
 
     val_loader = DataLoader(

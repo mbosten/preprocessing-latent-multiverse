@@ -59,8 +59,8 @@ def get_or_compute_latent(
     # Encode with trained AE
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info("Found device: %s", device)
-    model.to(device)
-    model.eval()
+    model.to(device)  # Copy weights and biases to VRAM/RAM
+    model.eval()  # Turn of randomness in model for evaluation purposes (e.g., dropout)
 
     logger.info(
         "[Embedding] Encoding %d samples into latent space (%s split).",
@@ -68,10 +68,16 @@ def get_or_compute_latent(
         split,
     )
 
-    with torch.no_grad():
-        tensor_X = torch.from_numpy(X).to(device)
-        latent_tensor = model.encode(tensor_X)
-        latent = latent_tensor.cpu().numpy()
+    with (
+        torch.no_grad()
+    ):  # Gradient is only necessary for training and thus wastes memory.
+        tensor_X = torch.from_numpy(X).to(
+            device
+        )  # Turn array to Tensor and copy into VRAM/RAM
+        latent_tensor = model.encode(tensor_X)  # Use AE encoder on the tensor
+        latent = (
+            latent_tensor.cpu().numpy()
+        )  # Move resulting latent to RAM and turn into an array.
 
     # 5. Cache
     latent_path.parent.mkdir(parents=True, exist_ok=True)

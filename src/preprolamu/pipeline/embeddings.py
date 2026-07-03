@@ -33,6 +33,51 @@ def diameter_approximation(X, seed: int, iterations=1000):
     return diameter
 
 
+def pairwise_distance_quantile(X, seed: int, q=0.999):
+    """Quantile-based alternative to diameter standardization because the latter is sensitive to outliers."""
+    X = np.asarray(X, dtype=np.float64)
+    rng = np.random.default_rng(seed)
+
+    n_pairs = 2_000_000
+    batch_size = 250_000
+    eps = 1e-8
+
+    n = len(X)
+    distances = np.empty(n_pairs, dtype=np.float64)
+
+    start = 0
+    # Compute over batches to avoid memory issues.
+    while start < n_pairs:
+        stop = min(start + batch_size, n_pairs)
+        m = stop - start
+
+        i = rng.integers(n, size=m)
+        j = rng.integers(n - 1, size=m)
+        j += j >= i  # ensure i != j
+
+        # Compute differences
+        diff = X[i] - X[j]
+
+        # Squared distances
+        distances[start:stop] = np.einsum("ij,ij->i", diff, diff)
+
+        start = stop
+
+    k = min(int(np.ceil(q * n_pairs)) - 1, n_pairs - 1)
+
+    # partition data on the index of the q-value instead of full sorting
+    scale = float(np.sqrt(np.partition(distances, k)[k]))
+
+    if not np.isfinite(scale) or scale < eps:
+        logger.info(
+            "[EMB] Computed scale is non-finite or too small; defaulting to 1 (scale=%s).",
+            scale,
+        )
+        scale = 1.0
+
+    return scale
+
+
 def project_PCA(normalized_latent_space: np.ndarray, n_components: int, seed: int):
     pca = PCA(n_components=n_components, random_state=seed)
     projected = pca.fit_transform(normalized_latent_space)

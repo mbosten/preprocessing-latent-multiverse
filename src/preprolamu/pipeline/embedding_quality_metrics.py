@@ -40,7 +40,7 @@ def report_all_metrics(tensor):
         alpha_req,
         stable_rank,
         ne_sum,
-        self_clustering,
+        # self_clustering,  # Disabled due to difficulty with large arrays.
         isoscore,
     ]
     return dict((fn.__name__, fn(tensor, u=u, s=s)) for fn in fns)

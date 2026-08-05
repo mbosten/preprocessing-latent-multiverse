@@ -6,12 +6,14 @@ import gudhi as gd
 import numpy as np
 from gudhi.representations import Landscape
 
-from preprolamu.helpers import mask_infinities
-from preprolamu.pipeline.embeddings import from_latent_to_point_cloud
-from preprolamu.pipeline.metrics import compute_metrics_from_tda
+from preprolamu.pipeline.embeddings import Embedding
+from preprolamu.pipeline.persistence import Persistence
 from preprolamu.pipeline.universes import Universe
+from preprolamu.pipeline.metrics import compute_metrics_from_tda
+from preprolamu.helpers import mask_infinities
 
 logger = logging.getLogger(__name__)
+
 
 
 def compute_alpha_complex_persistence(
@@ -59,91 +61,116 @@ def compute_landscapes(
     return landscapes_per_dimension
 
 
-def run_tda_for_universe(
-    universe: Universe, split: str = "test", overwrite: bool = False
-):
+def _load_if_exists(path, loader, overwrite):
+    return None if overwrite or not path.exists() else loader()
 
-    tda_cfg = universe.tda_config
-    pca_dim = universe.pca_dim
-    m = tda_cfg.subsample_size
-    hom_dims = tda_cfg.homology_dimensions
-    num_landscapes = tda_cfg.num_landscapes
-    resolution = tda_cfg.resolution
 
-    # 1. Read latent embedding, err if not found
-    try:
-        latent = universe.io.load_embedding(split=split, force_recompute=False)
-    except FileNotFoundError as e:
-        msg = (
-            f"[TDA] No embedding found for universe {universe.id} "
-            f"(split='{split}'). Run the embedding step first."
-        )
-        logger.error(msg)
-        raise RuntimeError(msg) from e
+def prepare_point_cloud(universe: Universe, split: str = "test"):
+    logger.info("[Embedding] Loading embedding (%s, %s).", universe.id, split)
 
-    logger.info(
-        "[TDA] Loaded latent for %s with shape %s",
-        universe.id,
-        latent.shape,
+    latent = universe.io.load_embedding(split=split, force_recompute=False)
+    point_cloud = Embedding(latent_space=latent, universe=universe)
+    point_cloud.project_PCA(n_components=universe.pca_dim)
+    scale = point_cloud.normalize(method="diameter", iterations=1000)
+    logger.info("[Embedding] Normalization scale: %s", scale)
+    point_cloud.save(split=split)
+    point_cloud.sample(target_size=universe.tda_config.subsample_size)
+    
+    return point_cloud.latent_space
+
+
+def run_tda_for_universe(u: Universe, split="test", overwrite=False):
+    
+    intervals = _load_if_exists(
+        u.paths.persistence(split=split),
+        lambda: u.io.load_persistence(split=split),
+        overwrite,
+    )
+    landscapes = _load_if_exists(
+        u.paths.landscapes(split=split),
+        lambda: u.io.load_landscapes(split=split),
+        overwrite,
+    )
+    metrics = _load_if_exists(
+        u.paths.metrics(split=split),
+        lambda: u.io.load_metrics(split=split),
+        overwrite,
     )
 
-    persistence_path = universe.paths.persistence(split=split)
-    landscapes_path = universe.paths.landscapes(split=split)
-    metrics_path = universe.paths.metrics(split=split)
+    tda = Persistence(universe=u, intervals=intervals, landscapes=landscapes)
 
-    # Check if persistence already exists
-    if persistence_path.exists() and not overwrite:
-        per_dim = universe.io.load_persistence(split=split)
-        logger.info("[TDA] Loaded persistence from %s", persistence_path)
-        return
-    else:
-        logger.info("[TDA] Computing persistence for %s", universe.id)
-        points_for_tda, diameter = from_latent_to_point_cloud(
-            X=latent,
-            pca_dim=pca_dim,
-            target_size=m,
-            seed=universe.seed,
-            normalize=True,
-            save_projected_to=(universe, split),
-            save_projected_raw_to=(universe, split),
-        )
-        logger.info("[TDA] normalization diameter: %s", diameter)
+    if intervals is None:
+        logger.info(f"[TDA] Computing persistence for universe {u.id} (split={split})")
+        tda.points = prepare_point_cloud(u, split=split)
+        intervals = tda.compute_intervals()
+        u.io.save_persistence(split=split, per_dim=intervals)
 
-        per_dim = compute_alpha_complex_persistence(
-            data=points_for_tda,
-            homology_dimensions=hom_dims,
-        )
+    if landscapes is None:
+        logger.info(f"[TDA] Computing landscapes for universe {u.id} (split={split})")
+        landscapes = tda.compute_landscapes()
+        u.io.save_landscapes(split=split, landscapes=landscapes)
 
-        universe.io.save_persistence(split=split, per_dim=per_dim)
-        logger.info("[TDA] Saved persistence to %s", persistence_path)
+    if metrics is None:
+        logger.info(f"[TDA] Computing metrics for universe {u.id} (split={split})")
+        metrics = tda.metrics()
+        u.io.save_metrics(split=split, metrics=metrics)
 
-    # Check if landscapes already exist
-    if landscapes_path.exists() and not overwrite:
-        landscapes = universe.io.load_landscapes(split=split)
-        logger.info("[TDA] Landscapes already exist at %s.", landscapes_path)
-    else:
-        logger.info("[TDA] Computing landscapes for %s", universe.id)
-        landscapes = compute_landscapes(
-            persistence_per_dimension=per_dim,
-            num_landscapes=num_landscapes,
-            resolution=resolution,
-            homology_dimensions=hom_dims,
-        )
+    return intervals, landscapes, metrics
 
-        universe.io.save_landscapes(split=split, landscapes=landscapes)
-        logger.info("[TDA] Saved landscapes to %s", landscapes_path)
 
-    # Check if metrics already exist
-    if metrics_path.exists() and not overwrite:
-        metrics = universe.io.load_metrics(split=split)
-        logger.info("[TDA] Metrics already exist at %s.", metrics_path)
-    else:
-        metrics = compute_metrics_from_tda(
-            persistence_per_dimension=per_dim,
-            landscapes_per_dimension=landscapes,
-        )
+# # NOTE: This split parameter depends on the parameter setting during the AE step. 
+# def run_tda_for_universe(
+#     universe: Universe, split: str = "test", overwrite: bool = False
+# ):
 
-        universe.io.save_metrics(split, metrics)
-        logger.info("[TDA] Saved metrics to %s", metrics_path)
+#     tc = universe.tda_config
+#     pca_dim = universe.pca_dim
+#     persistence_path = universe.paths.persistence(split=split)
 
-    return per_dim, landscapes, metrics
+#     # Read latent embedding, err if not found
+#     logger.info("[Embedding] Loading embedding (%s, %s).", universe.id, split)
+#     try:
+#         latent = universe.io.load_embedding(split=split, force_recompute=False)
+#     except FileNotFoundError:
+#         logger.error(f"[TDA] No embedding found (u={universe.id}, split={split}).")
+#         raise
+
+#     if persistence_path.exists() and not overwrite:
+#         per_dim = universe.io.load_persistence(split=split)
+#         logger.info("[TDA] Loaded existing persistence from %s", persistence_path)
+#         return
+    
+#     logger.info("[Embedding] Preparing embedding")
+#     point_cloud = Embedding(latent_space=latent, universe=universe)
+#     point_cloud.project_PCA(n_components=pca_dim)
+#     scale = point_cloud.normalize(method="diameter", iterations=1000)
+#     logger.info("[Embedding] Normalization scale: %s", scale)
+#     point_cloud.save(split=split)
+#     point_cloud.sample(target_size=tc.subsample_size)
+    
+#     logger.info("[TDA] Computing persistence (path: %s).", persistence_path)
+#     per_dim = compute_alpha_complex_persistence(
+#         data=point_cloud.latent_space,
+#         homology_dimensions=tc.homology_dimensions,
+#     )
+#     universe.io.save_persistence(split=split, per_dim=per_dim)
+
+#     # We assume that if persistence does not exist, landscapes and metrics also do not exist.
+#     logger.info("[TDA] Computing landscapes (path: %s).", universe.paths.landscapes(split=split))
+#     landscapes = compute_landscapes(
+#         persistence_per_dimension=per_dim,
+#         num_landscapes=tc.num_landscapes,
+#         resolution=tc.resolution,
+#         homology_dimensions=tc.homology_dimensions,
+#     )
+#     universe.io.save_landscapes(split=split, landscapes=landscapes)
+
+#     logger.info("[TDA] Computing aggregate metrics (path: %s).", universe.paths.metrics(split=split))
+#     metrics = compute_metrics_from_tda(
+#         persistence_per_dimension=per_dim,
+#         landscapes_per_dimension=landscapes,
+#     )
+#     universe.io.save_metrics(split=split, metrics=metrics)
+
+
+#     return per_dim, landscapes, metrics

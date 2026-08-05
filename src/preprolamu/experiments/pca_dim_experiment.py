@@ -14,7 +14,7 @@ from project_utils import setup_logging
 
 from preprolamu.helpers import mask_infinities
 from preprolamu.pipeline.create_tda import compute_landscapes
-from preprolamu.pipeline.embeddings import diameter_approximation, project_PCA
+from preprolamu.pipeline.embeddings import Embedding
 from preprolamu.pipeline.metrics import compute_landscape_norm
 from preprolamu.pipeline.universes import get_universe
 
@@ -93,47 +93,30 @@ latent = u.io.load_embedding(split="test", force_recompute=False)
 logger.info(f"Loaded projection with shape: {latent.shape}")
 N, D = latent.shape
 
-
-def random_sample_indices(n_points: int, k: int, seed=42) -> np.ndarray:
-    if seed is None:
-        raise ValueError("Seed must be provided for reproducibility.")
-    else:
-        rng = np.random.default_rng(seed)
-    if k > n_points:
-        raise ValueError("k cannot exceed n_points when sampling without replacement.")
-    return rng.choice(n_points, size=k, replace=False)
-
-
 pca_persistence_results = {}
 persistence_timings = []
 
 persistence_start = time.perf_counter()
 
+# Do not indicate universe so as not to rely on universe seed.
+point_cloud = Embedding(latent_space=latent)
 # Sample embedding space to ensure reasonable computation times when increasing pca components
-indices = random_sample_indices(N, SUBSAMPLE_SIZE, seed=seed)
-X = latent[indices]
-logger.info(X.shape)
+_ = point_cloud.sample(target_size=SUBSAMPLE_SIZE, seed=seed, inplace=True)
+
+logger.info(point_cloud.latent_space.shape)
 
 # Active memory management
 del latent
 gc.collect()
 
 # Diameter division to normalize the data
-diameter = diameter_approximation(X, seed=seed, iterations=1000)
-Xnorm = X / diameter
-
-# Active memory management
-del X
-gc.collect()
+point_cloud.normalize(method="diameter", seed=seed, iterations=1000)
 
 for components in pca_dims:
     logger.info(components)
-    Xproj = project_PCA(Xnorm, n_components=components, seed=seed)
+    Xproj = point_cloud.project_PCA(n_components=components, seed=seed, inplace=False)
 
-    if components < 3:
-        hom_range = range(components)
-    else:
-        hom_range = range(3)
+    hom_range = range(components) if components < 3 else range(3)
 
     logger.info("Complex...")
     ac = gd.DelaunayCechComplex(points=Xproj, precision="safe")
@@ -161,10 +144,6 @@ logger.info(f"{'PCA components':>12} | {'Time (s)':>8}")
 logger.info("-" * 25)
 for components, t in persistence_timings:
     logger.info(f"{components:12d} | {t:8.3f}")
-
-# Active memory management
-del Xnorm
-gc.collect()
 
 pca_components = [s for s, _ in persistence_timings]
 persistence_times = [t for _, t in persistence_timings]

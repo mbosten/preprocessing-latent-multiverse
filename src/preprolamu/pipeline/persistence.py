@@ -19,6 +19,8 @@ class Persistence:
         self.landscapes = landscapes
         self.num_landscapes = None
         self.resolution = None
+        self.summed_persistence = None
+        self.norms = None
 
         config = universe.tda_config if universe is not None else None
         self.num_landscapes = getattr(config, "num_landscapes", None)
@@ -36,11 +38,11 @@ class Persistence:
         if self.points is None:
             raise RuntimeError("Points are not set. Cannot compute intervals.")
 
-        if hom_dims is None:
-            if self.universe is not None:
-                hom_dims = self.universe.tda_config.homology_dimensions
-            else:
-                hom_dims = (0, 1, 2)
+        hom_dims = hom_dims or (
+            self.universe.tda_config.homology_dimensions
+            if self.universe is not None
+            else (0, 1, 2)
+        )
 
         st = gd.AlphaComplex(points=self.points, precision=precision).create_simplex_tree()
         st.compute_persistence(homology_coeff_field=2)
@@ -54,6 +56,11 @@ class Persistence:
 
         num_landscapes = num_landscapes or self.num_landscapes or 5
         resolution = resolution or self.resolution or 1000
+        hom_dims = hom_dims or (
+            self.universe.tda_config.homology_dimensions
+            if self.universe is not None
+            else (0, 1, 2)
+    )
 
         self.num_landscapes = num_landscapes
         self.resolution = resolution
@@ -73,17 +80,19 @@ class Persistence:
     # ──────────────────────────────────────────────────────────
 
     def total_persistence(self):
-        return {
+        self.summed_persistence =  {
             dim: float(np.sum(diagram[:, 1] - diagram[:, 0]))
             for dim, diagram in self._require_intervals().items()
         }
+        return self.summed_persistence
 
 
     def landscape_norms(self):
-        return {
+        self.norms =  {
             dim: None if landscape is None else float(np.linalg.norm(landscape))
             for dim, landscape in self._require_landscapes().items()
         }
+        return self.norms
 
 
     def metrics(self):

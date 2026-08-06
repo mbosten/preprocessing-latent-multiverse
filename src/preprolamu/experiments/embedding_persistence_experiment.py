@@ -1,18 +1,20 @@
 import argparse
 import csv
-import gc
+# import gc
 import logging
 import time
 from pathlib import Path
 
-import gudhi as gd
+# import gudhi as gd
 import matplotlib.pyplot as plt
 import numpy as np
 from project_utils import setup_logging
 
-from preprolamu.helpers import mask_infinities
-from preprolamu.pipeline.create_tda import compute_landscapes
-from preprolamu.pipeline.metrics import compute_landscape_norm
+# from preprolamu.helpers import mask_infinities
+# from preprolamu.pipeline.create_tda import compute_landscapes
+from preprolamu.pipeline.embeddings import Embedding
+from preprolamu.pipeline.persistence import Persistence
+# from preprolamu.pipeline.metrics import compute_landscape_norm
 from preprolamu.pipeline.universes import get_universe
 
 # --------- Logistics ---------
@@ -68,9 +70,13 @@ norm_fig_path = fig_dir / f"landscape_norm_fig_{args.uid}.png"
 
 # - Loading data
 u = get_universe(args.uid)
-embed = u.io.load_embedding(split="test", force_recompute=False)
-N, D = embed.shape
-logger.info(f"Loaded universe {args.uid} with embedding shape {embed.shape}.")
+data = u.io.load_embedding(split="test", force_recompute=False)
+emb = Embedding(latent_space=data, universe=u)
+
+N, D = emb.latent_space.shape
+
+
+logger.info(f"Loaded universe {args.uid} with embedding shape {(N, D)}.")
 
 # - Output data objects
 persistence_results = {}
@@ -78,32 +84,37 @@ persistence_timings = []
 
 
 for seed in SEEDS:
-    rng = np.random.default_rng(seed)
+
     for k in SAMPLE_SIZES:
 
         persistence_time = time.perf_counter()
-        indices = rng.choice(N, size=k, replace=False)
-        df = embed[indices]
+        df = emb.sample(target_size=k, seed=seed, inplace=False)
+        
         logger.info(f"Processing seed={seed}, embedding shape={df.shape}...")
-        ac = gd.AlphaComplex(points=df, precision="safe")
-        logger.info("Creating simplex tree...")
-        st = ac.create_simplex_tree()
-        logger.info("Computing persistence...")
-        st.compute_persistence(homology_coeff_field=2)
-        logger.info("Combining results.")
 
-        per_dim: dict[int, np.ndarray] = {}
-        for dim in [0, 1, 2]:
-            per_dim[dim] = mask_infinities(st.persistence_intervals_in_dimension(dim))
+        tda = Persistence(universe=u, points=df)
+        tda.points = df.copy()
+        intervals = tda.compute_intervals(precision="safe")
 
-        persistence_results[(seed, k)] = per_dim
+        # ac = gd.AlphaComplex(points=df, precision="safe")
+        # logger.info("Creating simplex tree...")
+        # st = ac.create_simplex_tree()
+        # logger.info("Computing persistence...")
+        # st.compute_persistence(homology_coeff_field=2)
+        # logger.info("Combining results.")
+
+        # per_dim: dict[int, np.ndarray] = {}
+        # for dim in [0, 1, 2]:
+        #     per_dim[dim] = mask_infinities(st.persistence_intervals_in_dimension(dim))
+
+        persistence_results[(seed, k)] = intervals
         persistence_elapsed = time.perf_counter() - persistence_time
         persistence_timings.append((seed, k, persistence_elapsed))
 
         # store results
         logger.info("Saving persistence object")
         path = persistence_path / f"persistence_seed{seed}_k{k}.npz"
-        arrays = {f"dim{d}_intervals": arr for d, arr in per_dim.items()}
+        arrays = {f"dim{d}_intervals": arr for d, arr in intervals.items()}
         np.savez(path, **arrays)
 
 
@@ -114,8 +125,8 @@ for seed, k, t in persistence_timings:
 
 
 # Active memory management (for what it is worth)
-del embed
-gc.collect()
+# del embed
+# gc.collect()
 
 
 landscape_results = {}
@@ -125,12 +136,15 @@ for (seed, k), results in persistence_results.items():
     landscape_start = time.perf_counter()
     logger.info(f"Computing landscapes for seed={seed}, sample size={k}")
 
-    landscapes = compute_landscapes(
-        persistence_per_dimension=results,
-        num_landscapes=5,
-        resolution=1000,
-        homology_dimensions=[0, 1, 2],
-    )
+    tda = Persistence(universe=u, intervals=results)
+    landscapes = tda.compute_landscapes()
+
+    # landscapes = compute_landscapes(
+    #     persistence_per_dimension=results,
+    #     num_landscapes=5,
+    #     resolution=1000,
+    #     homology_dimensions=[0, 1, 2],
+    # )
 
     landscape_results[(seed, k)] = landscapes
 
@@ -154,7 +168,9 @@ for (seed, k), t in landscape_timings:
 norm_results = {}
 
 for (seed, k), landscapes in landscape_results.items():
-    dim_norms = compute_landscape_norm(landscapes)
+    tda = Persistence(universe=u, landscapes=landscapes)
+    dim_norms = tda.landscape_norms()
+    # dim_norms = compute_landscape_norm(landscapes)
     norm_results[(seed, k)] = dim_norms
 
 

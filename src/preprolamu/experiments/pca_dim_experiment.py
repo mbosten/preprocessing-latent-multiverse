@@ -1,257 +1,208 @@
 # import libraries
 import argparse
 import csv
-import gc  # Explicit memory management
+
 import logging
-import sys  # Terminate script when all files are already on disk
 import time
 from pathlib import Path
 
-import gudhi as gd
 import matplotlib.pyplot as plt
 import numpy as np
 from project_utils import setup_logging
 
-from preprolamu.helpers import mask_infinities
-from preprolamu.pipeline.create_tda import compute_landscapes
 from preprolamu.pipeline.embeddings import Embedding
-from preprolamu.pipeline.metrics import compute_landscape_norm
+from preprolamu.pipeline.persistence import Persistence
 from preprolamu.pipeline.universes import get_universe
 
-logger = logging.getLogger(__name__)
-setup_logging(
-    log_dir=Path("logs"),
-    suppress_loggers=[
-        "PIL",
-        "matplotlib.font_manager",
-        "matplotlib.texmanager",
-        "matplotlib.dviread",
-    ],
-)
 
-parser = argparse.ArgumentParser(description="sample size effects on landscape norms")
 
-parser.add_argument(
-    "--universe-index",
-    dest="uid",
-    default=0,
-    type=int,
-)
-
-args = parser.parse_args()
-
-# VARIABLES
 NORMFIGSIZE = (12, 8)  # inches
 TIMEFIGSIZE = (8, 6)  # inches
 DPI = 300  # fixed DPI
 SUBSAMPLE_SIZE = 100_000
-pca_dims = list(range(1, 6, 1))
-seed = 42
+PCA_DIMS = range(1, 6, 1)
+SEED = 42
 
-# Get universe prior to path variables for naming
-u = get_universe(args.uid)
-logger.info(f"Processing universe: {u.id}")
+logger = logging.getLogger(__name__)
 
-# PATHS
-# figures path
-out_dir = Path("data/figures/pca_dim_experiment")
-out_dir.mkdir(parents=True, exist_ok=True)
+# ──────────────────────────────────────────────────────────
+# Functions                                                
+# ──────────────────────────────────────────────────────────
+def plot_timings(values, out_path):
+    logger.info("%12s | %8s", "PCA components", "Time (s)")
+    logger.info("-" * 25)
 
-# csvs path
-results_dir = Path("data/experiments/pca_dim_experiment")
-results_dir.mkdir(parents=True, exist_ok=True)
-persistence_out_path = (
-    out_dir
-    / f"persistence_time_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
-)
-landscape_out_path = (
-    out_dir
-    / f"landscape_time_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
-)
-results_path = (
-    results_dir
-    / f"landscape_norm_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.csv"
-)
-norm_out_path = (
-    out_dir
-    / f"landscape_norm_pca_dims_universe_{u.id}_{max(pca_dims)}dims_{SUBSAMPLE_SIZE}.png"
-)
+    for components, elapsed in values.items():
+        logger.info("%12d | %8.3f", components, elapsed)
 
-# Check if all files already exist
-paths = [
-    persistence_out_path,
-    landscape_out_path,
-    results_path,
-    norm_out_path,
-]
+    fig, ax = plt.subplots(figsize=TIMEFIGSIZE, dpi=DPI)
+    ax.plot(values.keys(), values.values())
+    ax.set(
+        xlabel="PCA components",
+        ylabel="Computation time (s)",
+    )
+    ax.tick_params(axis="both", labelsize=16)
+    fig.tight_layout(pad=1.5)
+    fig.savefig(out_path)
+    plt.close(fig)
 
-if all(p.exists() for p in paths):
-    logger.info("All output files already exist. Exiting.")
-    sys.exit(0)
 
-latent = u.io.load_embedding(split="test", force_recompute=False)
-logger.info(f"Loaded projection with shape: {latent.shape}")
-N, D = latent.shape
+def plot_metric(results, key, ylabel, out_path):
+    components = sorted(results)
+    hom_dims = sorted({
+        dim
+        for result in results.values()
+        for dim in result[key]
+    })
 
-pca_persistence_results = {}
-persistence_timings = []
+    fig, ax = plt.subplots(figsize=NORMFIGSIZE, dpi=DPI)
 
-persistence_start = time.perf_counter()
-
-# Do not indicate universe so as not to rely on universe seed.
-point_cloud = Embedding(latent_space=latent)
-# Sample embedding space to ensure reasonable computation times when increasing pca components
-_ = point_cloud.sample(target_size=SUBSAMPLE_SIZE, seed=seed, inplace=True)
-
-logger.info(point_cloud.latent_space.shape)
-
-# Active memory management
-del latent
-gc.collect()
-
-# Diameter division to normalize the data
-point_cloud.normalize(method="diameter", seed=seed, iterations=1000)
-
-for components in pca_dims:
-    logger.info(components)
-    Xproj = point_cloud.project_PCA(n_components=components, seed=seed, inplace=False)
-
-    hom_range = range(components) if components < 3 else range(3)
-
-    logger.info("Complex...")
-    ac = gd.DelaunayCechComplex(points=Xproj, precision="safe")
-    # ac = gd.AlphaComplex(points=Xproj, precision="exact")
-    logger.info("Simplex tree...")
-    simplex_tree = ac.create_simplex_tree()
-    logger.info("Persistence...")
-    simplex_tree.compute_persistence(homology_coeff_field=2)
-
-    per_dim: dict[int, np.ndarray] = {}
-
-    logger.info("Intervals...")
-    for hom_dim in hom_range:
-        per_dim[hom_dim] = mask_infinities(
-            simplex_tree.persistence_intervals_in_dimension(hom_dim)
+    for dim in hom_dims:
+        ax.plot(
+            components,
+            [results[c][key].get(dim, np.nan) for c in components],
+            label=f"H{dim}",
         )
 
-    pca_persistence_results[components] = per_dim
+    ax.set_xlabel("PCA components", fontsize=20)
+    ax.set_ylabel(ylabel, fontsize=20)
+    ax.tick_params(axis="both", labelsize=16)
+    ax.legend(fontsize=18)
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
+# ──────────────────────────────────────────────────────────
+# Pipeline                                                
+# ──────────────────────────────────────────────────────────
 
-    persistence_elapsed = time.perf_counter() - persistence_start
-    logger.info(f"Elapsed time: {persistence_elapsed:.3f} seconds")
-    persistence_timings.append((components, persistence_elapsed))
+def main():
+    parser = argparse.ArgumentParser(description="PCA effects on landscape norms")
+    parser.add_argument("--universe-index", dest="uid", default=0, type=int)
+    args = parser.parse_args()
 
-logger.info(f"{'PCA components':>12} | {'Time (s)':>8}")
-logger.info("-" * 25)
-for components, t in persistence_timings:
-    logger.info(f"{components:12d} | {t:8.3f}")
+    u = get_universe(args.uid)
+    logger.info(f"Processing universe: {u.id}")
 
-pca_components = [s for s, _ in persistence_timings]
-persistence_times = [t for _, t in persistence_timings]
-
-fig, ax = plt.subplots(figsize=TIMEFIGSIZE, dpi=DPI)
-ax.plot(pca_components, persistence_times)
-ax.set_xlabel("PCA components", fontsize=20, labelpad=12)
-ax.set_ylabel("Computation time (s)", fontsize=20)
-ax.tick_params(axis="both", which="major", labelsize=16)
-fig.tight_layout(pad=1.5)
-
-fig.savefig(persistence_out_path, dpi=DPI)
-plt.close()
-
-
-pca_landscape_results = {}
-landscape_timings = []
-for components, results in pca_persistence_results.items():
-    landscape_start = time.perf_counter()
-    logger.info(components)
-
-    if components < 3:
-        hom_list = list(range(components))
-    else:
-        hom_list = list(range(3))
-
-    if max(hom_list) > 2:
-        raise ValueError(
-            "Landscapes can only be computed for homology dimensions 0, 1, and 2."
-        )
-
-    landscapes = compute_landscapes(
-        persistence_per_dimension=results,
-        num_landscapes=5,
-        resolution=1000,
-        homology_dimensions=hom_list,
+    stem = (
+        f"pca_dims_universe_{u.id}_"
+        f"{max(PCA_DIMS)}dims_{SUBSAMPLE_SIZE}"
     )
 
-    pca_landscape_results[components] = landscapes
+    out_dir = Path("data/figures/pca_dim_experiment")
+    results_dir = Path("data/experiments/pca_dim_experiment")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
 
-    landscape_elapsed = time.perf_counter() - landscape_start
-    landscape_timings.append((components, landscape_elapsed))
+    persistence_out = out_dir / f"persistence_time_{stem}.png"
+    landscape_out = out_dir / f"landscape_time_{stem}.png"
+    norm_out = out_dir / f"landscape_norm_{stem}.png"
+    total_out = out_dir / f"total_persistence_{stem}.png"
+    results_out = results_dir / f"tda_metrics_{stem}.csv"
 
-logger.info(f"{'PCA components':>12} | {'Time (s)':>8}")
-logger.info("-" * 25)
-for components, t in landscape_timings:
-    logger.info(f"{components:12d} | {t:8.3f}")
+    outputs = [
+        persistence_out,
+        landscape_out,
+        norm_out,
+        total_out,
+        results_out,
+    ]
+
+    if all(path.exists() for path in outputs):
+        logger.info("All output files already exist. Exiting.")
+        return
+
+    latent = u.io.load_embedding(split="test", force_recompute=False)
+    _, latent_dim = latent.shape
+    logger.info("Loaded embedding with shape %s.", latent.shape)
+
+    # Do not set universe parameter in Embedding class to use the manual seed
+    point_cloud = Embedding(latent_space=latent)
+    point_cloud.sample(target_size=SUBSAMPLE_SIZE, seed=SEED, inplace=True)
+    point_cloud.normalize(method="diameter", seed=SEED, iterations=1000)
+
+    del latent
+
+    results = {}
+    timings = {"persistence": {}, "landscapes": {}, "metrics": {}}
 
 
-components = [s for s, _ in landscape_timings]
-landscape_times = [t for _, t in landscape_timings]
 
-fig, ax = plt.subplots(figsize=TIMEFIGSIZE, dpi=DPI)
-ax.plot(components, landscape_times)
-ax.set_xlabel("Number of PCA components", fontsize=20, labelpad=12)
-ax.set_ylabel("Computation time (s)", fontsize=20)
-ax.tick_params(axis="both", which="major", labelsize=16)
-fig.tight_layout(pad=1.5)
+    for components in PCA_DIMS:
+        logger.info("Processing %d PCA components.", components)
 
-fig.savefig(landscape_out_path, dpi=DPI)
-plt.close()
+        projected = point_cloud.project_PCA(n_components=components, seed=SEED, inplace=False)
+        hom_dims = tuple(range(min(components, 3)))
+        tda = Persistence(universe=u, points=projected)
 
-pca_norm_results = {}
-for size, landscapes in pca_landscape_results.items():
-    dim_norms = compute_landscape_norm(landscapes)
-    pca_norm_results[size] = dim_norms
+        # NOTE: I have used Delauney in prior runs. What is the difference again? Integrate where necessary.
+        start = time.perf_counter()
+        tda.compute_intervals(precision="exact", hom_dims=hom_dims)
+        timings["persistence"][components] = time.perf_counter() - start
 
-with results_path.open("w", newline="") as f:
-    writer = csv.writer(f)
-    writer.writerow(
-        [
-            "universe_id",
-            "seed",
-            "n_points",
-            "n_latent_dim",
-            "pca_components",
-            "H0",
-            "H1",
-            "H2",
-        ]
+        start = time.perf_counter()
+        tda.compute_landscapes(hom_dims=hom_dims)
+        timings["landscapes"][components] = time.perf_counter() - start
+
+        start = time.perf_counter()
+        results[components] = {
+            "norms": tda.landscape_norms(),
+            "persistence": tda.total_persistence(),
+        }
+        timings["metrics"][components] = time.perf_counter() - start
+
+        del tda, projected
+
+    plot_timings(timings["persistence"], persistence_out)
+    plot_timings(timings["landscapes"], landscape_out)
+
+
+    fields = [
+        "universe_id",
+        "seed",
+        "n_points",
+        "n_latent_dim",
+        "pca_components",
+        "norm_H0",
+        "norm_H1",
+        "norm_H2",
+        "sum_H0",
+        "sum_H1",
+        "sum_H2",
+    ]
+
+    with results_out.open("w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(fields)
+
+        for components, result in sorted(results.items()):
+            norms = result["norms"]
+            persistence = result["persistence"]
+
+            writer.writerow([
+                u.id,
+                SEED,
+                len(point_cloud.latent_space),
+                latent_dim,
+                components,
+                *(norms.get(dim, np.nan) for dim in range(3)),
+                *(persistence.get(dim, np.nan) for dim in range(3)),
+            ])
+
+    logger.info("Wrote metric table to %s.", results_out)
+
+    plot_metric(results, "norms", "Landscape vector norm", norm_out)
+    plot_metric(results, "persistence", "Total persistence", total_out)
+
+
+if __name__ == "__main__":
+    setup_logging(
+        log_dir=Path("logs"),
+        suppress_loggers=[
+            "PIL",
+            "matplotlib.font_manager",
+            "matplotlib.texmanager",
+            "matplotlib.dviread",
+        ],
     )
+    main()
 
-    for comps in sorted(pca_norm_results.keys()):
-        norms = pca_norm_results[comps]
-        h0 = float(norms.get(0, np.nan))
-        h1 = float(norms.get(1, np.nan))
-        h2 = float(norms.get(2, np.nan))
-
-        writer.writerow([u.id, seed, SUBSAMPLE_SIZE, int(D), int(comps), h0, h1, h2])
-
-logger.info(f"Wrote norm table to {results_path}")
-
-x = sorted(pca_norm_results.keys())
-
-y0 = [pca_norm_results[k].get(0, np.nan) for k in x]
-y1 = [pca_norm_results[k].get(1, np.nan) for k in x]
-y2 = [pca_norm_results[k].get(2, np.nan) for k in x]
-
-fig, ax = plt.subplots(figsize=NORMFIGSIZE, dpi=DPI)
-ax.plot(x, y0, label="H0")
-ax.plot(x, y1, label="H1")
-ax.plot(x, y2, label="H2")
-
-ax.set_xlabel("PCA Component", fontsize=20, labelpad=12)
-ax.set_ylabel("Landscape L2 Norm", fontsize=20)
-ax.tick_params(axis="both", which="major", labelsize=16)
-ax.legend(fontsize=18)
-fig.tight_layout(pad=1.5)
-
-fig.savefig(norm_out_path, dpi=DPI)
-plt.close()

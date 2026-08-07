@@ -1,210 +1,141 @@
 import argparse
-import csv
-# import gc
+
 import logging
-import time
 from pathlib import Path
 
-# import gudhi as gd
-import matplotlib.pyplot as plt
 import numpy as np
 from project_utils import setup_logging
 
-# from preprolamu.helpers import mask_infinities
-# from preprolamu.pipeline.create_tda import compute_landscapes
 from preprolamu.pipeline.embeddings import Embedding
+from preprolamu.experiments.experiment import Experiment
 from preprolamu.pipeline.persistence import Persistence
-# from preprolamu.pipeline.metrics import compute_landscape_norm
 from preprolamu.pipeline.universes import get_universe
 
-# --------- Logistics ---------
-logger = logging.getLogger(__name__)
-setup_logging(
-    log_dir=Path("logs"),
-    suppress_loggers=[
-        "PIL",
-        "matplotlib.font_manager",
-        "matplotlib.texmanager",
-        "matplotlib.dviread",
-    ],
-)
-
-parser = argparse.ArgumentParser(
-    description="Landscape norms on full embedding dimensionality."
-)
-
-parser.add_argument(
-    "--universe-index",
-    dest="uid",
-    default=99,
-    type=int,
-)
-
-args = parser.parse_args()
 
 
-# --------- Globals ---------
 SAMPLE_SIZES = [100, 250, 500, 750, 1000]
 SEEDS = [1, 11, 111, 1111, 11111]
 NORMFIGSIZE = (12, 8)  # inches
 TIMEFIGSIZE = (8, 6)  # inches
 DPI = 300  # fixed DPI
 
-# ---------- Paths ---------
-data_dir = Path("data/experiments/embedding_persistence_experiment")
-data_dir.mkdir(parents=True, exist_ok=True)
 
-fig_dir = Path("data/figures/embedding_persistence_experiment")
-fig_dir.mkdir(parents=True, exist_ok=True)
-
-persistence_path = data_dir / "persistence_results"
-persistence_path.mkdir(parents=True, exist_ok=True)
-
-landscape_path = data_dir / "landscape_results"
-landscape_path.mkdir(parents=True, exist_ok=True)
-
-norm_csv_path = data_dir / f"landscape_norms_{args.uid}.csv"
-
-norm_fig_path = fig_dir / f"landscape_norm_fig_{args.uid}.png"
-# --------- Script ---------
-
-# - Loading data
-u = get_universe(args.uid)
-data = u.io.load_embedding(split="test", force_recompute=False)
-emb = Embedding(latent_space=data, universe=u)
-
-N, D = emb.latent_space.shape
+logger = logging.getLogger(__name__)
 
 
-logger.info(f"Loaded universe {args.uid} with embedding shape {(N, D)}.")
+def main():
+    parser = argparse.ArgumentParser(description="Landscape norms on full embedding dimensionality.")
+    parser.add_argument("--universe-index", dest="uid", default=0, type=int)
+    args = parser.parse_args()
 
-# - Output data objects
-persistence_results = {}
-persistence_timings = []
+    u = get_universe(args.uid)
+    logger.info(f"Processing universe: {u.id}")
 
+    stem = (
+        f"full_dim_embedding_universe_{u.id}_"
+        f"seeds_{SEEDS}_sizes{max(SAMPLE_SIZES)}k"
+    )
 
-for seed in SEEDS:
+    exp = Experiment(
+        name = "embedding_persistence_experiment",
+        stem = stem,
+        parameter_name = "sample_size",
+    )
+    
+    persistence_out = exp.figure_path("persistence_time")
+    landscape_out = exp.figure_path("landscape_time")
+    norm_out = exp.figure_path("landscape_norm")
+    total_out = exp.figure_path("total_persistence")
+    results_out = exp.results_path("tda_metrics")
 
-    for k in SAMPLE_SIZES:
+    if exp.outputs_exist(
+        persistence_out,
+        landscape_out,
+        norm_out,
+        total_out,
+        results_out,
+    ):
+        logger.info("All output files already exist. Exiting.")
+        return
 
-        persistence_time = time.perf_counter()
-        df = emb.sample(target_size=k, seed=seed, inplace=False)
-        
-        logger.info(f"Processing seed={seed}, embedding shape={df.shape}...")
+    latent = u.io.load_embedding(split="test", force_recompute=False)
+    latent_N, latent_dim = latent.shape
+    logger.info("Loaded embedding with shape %s.", latent.shape)
 
-        tda = Persistence(universe=u, points=df)
-        tda.points = df.copy()
-        intervals = tda.compute_intervals(precision="safe")
+    emb = Embedding(latent_space=latent, universe=u)
 
-        # ac = gd.AlphaComplex(points=df, precision="safe")
-        # logger.info("Creating simplex tree...")
-        # st = ac.create_simplex_tree()
-        # logger.info("Computing persistence...")
-        # st.compute_persistence(homology_coeff_field=2)
-        # logger.info("Combining results.")
+    del latent
 
-        # per_dim: dict[int, np.ndarray] = {}
-        # for dim in [0, 1, 2]:
-        #     per_dim[dim] = mask_infinities(st.persistence_intervals_in_dimension(dim))
+    exp.timings = {"persistence": {}, "landscapes": {}, "metrics": {}}
 
-        persistence_results[(seed, k)] = intervals
-        persistence_elapsed = time.perf_counter() - persistence_time
-        persistence_timings.append((seed, k, persistence_elapsed))
+    for seed in SEEDS:
+        for k in SAMPLE_SIZES:
+            logger.info("Processing seed=%d, sample size=%d.", seed, k)
 
-        # store results
-        logger.info("Saving persistence object")
-        path = persistence_path / f"persistence_seed{seed}_k{k}.npz"
-        arrays = {f"dim{d}_intervals": arr for d, arr in intervals.items()}
-        np.savez(path, **arrays)
+            key = (seed, k)
+            df = emb.sample(target_size=k, seed=seed, inplace=False)
+            tda = Persistence(universe=u, points=df)
 
+            with exp.timer("persistence", key):
+                tda.compute_intervals(precision="exact")
 
-logger.info(f"{'Sample size':>12} | {'Seed':>6} | {'Persistence Time (s)':>20}")
-logger.info("-" * 45)
-for seed, k, t in persistence_timings:
-    logger.info(f"{k:12d} | {seed:6d} | {t:20.3f}")
+            with exp.timer("landscapes", key):
+                tda.compute_landscapes()
 
+            with exp.timer("metrics", key):
+                exp.results[key] = {
+                    "norms": tda.landscape_norms(),
+                    "persistence": tda.total_persistence(),
+                }
 
-# Active memory management (for what it is worth)
-# del embed
-# gc.collect()
+            del tda, df
 
+    exp.plot_timings("persistence")
+    exp.plot_timings("landscapes")
 
-landscape_results = {}
-landscape_timings = []
+    exp.plot_metric("norms", "Landscape vector norm", norm_out)
+    exp.plot_metric("persistence", "Total persistence", total_out)
 
-for (seed, k), results in persistence_results.items():
-    landscape_start = time.perf_counter()
-    logger.info(f"Computing landscapes for seed={seed}, sample size={k}")
+    fields = [
+        "universe_id",
+        "n_points",
+        "n_latent_dims",
+        "seed",
+        "sample_size",
+        "norm_H0",
+        "norm_H1",
+        "norm_H2",
+        "sum_H0",
+        "sum_H1",
+        "sum_H2",
+    ]
 
-    tda = Persistence(universe=u, intervals=results)
-    landscapes = tda.compute_landscapes()
+    rows = []
 
-    # landscapes = compute_landscapes(
-    #     persistence_per_dimension=results,
-    #     num_landscapes=5,
-    #     resolution=1000,
-    #     homology_dimensions=[0, 1, 2],
-    # )
+    for (seed, k), results in sorted(exp.results.items()):
+        norms = results["norms"]
+        sums = results["persistence"]
+        rows.append([
+            u.id,
+            latent_N,
+            latent_dim,
+            seed,
+            k,
+            *(norms.get(dim, np.nan) for dim in range(3)),
+            *(sums.get(dim, np.nan) for dim in range(3)),
+        ])
 
-    landscape_results[(seed, k)] = landscapes
-
-    landscape_elapsed = time.perf_counter() - landscape_start
-    landscape_timings.append(((seed, k), landscape_elapsed))
-
-    logger.info("Saving landscape object")
-    # store results
-    path = landscape_path / f"landscape_seed{seed}_k{k}.npz"
-    arrays = {
-        f"dim{d}_landscapes": arr for d, arr in landscapes.items() if arr is not None
-    }
-    np.savez(path, **arrays)
-
-logger.info(f"{'Seed':>6} | {'Sample size':>12} | {'Time (s)':>8}")
-logger.info("-" * 45)
-for (seed, k), t in landscape_timings:
-    logger.info(f"{seed:6d} | {k:12d} | {t:8.3f}")
-
-
-norm_results = {}
-
-for (seed, k), landscapes in landscape_results.items():
-    tda = Persistence(universe=u, landscapes=landscapes)
-    dim_norms = tda.landscape_norms()
-    # dim_norms = compute_landscape_norm(landscapes)
-    norm_results[(seed, k)] = dim_norms
-
-
-with norm_csv_path.open("w", newline="") as f:
-    writer = csv.writer(f)
-    writer.writerow(["universe_id", "sampler", "seed", "sample_size", "H0", "H1", "H2"])
-    for seed, k in sorted(norm_results.keys()):
-        h0 = float(norm_results[(seed, k)][0])
-        h1 = float(norm_results[(seed, k)][1])
-        h2 = float(norm_results[(seed, k)][2])
-        writer.writerow([u.id, args.sampler, seed, k, h0, h1, h2])
-
-logger.info(f"Wrote norms to {norm_csv_path}")
+    exp.save_results(results_out, fields, rows)
 
 
-# Sort x-axis
-x = sorted(norm_results.keys())
-
-# Extract y-values for each key (0, 1, 2)
-y0 = [norm_results[(seed, k)][0] for (seed, k) in x]
-y1 = [norm_results[(seed, k)][1] for (seed, k) in x]
-y2 = [norm_results[(seed, k)][2] for (seed, k) in x]
-
-# Plot
-fig, ax = plt.subplots(figsize=NORMFIGSIZE, dpi=DPI)
-ax.plot(x, y0, label="H0")
-ax.plot(x, y1, label="H1")
-ax.plot(x, y2, label="H2")
-
-ax.set_xlabel("Sample Size", fontsize=20, labelpad=12)
-ax.set_ylabel("Landscape L2 Norm", fontsize=20)
-ax.tick_params(axis="both", which="major", labelsize=16)
-ax.legend(fontsize=18)
-fig.tight_layout(pad=1.5)
-
-fig.savefig(norm_fig_path, dpi=DPI)
-plt.close()
+if __name__ == "__main__":
+    setup_logging(
+        log_dir=Path("logs"),
+        suppress_loggers=[
+            "PIL",
+            "matplotlib.font_manager",
+            "matplotlib.texmanager",
+            "matplotlib.dviread",
+        ],
+    )
+    main()

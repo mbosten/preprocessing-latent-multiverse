@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterable
-from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -12,36 +11,6 @@ import pandas as pd
 from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
-
-
-# Slightly redundant class to hold metrics results
-@dataclass
-class MetricsResult:
-    """Verbose metric class such that interpretation remains clear down the line"""
-
-    total_persistence_per_dim: dict[int, float]
-    landscape_l2_per_dim: dict[int, float]
-
-
-def compute_total_persistence(intervals: np.ndarray) -> float:
-    if intervals.size == 0:
-        return 0.0
-    # Subtract births from deaths to get intervals
-    lengths = np.clip(intervals[:, 1] - intervals[:, 0], a_min=0.0, a_max=None)
-    return float(lengths.sum())
-
-
-def compute_landscape_norm(
-    landscape: dict[int, np.ndarray],
-) -> dict[int, float]:
-    """
-    Compute per-dimension L2 norms of landscape vectors.
-    Sums or means can always be computed afterwards.
-    """
-    return {
-        k: float(np.linalg.norm(v)) if v is not None else 0.0
-        for k, v in landscape.items()
-    }
 
 
 def compute_presto_variance_from_metrics_table(
@@ -81,24 +50,6 @@ def compute_presto_variance_from_metrics_table(
 
     sse = ((X - mu) ** 2).sum()
     return float(sse / N)
-
-
-def compute_metrics_from_tda(
-    persistence_per_dimension: dict[int, np.ndarray],
-    landscapes_per_dimension: dict[int, np.ndarray | None],
-) -> MetricsResult:
-    total_persistence_per_dim: dict[int, float] = {}
-    landscape_l2_per_dim: dict[int, float] = {}
-
-    for dim, intervals in persistence_per_dimension.items():
-        total_persistence_per_dim[dim] = compute_total_persistence(intervals)
-
-    landscape_l2_per_dim = compute_landscape_norm(landscapes_per_dimension)
-
-    return MetricsResult(
-        total_persistence_per_dim=total_persistence_per_dim,
-        landscape_l2_per_dim=landscape_l2_per_dim,
-    )
 
 
 def build_metrics_table(

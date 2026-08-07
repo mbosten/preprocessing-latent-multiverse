@@ -1,19 +1,16 @@
 # import libraries
 import argparse
-import csv
 
 import logging
-import time
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 from project_utils import setup_logging
 
 from preprolamu.pipeline.embeddings import Embedding
+from preprolamu.experiments.experiment import Experiment
 from preprolamu.pipeline.persistence import Persistence
 from preprolamu.pipeline.universes import get_universe
-
 
 
 NORMFIGSIZE = (12, 8)  # inches
@@ -23,57 +20,9 @@ SUBSAMPLE_SIZE = 100_000
 PCA_DIMS = range(1, 6, 1)
 SEED = 42
 
+
 logger = logging.getLogger(__name__)
 
-# ──────────────────────────────────────────────────────────
-# Functions                                                
-# ──────────────────────────────────────────────────────────
-def plot_timings(values, out_path):
-    logger.info("%12s | %8s", "PCA components", "Time (s)")
-    logger.info("-" * 25)
-
-    for components, elapsed in values.items():
-        logger.info("%12d | %8.3f", components, elapsed)
-
-    fig, ax = plt.subplots(figsize=TIMEFIGSIZE, dpi=DPI)
-    ax.plot(values.keys(), values.values())
-    ax.set(
-        xlabel="PCA components",
-        ylabel="Computation time (s)",
-    )
-    ax.tick_params(axis="both", labelsize=16)
-    fig.tight_layout(pad=1.5)
-    fig.savefig(out_path)
-    plt.close(fig)
-
-
-def plot_metric(results, key, ylabel, out_path):
-    components = sorted(results)
-    hom_dims = sorted({
-        dim
-        for result in results.values()
-        for dim in result[key]
-    })
-
-    fig, ax = plt.subplots(figsize=NORMFIGSIZE, dpi=DPI)
-
-    for dim in hom_dims:
-        ax.plot(
-            components,
-            [results[c][key].get(dim, np.nan) for c in components],
-            label=f"H{dim}",
-        )
-
-    ax.set_xlabel("PCA components", fontsize=20)
-    ax.set_ylabel(ylabel, fontsize=20)
-    ax.tick_params(axis="both", labelsize=16)
-    ax.legend(fontsize=18)
-    fig.tight_layout()
-    fig.savefig(out_path)
-    plt.close(fig)
-# ──────────────────────────────────────────────────────────
-# Pipeline                                                
-# ──────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description="PCA effects on landscape norms")
@@ -88,44 +37,40 @@ def main():
         f"{max(PCA_DIMS)}dims_{SUBSAMPLE_SIZE}"
     )
 
-    out_dir = Path("data/figures/pca_dim_experiment")
-    results_dir = Path("data/experiments/pca_dim_experiment")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    results_dir.mkdir(parents=True, exist_ok=True)
+    exp = Experiment(
+        name = "pca_dim_experiment",
+        stem = stem,
+        parameter_name = "pca_components",
+    )
 
-    persistence_out = out_dir / f"persistence_time_{stem}.png"
-    landscape_out = out_dir / f"landscape_time_{stem}.png"
-    norm_out = out_dir / f"landscape_norm_{stem}.png"
-    total_out = out_dir / f"total_persistence_{stem}.png"
-    results_out = results_dir / f"tda_metrics_{stem}.csv"
+    persistence_out = exp.figure_path("persistence_time")
+    landscape_out = exp.figure_path("landscape_time")
+    norm_out = exp.figure_path("landscape_norm")
+    total_out = exp.figure_path("total_persistence")
+    results_out = exp.results_path("tda_metrics")
 
-    outputs = [
+    if exp.outputs_exist(
         persistence_out,
         landscape_out,
         norm_out,
         total_out,
         results_out,
-    ]
-
-    if all(path.exists() for path in outputs):
+    ):
         logger.info("All output files already exist. Exiting.")
         return
 
     latent = u.io.load_embedding(split="test", force_recompute=False)
-    _, latent_dim = latent.shape
+    latent_N, latent_dim = latent.shape
     logger.info("Loaded embedding with shape %s.", latent.shape)
 
     # Do not set universe parameter in Embedding class to use the manual seed
     point_cloud = Embedding(latent_space=latent)
     point_cloud.sample(target_size=SUBSAMPLE_SIZE, seed=SEED, inplace=True)
-    point_cloud.normalize(method="diameter", seed=SEED, iterations=1000)
+    point_cloud.normalize(method="diameter", seed=SEED, iterations=1000, inplace=True)
 
     del latent
 
-    results = {}
-    timings = {"persistence": {}, "landscapes": {}, "metrics": {}}
-
-
+    exp.timings = {"persistence": {}, "landscapes": {}, "metrics": {}}
 
     for components in PCA_DIMS:
         logger.info("Processing %d PCA components.", components)
@@ -135,26 +80,25 @@ def main():
         tda = Persistence(universe=u, points=projected)
 
         # NOTE: I have used Delauney in prior runs. What is the difference again? Integrate where necessary.
-        start = time.perf_counter()
-        tda.compute_intervals(precision="exact", hom_dims=hom_dims)
-        timings["persistence"][components] = time.perf_counter() - start
+        with exp.timer("persistence", components):
+            tda.compute_intervals(precision="exact", hom_dims=hom_dims)
 
-        start = time.perf_counter()
-        tda.compute_landscapes(hom_dims=hom_dims)
-        timings["landscapes"][components] = time.perf_counter() - start
+        with exp.timer("landscapes", components):
+            tda.compute_landscapes(hom_dims=hom_dims)
 
-        start = time.perf_counter()
-        results[components] = {
-            "norms": tda.landscape_norms(),
-            "persistence": tda.total_persistence(),
-        }
-        timings["metrics"][components] = time.perf_counter() - start
+        with exp.timer("metrics", components):
+            exp.results[components] = {
+                "norms": tda.landscape_norms(),
+                "persistence": tda.total_persistence(),
+            }
 
         del tda, projected
 
-    plot_timings(timings["persistence"], persistence_out)
-    plot_timings(timings["landscapes"], landscape_out)
+    exp.plot_timings("persistence")
+    exp.plot_timings("landscapes")
 
+    exp.plot_metric("norms", "Landscape vector norm", norm_out)
+    exp.plot_metric("persistence", "Total persistence", total_out)
 
     fields = [
         "universe_id",
@@ -170,28 +114,23 @@ def main():
         "sum_H2",
     ]
 
-    with results_out.open("w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(fields)
+    rows = []
 
-        for components, result in sorted(results.items()):
-            norms = result["norms"]
-            persistence = result["persistence"]
+    for components, result in sorted(exp.results.items()):
+        norms = result["norms"]
+        persistence = result["persistence"]
 
-            writer.writerow([
-                u.id,
-                SEED,
-                len(point_cloud.latent_space),
-                latent_dim,
-                components,
-                *(norms.get(dim, np.nan) for dim in range(3)),
-                *(persistence.get(dim, np.nan) for dim in range(3)),
-            ])
+        rows.append([
+            u.id,
+            SEED,
+            latent_N,
+            latent_dim,
+            components,
+            *(norms.get(dim, np.nan) for dim in range(3)),
+            *(persistence.get(dim, np.nan) for dim in range(3)),
+        ])
 
-    logger.info("Wrote metric table to %s.", results_out)
-
-    plot_metric(results, "norms", "Landscape vector norm", norm_out)
-    plot_metric(results, "persistence", "Total persistence", total_out)
+    exp.save_results(results_out, fields, rows)
 
 
 if __name__ == "__main__":

@@ -109,13 +109,23 @@ class Persistence:
     # implement saving functionality
     def plot_persistence_diagram(self):
         intervals = self._require_intervals()
-
         persistence = [(dim, tuple(interval)) for dim, diagram in intervals.items() for interval in diagram]
-        plt_persistence = sorted(persistence, reverse=True)
-        ax = gd.plot_persistence_diagram(plt_persistence, legend=True)
-        plt.show()
-        return ax
+        ax = gd.plot_persistence_diagram(sorted(persistence, reverse=True), legend=True)
+        return ax.figure, ax
 
+    def plot_persistence_barcode(self, max_intervals=50):
+        intervals = self._require_intervals()
+        hom_dims = sorted(intervals)
+
+        fig, axes = plt.subplots(1, len(hom_dims), figsize=(8 * len(hom_dims), 5), squeeze=False)
+        axes = axes.ravel()
+
+        for ax, dim in zip(axes, hom_dims):
+            gd.plot_persistence_diagram(intervals[dim], max_intervals=max_intervals, axes=ax)
+            ax.set_title(f"H{dim} persistence barcode")
+
+        fig.tight_layout()
+        return fig, axes
     
     def plot_landscape(self, num_landscapes=None, resolution=None):
         landscapes = [
@@ -146,7 +156,6 @@ class Persistence:
             ax.legend()
 
         fig.tight_layout()
-        plt.show()
         return fig, axes
 
 

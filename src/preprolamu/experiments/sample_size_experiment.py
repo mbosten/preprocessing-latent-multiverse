@@ -7,24 +7,30 @@ from pathlib import Path
 import numpy as np
 from project_utils import setup_logging
 
-from preprolamu.pipeline.embeddings import Embedding
 from preprolamu.experiments.experiment import Experiment
+from preprolamu.pipeline.embeddings import Embedding
 from preprolamu.pipeline.persistence import Persistence
 from preprolamu.pipeline.universes import get_universe
 
 
+SAMPLE_SIZES = range(20000, 510000, 20000)
+SEED = 42
+N_COMPONENTS = 3
 NORMFIGSIZE = (12, 8)  # inches
 TIMEFIGSIZE = (8, 6)  # inches
 DPI = 300  # fixed DPI
-SEED = 42
-N_COMPONENTS = 3
-SAMPLE_SIZES = range(20000, 510000, 20000)
 
 
 logger = logging.getLogger(__name__)
 
 
 def main():
+    """
+    How do landscape norms and computation times change as subsample size increases?
+
+    Preliminary results: Many universes show a kind of convergence of the norms.
+    See the combined results for an overview.
+    """
     parser = argparse.ArgumentParser(description="sample size effects on landscape norms")
     parser.add_argument("--universe-index", dest="uid", default=0, type=int)
     args = parser.parse_args()

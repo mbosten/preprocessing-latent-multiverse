@@ -13,8 +13,9 @@ from preprolamu.pipeline.persistence import Persistence
 from preprolamu.pipeline.universes import get_universe
 
 
-SEEDS = [1, 11, 111, 1111, 11111]
 SAMPLE_SIZES = range(20000, 510000, 20000)
+SEEDS = [1, 11, 111, 1111, 11111]
+N_COMPONENTS = 3
 NORMFIGSIZE = (12, 8)  # inches
 TIMEFIGSIZE = (8, 6)  # inches
 DPI = 300  # fixed DPI
@@ -24,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    """
+    How do landscape norms and computation times change as subsample size increases, across multiple seeds?
+    """
     parser = argparse.ArgumentParser(description="sample size effect on landscape norm under multiple seeds")
     parser.add_argument("--univerese-index", dest="uid", default=0, type=int)
     args = parser.parse_args()
@@ -64,7 +68,7 @@ def main():
 
     # Do not set universe parameter in Embedding class to use the manual seed
     point_cloud = Embedding(latent_space=latent)
-    point_cloud.project_PCA(n_components=latent_dim, seed=SEEDS[0], inplace=True)
+    point_cloud.project_PCA(n_components=N_COMPONENTS, seed=SEEDS[0], inplace=True)
     point_cloud.normalize(method="diameter", seed=SEEDS[0], iterations=1000, inplace=True)
 
     del latent
@@ -76,15 +80,16 @@ def main():
             logger.info("Processing seed=%d, sample size=%d.", seed, k)
 
             key = (seed, k)
+            hom_dims = tuple(range(min(N_COMPONENTS, 3)))
             df = point_cloud.sample(target_size=k, seed=seed, inplace=False)
             tda = Persistence(universe=u, points=df)
             
             with exp.timer("persistence", key):
-                tda.compute_intervals(precision="exact")
+                tda.compute_intervals(precision="exact", hom_dims=hom_dims)
 
 
             with exp.timer("landscapes", key):
-                tda.compute_landscapes()
+                tda.compute_landscapes(hom_dims=hom_dims)
 
             with exp.timer("metrics", key):
                 exp.results[key] = {

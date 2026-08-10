@@ -13,18 +13,24 @@ from preprolamu.pipeline.persistence import Persistence
 from preprolamu.pipeline.universes import get_universe
 
 
+PCA_DIMS = range(1, 6, 1)
+SEED = 42
+SUBSAMPLE_SIZE = 100_000
 NORMFIGSIZE = (12, 8)  # inches
 TIMEFIGSIZE = (8, 6)  # inches
 DPI = 300  # fixed DPI
-SUBSAMPLE_SIZE = 100_000
-PCA_DIMS = range(1, 6, 1)
-SEED = 42
 
 
 logger = logging.getLogger(__name__)
 
 
 def main():
+    """
+    How do landscape norms and computation times change as the number of projected PCA components increases?
+
+    Preliminary results: When max PCA components = 5 and 100k sample, in many cases norms increase as components increase.
+    This does not support suitability of 3 PCA components, for example.
+    """
     parser = argparse.ArgumentParser(description="PCA effects on landscape norms")
     parser.add_argument("--universe-index", dest="uid", default=0, type=int)
     args = parser.parse_args()

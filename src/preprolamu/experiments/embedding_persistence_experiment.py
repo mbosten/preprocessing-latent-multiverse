@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    """
+    This is likely a redundant experiment since such low sample sizes aren't informative.
+    Moreover, full dimensionality is likely still too much to compute.
+    """
+
     parser = argparse.ArgumentParser(description="Landscape norms on full embedding dimensionality.")
     parser.add_argument("--universe-index", dest="uid", default=0, type=int)
     args = parser.parse_args()

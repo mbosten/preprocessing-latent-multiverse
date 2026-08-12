@@ -1,5 +1,6 @@
 import logging
 
+import mlpack
 import numpy as np
 import gudhi as gd
 from gudhi.representations import Landscape
@@ -35,16 +36,13 @@ class Persistence:
         Computes Alpha complex persistence intervals on points in case intervals required but not set.
         If hom_dims is None, it will use the homology dimensions from the universe's TDA config, or default to (0, 1, 2) if not available.
         """
-        if self.points is None:
-            raise RuntimeError("Points are not set. Cannot compute intervals.")
-
         hom_dims = hom_dims or (
             self.universe.tda_config.homology_dimensions
             if self.universe is not None
             else (0, 1, 2)
         )
 
-        st = gd.AlphaComplex(points=self.points, precision=precision).create_simplex_tree()
+        st = gd.AlphaComplex(points=self._require_points(), precision=precision).create_simplex_tree()
         st.compute_persistence(homology_coeff_field=2)
         self.intervals = {dim: self._finite(st.persistence_intervals_in_dimension(dim)) for dim in hom_dims}
         return self.intervals
@@ -95,10 +93,27 @@ class Persistence:
         return self.norms
 
 
+    def h0_total_persistence_euclidean(self):
+        deaths = self._require_intervals()[0][:, 1]
+        return float(2 * np.sum(np.sqrt(deaths)))
+
+
+    def mst_length(self):
+        result = mlpack.emst(
+            input_=self._require_points(),
+            leaf_size=1,
+            naive=False,
+        )
+        edges = result["output"]
+        return float(np.sum(edges[:, 2]))
+
+
     def metrics(self):
         return {
             "total_persistence": self.total_persistence(),
             "landscape_norms": self.landscape_norms(),
+            "h0_total_persistence_euclidean": self.h0_total_persistence_euclidean(),
+            "mst_length": self.mst_length(),
         }
 
     
@@ -111,20 +126,22 @@ class Persistence:
         intervals = self._require_intervals()
         persistence = [(dim, tuple(interval)) for dim, diagram in intervals.items() for interval in diagram]
         ax = gd.plot_persistence_diagram(sorted(persistence, reverse=True), legend=True)
+        plt.close(ax.figure)
         return ax.figure, ax
 
     def plot_persistence_barcode(self, max_intervals=50):
         intervals = self._require_intervals()
         hom_dims = sorted(intervals)
 
-        fig, axes = plt.subplots(1, len(hom_dims), figsize=(8 * len(hom_dims), 5), squeeze=False)
+        fig, axes = plt.subplots(1, len(hom_dims), figsize=(10 * len(hom_dims), 8), squeeze=False)
         axes = axes.ravel()
 
         for ax, dim in zip(axes, hom_dims):
-            gd.plot_persistence_diagram(intervals[dim], max_intervals=max_intervals, axes=ax)
+            gd.plot_persistence_barcode(intervals[dim], max_intervals=max_intervals, axes=ax)
             ax.set_title(f"H{dim} persistence barcode")
 
         fig.tight_layout()
+        plt.close(fig)
         return fig, axes
     
     def plot_landscape(self, num_landscapes=None, resolution=None):
@@ -142,7 +159,7 @@ class Persistence:
 
         if None in (num_landscapes, resolution):
             raise ValueError("provide num_landscapes and resolution, or run compute_landscapes() first.")
-        fig, axes = plt.subplots(len(landscapes), 1, figsize=(10, 3 * len(landscapes)), squeeze=False)
+        fig, axes = plt.subplots(len(landscapes), 1, figsize=(8, 5 * len(landscapes)), squeeze=False)
 
         for ax, (dim, landscape) in zip(axes.flat, landscapes):
             if landscape.size != num_landscapes * resolution:
@@ -156,7 +173,14 @@ class Persistence:
             ax.legend()
 
         fig.tight_layout()
+        plt.close(fig)
         return fig, axes
+
+
+    def _require_points(self):
+        if self.points is None:
+            raise RuntimeError("Points are not set. Cannot compute intervals.")
+        return self.points
 
 
     def _require_intervals(self):

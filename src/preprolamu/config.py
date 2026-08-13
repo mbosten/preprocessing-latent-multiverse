@@ -42,21 +42,20 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
     path = CONFIG_DIR / f"{dataset_id}.yml"
 
     if not path.exists():
-        raise FileNotFoundError("Dataset config not found: %s", path)
+        raise FileNotFoundError(f"Dataset config not found: {path}")
 
     with path.open("r", encoding="utf-8") as file:
         config = yaml.safe_load(file) or {}
 
-    config["dataset_id"] = dataset_id
-    config["raw_path"] = Path(config["raw_path"])
-    config["clean_path"] = CLEAN_DIR / f"{dataset_id}_clean.parquet"
-    config["categorical_columns"] = list(config.get("categorical_columns", []) or [])
-    config["confounders"] = list(config.get("confounders", []) or [])
-    config["label_column"] = config.get("label_column")
-    config["benign_label"] = config.get("benign_label")
-    config["autoencoder"] = config.get("autoencoder", {}) or {}
-
-    return config
+    return {
+        "dataset_id": dataset_id,
+        "raw_path": Path(config["raw_path"]),
+        "label_column": config.get("label_column"),
+        "benign_label": config.get("benign_label"),
+        "categorical_columns": config.get("categorical_columns", []),
+        "confounders": config.get("confounders", []),
+        "autoencoder": config.get("autoencoder", {}),
+    }
 
 
 def load_raw(path: Path) -> pd.DataFrame:
@@ -90,7 +89,7 @@ def profile(df: pd.DataFrame, config: DatasetConfig) -> dict[str, dict[str, bool
 
     return {
         name: {
-            " has_duplicates": bool(frame.duplicated().any()),
+            "has_duplicates": bool(frame.duplicated().any()),
             "has_missing_numeric": has_missing_numeric(
                 frame,
                 config["label_column"],
@@ -106,16 +105,16 @@ def has_missing_numeric(df: pd.DataFrame, label_col: str):
     return bool(numeric.isna().any().any())
 
 
-def update_profiles(dataset_id, dataset_profile):
+def update_profiles(dataset_id, profile: dict[str, dict[str, bool]]):
     PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     profiles = (
-        json.loads(PROFILE_PATH.read_text())
+        json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
         if PROFILE_PATH.exists()
         else {}
     )
 
-    profiles[dataset_id] = dataset_profile
+    profiles[dataset_id] = profile
     PROFILE_PATH.write_text(json.dumps(profiles, indent=4), encoding="utf-8")
 
 
@@ -126,10 +125,13 @@ def prepare_dataset(dataset_id: str = typer.Argument(..., help="Dataset id to pr
     df = load_raw(config["raw_path"])
     df = encode_categoricals(df, config["categorical_columns"])
 
-    config["clean_path"].parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(config["clean_path"])
+    dataset_profile = profile(df, config)
 
-    update_profiles(dataset_id, profile(df, config))
+    clean_path = CLEAN_DIR / f"{dataset_id}_clean.parquet"
+    clean_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(clean_path, index=False)
+
+    update_profiles(dataset_id, dataset_profile)
     logger.info("Prepared %s: %d rows, %d columns", dataset_id, *df.shape)
 
 

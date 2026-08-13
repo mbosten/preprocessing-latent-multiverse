@@ -4,11 +4,10 @@ import logging
 from dataclasses import dataclass, field, replace
 from itertools import product
 from pathlib import Path
-from collections.abc import Iterable
 from typing import Any, Literal
 
+import json
 import typer
-import yaml
 
 from preprolamu.io.io import UniverseIO
 from preprolamu.io.paths import UniversePaths
@@ -22,6 +21,23 @@ FeatureSubset = Literal["all", "without_confounders"]
 DuplicateHandling = Literal["drop", "keep"]
 Missingness = Literal["drop_rows", "impute_median"]
 
+DATASET_IDS = (
+    "NF-ToN-IoT-v3",
+    "NF-UNSW-NB15-v3",
+    "NF-CICIDS2018-v3",
+)
+
+MULTIVERSE_GRID = {
+    "scaling": ("zscore", "minmax", "quantile"),
+    "log_transform": ("none", "log1p"),
+    "feature_subset": ("all", "without_confounders"),
+    "duplicate_handling": ("keep", "drop"),
+    "missingness": ("drop_rows", "impute_median"),
+    "seed": (42, 420, 4200, 42000),
+}
+
+PROFILE_PATH = Path("data/interim/metadata/profiles.json")
+
 
 @dataclass(frozen=True)
 class TdaConfig:
@@ -33,10 +49,7 @@ class TdaConfig:
 
 @dataclass(frozen=True)
 class Universe:
-
     dataset_id: str
-
-    # preprocessing choices
     scaling: Scaling
     log_transform: LogTransform
     feature_subset: FeatureSubset
@@ -103,44 +116,13 @@ class Universe:
         }
 
 
-DATASET_IDS = (
-    "NF-ToN-IoT-v3",
-    "NF-UNSW-NB15-v3",
-    "NF-CICIDS2018-v3",
-)
-
-MULTIVERSE_GRID = {
-    "scaling": ("zscore", "minmax", "quantile"),
-    "log_transform": ("none", "log1p"),
-    "feature_subset": ("all", "without_confounders"),
-    "duplicate_handling": ("keep", "drop"),
-    "missingness": ("drop_rows", "impute_median"),
-    "seed": (42, 420, 4200, 42000),
-}
-
-# probably redundant in the feature. I should integrate this functionality more intuitively.
-def load_dataset_profile(
-    dataset_id: str,
-) -> dict[str, dict[str, Any]]:
-    path = Path("data") / "metadata" / f"{dataset_id}_profile.yml"
-
-    if not path.exists():
+def load_profiles():
+    if not PROFILE_PATH.exists():
         raise FileNotFoundError(
-            f"Dataset profile not found: {path}. "
-            f"Run `prepare-dataset {dataset_id}` first."
+            f"Profiles file not found: {PROFILE_PATH}. "
+            f"Run `prepare-dataset` first."
         )
-
-    with path.open("r", encoding="utf-8") as file:
-        return yaml.safe_load(file) or {}
-
-
-def build_dataset_profiles(
-    dataset_ids: Iterable[str],
-) -> dict[str, dict[str, dict[str, Any]]]:
-    return {
-        dataset_id: load_dataset_profile(dataset_id)
-        for dataset_id in sorted(set(dataset_ids))
-    }
+    return json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
 
 
 def generate_full_multiverse() -> list[Universe]:
@@ -155,15 +137,14 @@ def generate_full_multiverse() -> list[Universe]:
         for values in product(*(MULTIVERSE_GRID[key] for key in keys))
     ]
 
+
 def prune_multiverse(
     universes: list[Universe],
-    profiles_by_dataset: dict[str, dict[str, dict[str, Any]]],
+    profiles: dict[str, dict[str, dict[str, bool]]],
 ) -> list[Universe]:
 
     def redundant(universe: Universe) -> bool:
-        profile = profiles_by_dataset[universe.dataset_id][
-            universe.feature_subset
-        ]
+        profile = profiles[universe.dataset_id][universe.feature_subset]
 
         return (
             not profile["has_duplicates"]
@@ -185,10 +166,10 @@ def prune_multiverse(
 
 
 def generate_multiverse() -> list[Universe]:
-    universes = generate_full_multiverse()
-
-    profiles = build_dataset_profiles(u.dataset_id for u in universes)
-    universes = prune_multiverse(universes, profiles)
+    universes = prune_multiverse(
+        generate_full_multiverse(),
+        load_profiles()
+    )
 
     return [replace(u, universe_index=i) for i, u in enumerate(universes)]
 
@@ -197,7 +178,7 @@ def get_universe(index: int) -> Universe:
     universes = generate_multiverse()
 
     if not 0 <= index < len(universes):
-        raise typer.BadParameter(f"Universe index {index} is out of range.")
+        raise typer.BadParameter(f"Universe index must be in [0, {len(universes) - 1}], got {index}")
 
     universe = universes[index]
     return universe

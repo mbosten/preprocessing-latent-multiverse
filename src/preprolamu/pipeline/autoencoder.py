@@ -110,8 +110,8 @@ def _get_feature_matrix_for_ae(df: pd.DataFrame, ds_cfg: DatasetConfig) -> np.nd
     cols_to_drop = [ds_cfg["label_column"]]
 
     # Specific for the three NF datasets
-    if "Label" in df_features.columns and "Label" not in cols_to_drop:
-        cols_to_drop.append("Label")
+    if "Attack" in df_features.columns and "Attack" not in cols_to_drop:
+        cols_to_drop.append("Attack")
 
     logger.info(
         f"[AE] Dropping columns for AE feature matrix (if present): {cols_to_drop}"

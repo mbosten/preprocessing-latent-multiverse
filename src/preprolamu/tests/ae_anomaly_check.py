@@ -144,8 +144,8 @@ def get_tensor_feature_matrix(u, split):
     df = pd.read_parquet(path)
     cfg = load_dataset_config(u.dataset_id)
     cols_to_drop = [cfg["label_column"]]
-    if "Label" in df.columns and "Label" not in cols_to_drop:
-        cols_to_drop.append("Label")
+    if "Attack" in df.columns and "Attack" not in cols_to_drop:
+        cols_to_drop.append("Attack")
     df = df.drop(columns=cols_to_drop, errors="ignore")
     X = df.to_numpy(dtype=np.float32)
     return np.ascontiguousarray(X)

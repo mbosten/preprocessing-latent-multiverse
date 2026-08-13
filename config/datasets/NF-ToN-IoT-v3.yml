@@ -1,22 +1,15 @@
-dataset_id: NF-ToN-IoT-v3
 raw_path: data/raw/NF-ToN-IoT-v3.csv
-non_numerical_columns:
+categorical_columns:
 - IPV4_SRC_ADDR
 - IPV4_DST_ADDR
-features_to_exclude: null
+confounders:
+- IPV4_SRC_ADDR
+- IPV4_DST_ADDR
+- L4_SRC_PORT
+- L4_DST_PORT
 label_column: Label
 benign_label: 0
-attack_classes:
-- Benign
-- scanning
-- xss
-- ddos
-- password
-- dos
-- injection
-- backdoor
-- mitm
-- ransomware
+
 autoencoder:
   latent_dim: 25
   hidden_dims:
@@ -26,14 +19,3 @@ autoencoder:
   batch_size: 512
   dropout: 0.0377
   regularization: 0.0019
-dataset_invariants:
-  all:
-    has_duplicates: true
-    has_missing_numeric: false
-    n_rows: 27520260
-    n_cols: 55
-  without_confounders:
-    has_duplicates: true
-    has_missing_numeric: false
-    n_rows: 27520260
-    n_cols: 55

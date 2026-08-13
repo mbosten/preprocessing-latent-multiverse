@@ -1,27 +1,15 @@
-dataset_id: NF-CICIDS2018-v3
 raw_path: data/raw/NF-CICIDS2018-v3.csv
-non_numerical_columns:
+categorical_columns:
 - IPV4_SRC_ADDR
 - IPV4_DST_ADDR
-features_to_exclude: null
+confounders:
+- IPV4_SRC_ADDR
+- IPV4_DST_ADDR
+- L4_SRC_PORT
+- L4_DST_PORT
 label_column: Label
 benign_label: 0
-attack_classes:
-- Benign
-- DDOS attack-HOIC
-- DoS attacks-Hulk
-- DDoS attacks-LOIC-HTTP
-- Infilteration
-- SSH-Bruteforce
-- Bot
-- DoS attacks-GoldenEye
-- FTP-BruteForce
-- DoS attacks-SlowHTTPTest
-- DoS attacks-Slowloris
-- Brute Force -Web
-- DDOS attack-LOIC-UDP
-- Brute Force -XSS
-- SQL Injection
+
 autoencoder:
   latent_dim: 28
   hidden_dims:
@@ -31,14 +19,3 @@ autoencoder:
   batch_size: 512
   dropout: 0.1097
   regularization: 0.024
-dataset_invariants:
-  all:
-    has_duplicates: true
-    has_missing_numeric: false
-    n_rows: 20115529
-    n_cols: 55
-  without_confounders:
-    has_duplicates: true
-    has_missing_numeric: false
-    n_rows: 20115529
-    n_cols: 55

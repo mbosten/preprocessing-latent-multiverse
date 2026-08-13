@@ -65,21 +65,6 @@ class Preprocessor:
         self.df = pd.read_parquet(self.universe.paths.clean_data())
         logger.info("Loaded %d rows x %d columns.", *self.df.shape)
 
-    def feature_subset(self):
-        df = self._require_df()
-
-        try:
-            drop = self.config["feature_subsets"][self.universe.feature_subset]
-        except KeyError as exc:
-            raise ValueError(
-                f"Feature subset {self.universe.feature_subset!r} is not "
-                f"configured for dataset {self.universe.dataset_id!r}."
-            ) from exc
-
-        if drop:
-            logger.info("Dropping features: %s", drop)
-
-        self.df = df.drop(columns=drop, errors="ignore")
 
     def split(self, train_frac=0.6, val_frac=0.2):
             """Create benign-only training data and stratified validation/test data."""
@@ -120,6 +105,20 @@ class Preprocessor:
     # ──────────────────────────────────────────────────────────
     # Preprocessing                                                 
     # ──────────────────────────────────────────────────────────
+    def feature_subset(self):
+        if self.universe.feature_subset == "all":
+            return
+
+        if self.universe.feature_subset != "without_confounders":
+            raise ValueError(
+                f"Unknown feature subset: {self.universe.feature_subset!r}"
+            )
+
+        confounders = self.config.get("confounders", [])
+        self.df = self._require_df().drop(columns=confounders,errors="ignore")
+
+        logger.info("Dropped confounders: %s", confounders)
+
 
     def duplicates(self):
         if self.universe.duplicate_handling == "keep":
@@ -171,6 +170,7 @@ class Preprocessor:
         if self.universe.log_transform == "none":
             return
 
+        # THIS IS LIKELY REDUNDANT BECAUSE THESE VALUES ARE CONSTRUCTED IN THE UNIVERSE CLASS
         if self.universe.log_transform != "log1p":
             raise ValueError(f"Unknown log transform: {self.universe.log_transform!r}")
 

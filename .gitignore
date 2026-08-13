@@ -32,7 +32,10 @@ Thumbs.db
 RIPSTEST
 *.lower_distance_matrix
 *.out
+
+# Temporary, unfinished, or deprecated files
 *complex_benchmark.py
+*OLD_*.py
 
 # visualizations under construction
 *.html

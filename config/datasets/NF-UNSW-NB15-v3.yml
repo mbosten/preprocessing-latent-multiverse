@@ -4,9 +4,9 @@ non_numerical_columns:
 - IPV4_SRC_ADDR
 - IPV4_DST_ADDR
 features_to_exclude: null
-label_column: Attack
-benign_label: Benign
-label_classes:
+label_column: Label
+benign_label: 0
+attack_classes:
 - Benign
 - Exploits
 - Fuzzers

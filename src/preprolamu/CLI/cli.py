@@ -11,7 +11,7 @@ from typing_extensions import Annotated
 from preprolamu.pipeline.create_embeddings import get_or_compute_latent
 from preprolamu.pipeline.create_tda import run_tda_for_universe
 from preprolamu.pipeline.evaluation import evalae
-from preprolamu.pipeline.preprocessing import preprocess_variant
+from preprolamu.pipeline.preprocessing import Preprocessor
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
 
 logger = logging.getLogger(__name__)
@@ -40,13 +40,10 @@ def prepare_preprocessing(
     overwrite: Annotated[bool, typer.Option()] = False,
 ):
     if universe_index is None:
-        universes = generate_multiverse()
+        raise typer.BadParameter("Universe parameter can not currently be None!")
 
-        for u in universes:
-            preprocess_variant(u, overwrite=overwrite)
-    else:
-        u = get_universe(universe_index)
-        preprocess_variant(u, overwrite=overwrite)
+    universe = get_universe(universe_index)
+    Preprocessor(universe).run(overwrite=overwrite)
 
 
 # train AEs and retrieve embedding space.
@@ -94,7 +91,7 @@ def prepare_tda(
             raise typer.BadParameter("Not a valid universe index.")
         run_tda_for_universe(u, overwrite=overwrite)
     else:
-        raise typer.BadParameter("Universe parameter can not currently be None!+")
+        raise typer.BadParameter("Universe parameter can not currently be None!")
 
 
 # Evaluate each model's performance on test set

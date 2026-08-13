@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field, replace
-from enum import Enum
+from itertools import product
 from pathlib import Path
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any, Literal
 
 import typer
 import yaml
@@ -14,33 +15,12 @@ from preprolamu.io.paths import UniversePaths
 
 logger = logging.getLogger(__name__)
 
-BASE_DATA_DIR = Path("data")
 
-
-class Scaling(str, Enum):
-    ZSCORE = "zscore"
-    MINMAX = "minmax"
-    QUANTILE = "quantile"
-
-
-class LogTransform(str, Enum):
-    NONE = "none"
-    LOG1P = "log1p"
-
-
-class FeatureSubset(str, Enum):
-    ALL = "all"
-    WITHOUT_CONFOUNDERS = "without_confounders"
-
-
-class DuplicateHandling(str, Enum):
-    DROP = "drop"
-    KEEP = "keep"
-
-
-class Missingness(str, Enum):
-    DROP_ROWS = "drop_rows"
-    IMPUTE_MEDIAN = "impute_median"
+Scaling = Literal["zscore", "minmax", "quantile"]
+LogTransform = Literal["none", "log1p"]
+FeatureSubset = Literal["all", "without_confounders"]
+DuplicateHandling = Literal["drop", "keep"]
+Missingness = Literal["drop_rows", "impute_median"]
 
 
 @dataclass(frozen=True)
@@ -64,25 +44,28 @@ class Universe:
     missingness: Missingness
     seed: int
 
-    # PERHAPS REMOVE, MIGHT BE REDUNDANT
     pca_dim: int = 3
+    tda_config: TdaConfig = field(default_factory=TdaConfig)
 
-    tda_config: TdaConfig = TdaConfig()
-
-    # hard-code universe index into object
-    universe_index: int | None = field(default=None, compare=False, hash=False)
-
-    # Parsed ID string
-    id: str = field(init=False)
-
-    base_data_dir: Path = field(
-        default=Path("data"), compare=False, hash=False, repr=False
+    universe_index: int | None = field(
+        default=None,
+        compare=False,
+        hash=False,
     )
 
+    base_data_dir: Path = field(
+        default=Path("data"),
+        compare=False,
+        hash=False,
+    )
+
+    id: str = field(init=False)
+
     def __post_init__(self):
-        # Compute once
         prefix = (
-            f"u-{self.universe_index:04d}_" if self.universe_index is not None else ""
+            f"u-{self.universe_index:04d}_"
+            if self.universe_index is not None
+            else ""
         )
 
         object.__setattr__(
@@ -91,16 +74,15 @@ class Universe:
             (
                 f"{prefix}"
                 f"ds-{self.dataset_id}"
-                f"_sc-{self.scaling.value}"
-                f"_log-{self.log_transform.value}"
-                f"_fs-{self.feature_subset.value}"
-                f"_dup-{self.duplicate_handling.value}"
-                f"_miss-{self.missingness.value}"
+                f"_sc-{self.scaling}"
+                f"_log-{self.log_transform}"
+                f"_fs-{self.feature_subset}"
+                f"_dup-{self.duplicate_handling}"
+                f"_miss-{self.missingness}"
                 f"_sd-{self.seed}"
             ),
         )
 
-    # Path/IO functions reference to their respective files
     @property
     def paths(self) -> UniversePaths:
         return UniversePaths(self)
@@ -110,33 +92,36 @@ class Universe:
         return UniverseIO(self)
 
     def to_param_dict(self) -> dict[str, Any]:
-        """
-        Flatten Universe into a dict of multiverse parameters used for grouping.
-        """
-        out: dict[str, Any] = {
+        return {
             "dataset_id": self.dataset_id,
-            "scaling": getattr(self.scaling, "value", self.scaling),
-            "log_transform": getattr(self.log_transform, "value", self.log_transform),
-            "feature_subset": getattr(
-                self.feature_subset, "value", self.feature_subset
-            ),
-            "duplicate_handling": getattr(
-                self.duplicate_handling, "value", self.duplicate_handling
-            ),
-            "missingness": getattr(self.missingness, "value", self.missingness),
+            "scaling": self.scaling,
+            "log_transform": self.log_transform,
+            "feature_subset": self.feature_subset,
+            "duplicate_handling": self.duplicate_handling,
+            "missingness": self.missingness,
             "seed": self.seed,
         }
-        return out
 
 
-DATASET_IDS: list[str] = [
+DATASET_IDS = (
     "NF-ToN-IoT-v3",
     "NF-UNSW-NB15-v3",
     "NF-CICIDS2018-v3",
-]
+)
 
+MULTIVERSE_GRID = {
+    "scaling": ("zscore", "minmax", "quantile"),
+    "log_transform": ("none", "log1p"),
+    "feature_subset": ("all", "without_confounders"),
+    "duplicate_handling": ("keep", "drop"),
+    "missingness": ("drop_rows", "impute_median"),
+    "seed": (42, 420, 4200, 42000),
+}
 
-def load_dataset_profile(dataset_id: str) -> dict[str, dict[str, Any]]:
+# probably redundant in the feature. I should integrate this functionality more intuitively.
+def load_dataset_profile(
+    dataset_id: str,
+) -> dict[str, dict[str, Any]]:
     path = Path("data") / "metadata" / f"{dataset_id}_profile.yml"
 
     if not path.exists():
@@ -158,86 +143,61 @@ def build_dataset_profiles(
     }
 
 
+def generate_full_multiverse() -> list[Universe]:
+    keys = tuple(MULTIVERSE_GRID)
+
+    return [
+        Universe(
+            dataset_id=dataset_id,
+            **dict(zip(keys, values, strict=True)),
+        )
+        for dataset_id in DATASET_IDS
+        for values in product(*(MULTIVERSE_GRID[key] for key in keys))
+    ]
+
 def prune_multiverse(
     universes: list[Universe],
     profiles_by_dataset: dict[str, dict[str, dict[str, Any]]],
 ) -> list[Universe]:
 
-    kept: list[Universe] = []
+    def redundant(universe: Universe) -> bool:
+        profile = profiles_by_dataset[universe.dataset_id][
+            universe.feature_subset
+        ]
 
-    for u in universes:
-        profile = profiles_by_dataset[u.dataset_id][u.feature_subset.value]
-
-        if (
+        return (
             not profile["has_duplicates"]
-            and u.duplicate_handling == DuplicateHandling.DROP
-        ):
-            continue
-
-        if (
+            and universe.duplicate_handling == "drop"
+        ) or (
             not profile["has_missing_numeric"]
-            and u.missingness == Missingness.DROP_ROWS
-        ):
-            continue
+            and universe.missingness == "drop_rows"
+        )
 
-        kept.append(u)
+    kept = [u for u in universes if not redundant(u)]
 
-    logger.info("[MV] Pruned Multiverse: %d -> %d", len(universes), len(kept))
+    logger.info(
+        "[MV] Pruned multiverse: %d -> %d",
+        len(universes),
+        len(kept),
+    )
+
     return kept
-
-
-def generate_full_multiverse() -> list[Universe]:
-
-    scalings = [Scaling.ZSCORE, Scaling.MINMAX, Scaling.QUANTILE]
-    log_transforms = [LogTransform.NONE, LogTransform.LOG1P]
-    feature_subsets = [FeatureSubset.ALL, FeatureSubset.WITHOUT_CONFOUNDERS]
-    duplicate_opts = [DuplicateHandling.KEEP, DuplicateHandling.DROP]
-    missingness_opts = [Missingness.DROP_ROWS, Missingness.IMPUTE_MEDIAN]
-    seeds = [42, 420, 4200, 42000]
-
-    universes: list[Universe] = []
-
-    for ds_id in DATASET_IDS:
-        for sc in scalings:
-            for log_tr in log_transforms:
-                for fs in feature_subsets:
-                    for dup in duplicate_opts:
-                        for miss in missingness_opts:
-                            for sd in seeds:
-                                universes.append(
-                                    Universe(
-                                        dataset_id=ds_id,
-                                        scaling=sc,
-                                        log_transform=log_tr,
-                                        feature_subset=fs,
-                                        duplicate_handling=dup,
-                                        missingness=miss,
-                                        seed=sd,
-                                    )
-                                )
-    return universes
 
 
 def generate_multiverse() -> list[Universe]:
     universes = generate_full_multiverse()
 
-    profiles = build_dataset_profiles(universe.dataset_id for universe in universes)
+    profiles = build_dataset_profiles(u.dataset_id for u in universes)
+    universes = prune_multiverse(universes, profiles)
 
-    pruned = prune_multiverse(universes, profiles)
-
-    return [
-        replace(universe, universe_index=index) for index, universe in enumerate(pruned)
-    ]
+    return [replace(u, universe_index=i) for i, u in enumerate(universes)]
 
 
 def get_universe(index: int) -> Universe:
     universes = generate_multiverse()
-    universe_lookup = {u.universe_index: u for u in universes}
 
-    try:
-        universe = universe_lookup[index]
-    except KeyError:
-        raise typer.BadParameter(f"universe_index must be in [0, {len(universes) - 1}]")
+    if not 0 <= index < len(universes):
+        raise typer.BadParameter(f"Universe index {index} is out of range.")
 
-    logger.info("[EXP] Using universe: %s", universe)
+    universe = universes[index]
     return universe

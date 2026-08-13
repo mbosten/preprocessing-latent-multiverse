@@ -50,7 +50,7 @@ def load_dataset_config(dataset_id: str) -> DatasetConfig:
     cfg["features_to_exclude"] = list(cfg.get("features_to_exclude", []) or [])
     cfg["label_column"] = cfg.get("label_column")
     cfg["benign_label"] = cfg.get("benign_label")
-    cfg["label_classes"] = list(cfg.get("label_classes", []) or []) or None
+    cfg["attack_classes"] = list(cfg.get("attack_classes", []) or []) or None
     cfg["autoencoder"] = cfg.get("autoencoder", {}) or {}
 
     return cfg

@@ -1,402 +1,335 @@
 from __future__ import annotations
 
-import gc
 import logging
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Callable, Generator
 
 import numpy as np
 import pandas as pd
+from sklearn.base import TransformerMixin
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, QuantileTransformer, StandardScaler
 
 from preprolamu.config import load_dataset_config
-from preprolamu.pipeline.universes import (
-    DuplicateHandling,
-    FeatureSubset,
-    LogTransform,
-    Missingness,
-    Scaling,
-    Universe,
-)
+from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
 
-# Load the cleaned dataset
-# This function might as well be moved to the storage.py file
-def load_raw_dataset(universe: Universe) -> pd.DataFrame:
-    path = universe.paths.clean_data()
-    df = pd.read_parquet(path)
-    logger.info("Loaded %d rows x %d columns.", *df.shape)
-    return df
-
-
-def split_train_test(
-    df: pd.DataFrame,
-    label_col: str,
-    benign_label: str,
-    seed: int,
-    train_frac: float = 0.6,
-    val_frac: float = 0.2,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-
-    if label_col not in df.columns:
-        raise ValueError(f"Label column {label_col!r} not found in dataframe.")
-
-    stratify_col = df["Attack"] if "Attack" in df.columns else df[label_col]
-
-    df_train, df_temp = train_test_split(
-        df,
-        train_size=train_frac,
-        random_state=seed,
-        stratify=stratify_col,
-    )
-
-    # get correct proportions of val and test set in the remainder of the data
-    remaining_frac = val_frac + (1 - train_frac - val_frac)
-    relative_val_frac = val_frac / remaining_frac
-
-    stratify_temp = (
-        df_temp["Attack"] if "Attack" in df_temp.columns else df_temp[label_col]
-    )
-
-    df_val, df_test = train_test_split(
-        df_temp,
-        train_size=relative_val_frac,
-        random_state=seed,
-        stratify=stratify_temp,
-    )
-
-    df_train = df_train.reset_index(drop=True)
-    df_test = df_test.reset_index(drop=True)
-    df_val = df_val.reset_index(drop=True)
-
-    # Keep only benign samples for training.
-    df_train = df_train[df_train[label_col] == benign_label].reset_index(drop=True)
-
-    logger.info(
-        "Data split:\ntrain (benign only)=%d,\nvalidation (all classes)=%d,\ntest (all classes)=%d",
-        len(df_train),
-        len(df_val),
-        len(df_test),
-    )
-
-    return df_train, df_val, df_test
-
-
-# Drop or keep the set of features as indicated in the Universe class
-def apply_feature_subset(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
-    if universe.feature_subset == FeatureSubset.ALL:
-        return df
-
-    if universe.id.startswith(
-        ("ds-NF-ToN-IoT-v3", "ds-NF-UNSW-NB15-v3", "ds-NF-CICIDS2018-v3")
-    ):  # These are NF-ToN-IoT-v3 specific
-        special_features = [
-            "IPV4_SRC_ADDR",
-            "IPV4_DST_ADDR",
-            "L4_SRC_PORT",
-            "L4_DST_PORT",
-        ]
-    # Remnant of debug dataset used earlier to set up the pipeline
-    elif universe.id.startswith(
-        "ds-Merged"
-    ):  # Just a dummy variable to keep the pipeline similar.
-        special_features = ["Protocol Type"]
-    else:
-        raise ValueError(f"Unknown universe for feature subseting: {universe.id}")
-    logger.info(f"Dropping special features: {special_features}")
-    return df.drop(columns=[c for c in special_features if c in df.columns])
-
-
-def apply_duplicate_handling(df: pd.DataFrame, universe: Universe) -> pd.DataFrame:
-    if universe.duplicate_handling == DuplicateHandling.KEEP:
-        return df
-
-    before = len(df)
-    df_nodup = df.drop_duplicates()
-    after = len(df_nodup)
-    logger.info(
-        "Dropped %d duplicate rows for universe %s",
-        before - after,
-        universe.id,
-    )
-    return df_nodup
-
-
-def apply_missingness(
-    df_train: pd.DataFrame,
-    df_test: pd.DataFrame,
-    universe: Universe,
-    ds_cfg,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    label_col = ds_cfg["label_column"]
-
-    # Numeric columns only
-    numeric_cols = [
-        c
-        for c in df_train.select_dtypes(include="number").columns
-        if c not in (label_col, "Label")
-    ]
-
-    if not numeric_cols:
-        logger.info("[PREP] No numeric columns found for missingness handling.")
-        return df_train, df_test
-
-    df_train = df_train.copy()
-    df_test = df_test.copy()
-
-    # handle nans and infs
-    df_train[numeric_cols] = df_train[numeric_cols].replace([np.inf, -np.inf], np.nan)
-    df_test[numeric_cols] = df_test[numeric_cols].replace([np.inf, -np.inf], np.nan)
-
-    # Count missing
-    missing_train_before = df_train[numeric_cols].isna().sum().sum()
-    missing_test_before = df_test[numeric_cols].isna().sum().sum()
-
-    logger.info(
-        "[PREP] Missingness before handling: train=%d, test=%d",
-        missing_train_before,
-        missing_test_before,
-    )
-
-    # drop rows universes
-    if universe.missingness == Missingness.DROP_ROWS:
-        before_train = len(df_train)
-        before_test = len(df_test)
-
-        df_train = df_train.dropna(subset=numeric_cols).reset_index(drop=True)
-        df_test = df_test.dropna(subset=numeric_cols).reset_index(drop=True)
-
-        logger.info(
-            "[PREP] Missingness DROP_ROWS: train %d-->%d, test %d-->%d",
-            before_train,
-            len(df_train),
-            before_test,
-            len(df_test),
-        )
-
-        return df_train, df_test
-
-    # impute median universes.
-    if universe.missingness == Missingness.IMPUTE_MEDIAN:
-        medians = df_train[numeric_cols].median()
-
-        df_train[numeric_cols] = df_train[numeric_cols].fillna(medians)
-        df_test[numeric_cols] = df_test[numeric_cols].fillna(medians)
-
-        logger.info(
-            "[PREP] Missingness IMPUTE_MEDIAN: filled missing values in %d numeric cols.",
-            len(numeric_cols),
-        )
-
-        return df_train, df_test
-
-    raise ValueError(f"Unknown missingness setting: {universe.missingness}")
-
-
-def apply_log_transform(
-    df_train: pd.DataFrame,
-    df_val: pd.DataFrame,
-    df_test: pd.DataFrame,
-    universe: Universe,
-    ds_cfg,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-
-    if universe.log_transform == LogTransform.NONE:
-        return df_train, df_val, df_test
-
-    label_col = ds_cfg["label_column"]
-    numeric_cols = [
-        c
-        for c in df_train.select_dtypes(include="number").columns
-        if c not in (label_col, "Label")
-    ]
-
-    if not numeric_cols:
-        return df_train, df_val, df_test
-
-    df_train = df_train.copy()
-    df_val = df_val.copy()
-    df_test = df_test.copy()
-
-    logger.info(
-        "[PREP] Applying %s transform to %d numeric columns.",
-        universe.log_transform.value,
-        len(numeric_cols),
-    )
-
-    for col in numeric_cols:
-        # train split motivates the choice for handling negatives
-        x_train = df_train[col].astype(float)
-        all_nonneg = (x_train >= 0).all()
-
-        if universe.log_transform == LogTransform.LOG1P:
-            if all_nonneg:
-                # log1p on non-negative features
-                for df_split in (df_train, df_val, df_test):
-                    df_split[col] = np.log1p(
-                        df_split[col].astype(float).clip(lower=0.0)
-                    )
-            else:
-                # signed log1p for features with negatives
-                logger.info(
-                    "[PREP] Feature '%s' contains negatives; using signed log1p.", col
-                )
-                for df_split in (df_train, df_val, df_test):
-                    x = df_split[col].astype(float)
-                    df_split[col] = np.sign(x) * np.log1p(np.abs(x))
-
-    return df_train, df_val, df_test
-
-
-def fit_scaler(df_train: pd.DataFrame, universe: Universe, ds_cfg):
-    # numeric features = numeric cols except label column (attack) and 'Label' if present
-    numeric_cols = [
-        c
-        for c in df_train.select_dtypes(include="number").columns
-        if c != ds_cfg["label_column"] and c != "Label"
-    ]
-    seed = universe.seed
-
-    if not numeric_cols:
-        return df_train
-
-    if universe.scaling == Scaling.ZSCORE:
-        scaler = StandardScaler()
-    elif universe.scaling == Scaling.MINMAX:
-        scaler = MinMaxScaler()
-    elif universe.scaling == Scaling.QUANTILE:
-        scaler = QuantileTransformer(output_distribution="normal", random_state=seed)
-    else:
-        raise ValueError(f"Unknown scaling: {universe.scaling}")
-
-    logger.info(
-        "Applying %s scaling to %d numeric columns.",
-        universe.scaling.value,
-        len(numeric_cols),
-    )
-
-    scaler.fit(df_train[numeric_cols])
-    return scaler, numeric_cols
-
-
-def transform_with_scaler(df: pd.DataFrame, scaler, numeric_cols) -> pd.DataFrame:
-    df_scaled = df.copy()
-    df_scaled[numeric_cols] = scaler.transform(df[numeric_cols])
-    return df_scaled
-
-
-# Orchestrator function to call in cli.py
-def preprocess_variant(
-    universe: Universe, overwrite: bool = False
-) -> tuple[Path, Path]:
-
-    logger.info(f"Preprocessing dataset for universe={universe.id}")
-
-    path_train = universe.paths.preprocessed(split="train")
-    path_val = universe.paths.preprocessed(split="val")
-    path_test = universe.paths.preprocessed(split="test")
-    status_path = universe.paths.preprocessing_status()
-
-    if not overwrite and path_train.exists() and path_test.exists():
-        logger.info(
-            "Preprocessed files for %s already exist at %s and %s. Skipping preprocessing.",
-            universe.id,
-            path_train,
-            path_test,
-        )
-
-        if status_path.exists():
-            try:
-                status_path.unlink()
-            except OSError:
-                logger.warning(
-                    "Could not remove existing preprocessing status file at %s",
-                    status_path,
-                    exc_info=True,
-                )
-
-        return path_train, path_test
-
-    status_path.write_text("IN_PROGRESS\n", encoding="utf-8")
-
-    try:
-        df = load_raw_dataset(universe)
-        ds_cfg = load_dataset_config(universe.dataset_id)
-        df = apply_feature_subset(df, universe)
-        df = apply_duplicate_handling(df, universe)
-        df_train, df_val, df_test = split_train_test(
-            df,
-            label_col=ds_cfg["label_column"],
-            benign_label=ds_cfg["benign_label"],
-            train_frac=0.6,
-            val_frac=0.2,
-            seed=universe.seed,
-        )
-
-        df = None  # free memory, just to be sure
-        gc.collect()
-
-        # Remove or impute missing values (e.g., nan, inf) from val and test, respectively
-        df_train, df_val = apply_missingness(
-            df_train,
-            df_val,
-            universe,
-            ds_cfg,
-        )
-
-        _, df_test = apply_missingness(
-            df_train,
-            df_test,
-            universe,
-            ds_cfg,
-        )
-
-        # Log transform
-        df_train, df_val, df_test = apply_log_transform(
-            df_train,
-            df_val,
-            df_test,
-            universe,
-            ds_cfg,
-        )
-
-        scaler, numeric_cols = fit_scaler(df_train, universe, ds_cfg)
-
-        df_train = transform_with_scaler(df_train, scaler, numeric_cols)
-        df_val = transform_with_scaler(df_val, scaler, numeric_cols)
-        df_test = transform_with_scaler(df_test, scaler, numeric_cols)
-
-        df_train.to_parquet(path_train)
-        df_val.to_parquet(path_val)
-        df_test.to_parquet(path_test)
-
-        del df_train, df_val, df_test
-        gc.collect()
-
-        logger.info("Saved preprocessed TRAIN data to %s", path_train)
-        logger.info("Saved preprocessed VALIDATION data to %s", path_val)
-        logger.info("Saved preprocessed TEST data to %s", path_test)
+SCALERS = {
+    "zscore": StandardScaler,
+    "minmax": MinMaxScaler,
+    "quantile": QuantileTransformer,
+}
+
+class Preprocessor:
+    """Preprocess dataset according to a universe configuration."""
+
+    def __init__(self, universe: Universe):
+        self.universe = universe
+        self.config = load_dataset_config(universe.dataset_id)
+
+        self.df:    pd.DataFrame | None = None
+        self.train: pd.DataFrame | None = None
+        self.val:   pd.DataFrame | None = None
+        self.test:  pd.DataFrame | None = None
+
+        self.scaler: TransformerMixin | None = None
+
+    def run(self, overwrite=False):
+        logger.info("Preprocessing universe=%s", self.universe_id)
+
+        if not overwrite and all(path.exists() for path in self.paths):
+            logger.info("Preprocessed files already exist. Skipping.")
+            self._clear_status()
+            return self.paths
+
+        with self._preprocessing_status():
+            self.load()
+            self.feature_subset()
+            self.duplicates()
+            self.split()
+            self.missingness()
+            self.log_transform()
+            self.scale()
+            self.save()
+
+        return self.paths
+
+    # ──────────────────────────────────────────────────────────
+    # Dataset                                                 
+    # ──────────────────────────────────────────────────────────
+
+    def load(self):
+        self.df = pd.read_parquet(self.universe.paths.clean_data())
+        logger.info("Loaded %d rows x %d columns.", *self.df.shape)
+
+    def feature_subset(self):
+        df = self._require_df()
 
         try:
-            if status_path.exists():
-                status_path.unlink()
+            drop = self.config["feature_subsets"][self.universe.feature_subset]
+        except KeyError as exc:
+            raise ValueError(
+                f"Feature subset {self.universe.feature_subset!r} is not "
+                f"configured for dataset {self.universe.dataset_id!r}."
+            ) from exc
+
+        if drop:
+            logger.info("Dropping features: %s", drop)
+
+        self.df = df.drop(columns=drop, errors="ignore")
+
+    def split(self, train_frac=0.6, val_frac=0.2):
+            """Create benign-only training data and stratified validation/test data."""
+            df = self._require_df()
+    
+            label_col = self.config["label_column"]
+            benign_label = self.config["benign_label"]
+    
+            if label_col not in df.columns:
+                raise ValueError(f"Label column {label_col!r} not found.")
+    
+            train, remainder = train_test_split(
+                df,
+                train_size=train_frac,
+                random_state=self.universe.seed,
+                stratify=df[label_col],
+            )
+    
+            val, test = train_test_split(
+                remainder,
+                train_size=val_frac / (1 - train_frac),
+                random_state=self.universe.seed,
+                stratify=remainder[label_col],
+            )
+    
+            self.train = (train[train[label_col] == benign_label].reset_index(drop=True))
+            self.val = val.reset_index(drop=True)
+            self.test = test.reset_index(drop=True)
+            self.df = None
+    
+            logger.info(
+                "Data split: train=%d, validation=%d, test=%d",
+                len(self.train),
+                len(self.val),
+                len(self.test)
+            )   
+
+    # ──────────────────────────────────────────────────────────
+    # Preprocessing                                                 
+    # ──────────────────────────────────────────────────────────
+
+    def duplicates(self):
+        if self.universe.duplicate_handling == "keep":
+            return
+
+        df = self._require_df()
+        before = len(df)
+
+        self.df = df.drop_duplicates()
+
+        logger.info("Dropped %d duplicate rows.", before - len(self.df))
+
+
+    def missingness(self):
+        cols = self.feature_cols
+
+        if not cols:
+            return
+
+        def replace_inf(df: pd.DataFrame):
+            df = df.copy()
+            df[cols] = df[cols].replace([np.inf, -np.inf], np.nan)
+            return df
+
+        self._map_splits(replace_inf)
+
+        if self.universe.missingness == "drop_rows":
+            self._map_splits(
+                lambda df: df.dropna(subset=cols).reset_index(drop=True)
+            )
+            return
+
+
+        if self.universe.missingness == "impute_median":
+            medians = self._require_train()[cols].median()
+
+            def impute(df: pd.DataFrame):
+                df = df.copy()
+                df[cols] = df[cols].fillna(medians)
+                return df
+
+            self._map_splits(impute)
+            return
+
+        raise ValueError(f"Unknown missingness strategy: {self.universe.missingness!r}")
+
+
+    def log_transform(self):
+        if self.universe.log_transform == "none":
+            return
+
+        if self.universe.log_transform != "log1p":
+            raise ValueError(f"Unknown log transform: {self.universe.log_transform!r}")
+
+        cols = self.feature_cols
+
+        if not cols:
+            return
+
+        train = self._require_train()
+        nonnegative = [
+            col for col in cols
+            if (train[col].astype(float) >= 0).all()
+        ]
+        signed = [col for col in cols if col not in nonnegative]
+
+        def transform(df: pd.DataFrame):
+            df = df.copy()
+
+            if nonnegative:
+                values = df[nonnegative].astype(float).clip(lower=0)
+                df[nonnegative] = np.log1p(values)
+
+            if signed:
+                values = df[signed].astype(float)
+                df[signed] = np.sign(values) * np.log1p(np.abs(values))
+
+            return df
+
+        self._map_splits(transform)
+
+
+    def scale(self):
+        cols = self.feature_cols
+
+        if not cols:
+            return
+
+        try:
+            scaler_cls = SCALERS[self.universe.scaling]
+        except KeyError as exc:
+            raise ValueError(f"Unknown Scaling method: {self.universe.scaling!r}") from exc
+
+        kwargs = (
+            {
+                "output_distribution": "normal",
+                "random_state": self.universe.seed,
+            }
+            if self.universe.scaling == "quantile"
+            else {}
+        )
+        scaler = scaler_cls(**kwargs)
+        scaler.fit(self._require_train()[cols])
+        self.scaler = scaler
+
+        def transform(df: pd.DataFrame):
+            df = df.copy()
+            df[cols] = scaler.transform(df[cols])
+            return df
+
+        self._map_splits(transform)
+
+        logger.info(
+            "Applied %s scaling to %d features.",
+            self.universe.scaling,
+            len(cols),
+        )
+
+    # ──────────────────────────────────────────────────────────
+    # IO                                                 
+    # ──────────────────────────────────────────────────────────
+    def save(self):
+        for split, path in zip(
+            self._require_splits(),
+            self.paths,
+            strict=True,
+        ):
+            split.to_parquet(path)
+            logger.info("Saved preprocessed data to %s", path)
+
+    # ──────────────────────────────────────────────────────────
+    # Properties                                                 
+    # ──────────────────────────────────────────────────────────
+    @property
+    def feature_cols(self):
+        train = self._require_train()
+        label_col = self.config["label_column"]
+
+        return [
+            col
+            for col in train.select_dtypes(include="number").columns
+            if col != label_col
+        ]
+
+    @property
+    def paths(self):
+        return tuple(
+            self.universe.paths.preprocessed(split=split)
+            for split in ("train", "val", "test")
+        )
+
+    @property
+    def _status_path(self):
+        return self.universe.paths.preprocessing_status()
+
+    # ──────────────────────────────────────────────────────────
+    # Helpers                                                 
+    # ──────────────────────────────────────────────────────────
+    def _map_splits(self, func: Callable[[pd.DataFrame], pd.DataFrame]):
+        self.train, self.val, self.test = map(
+            func,
+            self._require_splits(),
+        )
+
+    def _require_df(self):
+        if self.df is None:
+            raise RuntimeError("Raw dataframe is not Loaded.")
+        return self.df
+
+    def _require_train(self):
+        if self.train is None:
+            raise RuntimeError("Dataset has not been split.")
+        return self.train
+
+    def _require_splits(self):
+        if self.train is None or self.val is None or self.test is None:
+            raise RuntimeError("Dataset has not been split.")
+        return self.train, self.val, self.test
+
+    def _clear_status(self):
+        try:
+            self._status_path.unlink(missing_ok=True)
         except OSError:
             logger.warning(
-                "Could not remove status file %s after success",
-                status_path,
+                "Could not remove preprocessing status file %s.",
+                self._status_path,
                 exc_info=True,
             )
 
-        return path_train, path_val, path_test
+    @contextmanager
+    def _preprocessing_status(self) -> Generator[None]:
+        self._status_path.write_text("IN_PROGRESS\n", encoding="utf-8")
 
-    except Exception:
-        logger.exception("Preprocessing failed for universe=%s", universe.id)
         try:
-            status_path.write_text("FAILED\n", encoding="utf-8")
-        except OSError:
-            logger.warning(
-                "Could not write FAILED status to %s", status_path, exc_info=True
+            yield
+        except Exception:
+            logger.exception(
+                "Preprocessing failed for universe=%s",
+                self.universe.id,
             )
-        raise
+
+            try:
+                self._status_path.write_text("FAILED\n", encoding="utf-8")
+            except OSError:
+                logger.warning(
+                    "Could not write preprocessing status file %s.",
+                    self._status_path,
+                    exc_info=True,
+                )
+            raise
+        else:
+            self._clear_status()
+

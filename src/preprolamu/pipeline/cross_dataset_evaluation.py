@@ -2,157 +2,115 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Iterable
 from typing import Any
 
-import pandas as pd
 from sklearn.metrics import roc_auc_score
 
-from preprolamu.config import load_dataset_config
-from preprolamu.helpers import feature_matrix_from_df, labels_from_df
-from preprolamu.pipeline.autoencoder import load_autoencoder_for_universe
-from preprolamu.pipeline.evaluation import _recon_error_per_sample, _summarize_errors
-from preprolamu.pipeline.universes import Universe
+from preprolamu.helpers import feature_matrix, labels, load_split
+from preprolamu.pipeline.autoencoder import load_autoencoder, reconstruction_error
+from preprolamu.pipeline.evaluation import summarize_errors
 
 logger = logging.getLogger(__name__)
 
 
-def _feature_group(universe: Universe) -> str:
-    """
-    Check whether this universe has the feature subset included.
-    Because this needs checking often, it is a separate function.
-    """
-    return (
-        "excluded"
-        if universe.get("feature_subset", "without_confounders")
-        else "included"
-    )
+BATCH_SIZE = 2048
 
 
-def _compatible_universes(
-    source_universe: Universe,
-    candidate_universes: Iterable[Universe],
-) -> list[Universe]:
-    source_group = _feature_group(source_universe)
-    return [u for u in candidate_universes if _feature_group(u) == source_group]
-
-
-def _eval_model_on_universe(
-    model_universe: Universe,
-    data_universe: Universe,
-    split="test",
-    batch_size: int = 2048,
-    include_stratified: bool = True,
+def evaluate_on_universe(
+        model,
+        data_universe,
+        *,
+        split: str = "test",
 ) -> dict[str, Any]:
-    ds_cfg = load_dataset_config(model_universe.dataset_id)
-    label_col = ds_cfg["label_column"]
+    """Evaluate a trained autoencoder on a target universe."""
+    df, config = load_split(data_universe, split)
 
-    df = pd.read_parquet(model_universe.io.paths.preprocessed(split=split))
+    label_col = config["label_col"]
+    y = labels(df, label_col)
+    X = feature_matrix(df, label_col)
 
-    y = labels_from_df(df, label_col=label_col)
-    X = feature_matrix_from_df(df, label_col=label_col)
+    # Check that the model's input dimension matches the data's feature dimension
+    expected_dim = model.encoder[0].in_features
+    if expected_dim != X.shape[1]:
+        raise ValueError(f"Model input dimension ({expected_dim}) does not match data feature dimension ({X.shape[1]}).")
+    
+    errors = reconstruction_error(model, X, batch_size=BATCH_SIZE)
 
-    ds_cfg = load_dataset_config(model_universe.dataset_id)
-    model = load_autoencoder_for_universe(model_universe, ds_cfg)
+    benign = y == config["benign_label"]
+    attack = ~benign
 
-    err = _recon_error_per_sample(model, X, batch_size=batch_size)
-
-    out: dict[str, Any] = {
-        "model_universe_id": model_universe.id,
+    return {
         "data_universe_id": data_universe.id,
-        "model_dataset_id": model_universe.dataset_id,
         "data_dataset_id": data_universe.dataset_id,
-        "feature_group": _feature_group(model_universe),
-        "split": split,
-        "label_column": label_col,
-        "recon": _summarize_errors(err),
+        "n_samples": len(y),
+        "roc_auc": float(roc_auc_score(attack.astype(y), errors)),
+        "reconstruction": summarize_errors(errors),
+        "benign": summarize_errors(errors[benign]),
+        "attack": summarize_errors(errors[attack]),
     }
 
-    if y is not None:
-        y_true = (y != "Benign").astype(int)
-        out["roc_auc"] = float(roc_auc_score(y_true, err))
 
-    if include_stratified and (y is not None) and (len(y) == len(err)):
-        benign_mask = y == "Benign"
-        attack_mask = ~benign_mask
-
-        out["recon_benign"] = _summarize_errors(err[benign_mask])
-        out["recon_attack"] = _summarize_errors(err[attack_mask])
-
-        out["n_benign"] = int(benign_mask.sum())
-        out["n_attack"] = int(attack_mask.sum())
-
-    return out
-
-
-def evaluate_autoencoder_cross_reconstruction(
-    model_universe: Universe,
-    all_universes: Iterable[Universe],
-    split: str = "test",
-    batch_size: int = 2048,
-    include_stratified: bool = True,
+def evaluate_generalization(
+        model_universe,
+        universes,
+        *,
+        split: str = "test",
 ) -> dict[str, Any]:
+    """Evaluate one AE on all universes with the same feature subset."""
+    model = load_autoencoder(model_universe)
 
-    compatible = _compatible_universes(model_universe, all_universes)
+    targets = [
+        u for u in universes
+        if u.feature_subset == model_universe.feature_subset
+        and u.id != model_universe.id 
+    ]
 
     results = []
-    for data_universe in compatible:
-        result = _eval_model_on_universe(
-            model_universe=model_universe,
-            data_universe=data_universe,
-            split=split,
-            batch_size=batch_size,
-            include_stratified=include_stratified,
-        )
-        results.append(result)
+
+    for target in targets:
+        try:
+            results.append(
+                evaluate_on_universe(
+                    model,
+                    target,
+                    split=split,
+                )
+            )
+        except ValueError as exc:
+            logger.warning("Skipping target %s: %s", target.id, exc)
 
     return {
         "model_universe_id": model_universe.id,
         "model_dataset_id": model_universe.dataset_id,
-        "feature_group": _feature_group(model_universe),
+        "feature_subset": model_universe.feature_subset,
         "split": split,
-        "n_evaluated_universes": len(results),
-        "cross_recon": results,
+        "n_universes": len(results),
+        "results": results,
     }
 
 
-def evalue_cross(
-    universe: Universe,
-    all_universes: Iterable[Universe],
-    batch_size: int = 2048,
-    overwrite: bool = False,
-    include_stratified: bool = True,
-):
-    out_path = universe.paths.cross_eval_metrics(split="test")
+def save_generalization(
+        universe,
+        universes,
+        *,
+        split: str = "test",
+        overwrite: bool = False,
+) -> None:
+    path = universe.paths.cross_eval_metrics(split=split)
 
-    model_path = universe.paths.ae_model()
-
-    if out_path.exists() and not overwrite:
-        logger.info(
-            "[AE-CROSS-EVAL] Skipping existing eval for universe %s", universe.id
-        )
+    if path.exists() and not overwrite:
+        logger.info("Cross-dataset evaluation already exists at %s. Skipping.", path)
         return
 
-    if not model_path.exists():
-        logger.info("[AE-CROSS-EVAL] Missing model for universe %s", universe.id)
+    if not universe.paths.ae_model().exists():
+        logger.warning("No autoencoder model found for universe %s. Skipping.", universe.id)
         return
 
-    try:
-        result = evaluate_autoencoder_cross_reconstruction(
-            model_universe=universe,
-            all_universes=all_universes,
-            split="test",
-            batch_size=batch_size,
-            include_stratified=include_stratified,
-        )
+    result = evaluate_generalization(
+        universe,
+        universes,
+        split=split,
+    )
 
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=4)
-
-    except FileNotFoundError as e:
-        logger.warning("[AE-CROSS-EVAL] Missing file for %s: %s", universe.id, e)
-
-    except Exception as e:
-        logger.warning("[AE-CROSS-EVAL] Failed for %s: %s", universe.id, e)
-
-    logger.info("[AE-CROSS-EVAL] Evaluation for %s complete.", universe.id)
+    path.write_text(json.dumps(result, indent=4), encoding="utf-8")
+    logger.info("Saved cross-dataset evaluation for %s to %s", universe.id, path)

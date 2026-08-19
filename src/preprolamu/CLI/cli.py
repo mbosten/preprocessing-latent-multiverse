@@ -10,6 +10,7 @@ from typing_extensions import Annotated
 
 from preprolamu.pipeline.autoencoder import create_embedding
 from preprolamu.pipeline.create_tda import run_tda_for_universe
+from preprolamu.pipeline.cross_dataset_evaluation import save_generalization
 from preprolamu.pipeline.evaluation import save_evaluation
 from preprolamu.pipeline.preprocessing import Preprocessor
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
@@ -95,6 +96,24 @@ def prepare_eval(
     u = get_universe(universe_index)
     save_evaluation(u, overwrite=overwrite)
 
+
+@app.command("prepare-cross-evaluation")
+def prepare_cross_eval(
+    universe_index: Annotated[int, typer.Option()] = None,
+    overwrite: Annotated[bool, typer.Option()] = False,
+):
+    if universe_index is None:
+        raise typer.BadParameter("Universe parameter can not currently be None!")
+
+    universes = generate_multiverse()
+    u = get_universe(universe_index)
+
+    save_generalization(
+        universe=u,
+        universes=universes,
+        overwrite=overwrite,
+    )
+    
 
 # list all universes that can be simulated.
 @app.command("list-universes")

@@ -36,8 +36,19 @@ class Preprocessor:
 
         self.scaler: TransformerMixin | None = None
 
+    def process(self):
+        self.load()
+        self.feature_subset()
+        self.duplicates()
+        self.split()
+        self.missingness()
+        self.log_transform()
+        self.scale()
+
+        return self._require_splits()
+
     def run(self, overwrite=False):
-        logger.info("Preprocessing universe=%s", self.universe_id)
+        logger.info("Preprocessing universe=%s", self.universe.id)
 
         if not overwrite and all(path.exists() for path in self.paths):
             logger.info("Preprocessed files already exist. Skipping.")
@@ -45,13 +56,7 @@ class Preprocessor:
             return self.paths
 
         with self._preprocessing_status():
-            self.load()
-            self.feature_subset()
-            self.duplicates()
-            self.split()
-            self.missingness()
-            self.log_transform()
-            self.scale()
+            self.process()
             self.save()
 
         return self.paths

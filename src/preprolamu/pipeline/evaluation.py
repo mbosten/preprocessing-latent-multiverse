@@ -28,25 +28,41 @@ def summarize_errors(errors: np.ndarray) -> dict:
     }
 
 
+def evaluate_model(
+        model,
+        X: np.ndarray,
+        y: np.ndarray,
+        benign_label: str,
+) -> dict:
+    errors = reconstruction_error(model, X)
+
+    benign = y == benign_label
+    attack = ~benign
+
+    return {
+        "reconstruction": summarize_errors(errors),
+        "roc_auc": float(roc_auc_score(attack.astype(int), errors)),
+        "benign": summarize_errors(errors[benign]),
+        "attack": summarize_errors(errors[attack]),
+    }
+
+
 def evaluate_autoencoder(universe: Universe, split: str = "test") -> dict:
     df, config = load_split(universe, split)
 
     y = labels(df, config["label_column"])
     X = feature_matrix(df, config["label_column"])
 
-    errors = reconstruction_error(load_autoencoder(universe), X)
-
-    benign = y == config["benign_label"]
-    attack = ~benign
-
     return {
         "universe_id": universe.id,
         "dataset_id": universe.dataset_id,
         "split": split,
-        "reconstruction": summarize_errors(errors),
-        "roc_auc": float(roc_auc_score(attack.astype(int), errors)),
-        "benign": summarize_errors(errors[benign]),
-        "attack": summarize_errors(errors[attack]),
+        **evaluate_model(
+            load_autoencoder(universe),
+            X,
+            y,
+            config["benign_label"],
+        )
     }
 
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Literal
 
 import typer
+import numpy as np
 from project_utils import setup_logging
 from typing_extensions import Annotated
 
@@ -14,6 +15,7 @@ from preprolamu.pipeline.cross_dataset_evaluation import save_generalization
 from preprolamu.pipeline.evaluation import save_evaluation
 from preprolamu.pipeline.preprocessing import Preprocessor
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
+from preprolamu.tests.pipeline_test import test_pipeline
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(help="Simulation + TDA pipeline")
@@ -113,6 +115,25 @@ def prepare_cross_eval(
         universes=universes,
         overwrite=overwrite,
     )
+
+
+@app.command("test-pipeline")
+def test_pipeline_cli(
+    universe_index: Annotated[int | None, typer.Option()] = None,
+    epochs: Annotated[int, typer.Option()] = 2,
+):
+    """
+    Run the full pipeline for a single universe without saving any results.
+    This function is intended for testing purposes.
+    Leave universe_index as None to randomly select a universe from the multiverse.
+    """
+
+    result = test_pipeline(universe_index=universe_index, epochs=epochs)
+
+    typer.echo(f"Pipeline test successful: {result['universe']}")
+    typer.echo(f"Embedding shape: {result['embedding_shape']}")
+    typer.echo(f"ROC-AUC: {result['roc_auc']:.3f}")
+    typer.echo(f"TDA metrics: {result['tda_metrics']}")
     
 
 # list all universes that can be simulated.

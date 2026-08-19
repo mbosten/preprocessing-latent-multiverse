@@ -13,18 +13,11 @@ def _load_if_exists(path, loader, overwrite):
     return None if overwrite or not path.exists() else loader()
 
 
-def prepare_point_cloud(universe: Universe, split: str = "test"):
-    logger.info("[Embedding] Loading embedding (%s, %s).", universe.id, split)
-
-    latent = universe.io.load_embedding(split=split)
+def prepare_point_cloud(universe: Universe, latent) -> Embedding:
     point_cloud = Embedding(latent_space=latent, universe=universe)
     point_cloud.project_PCA(n_components=universe.pca_dim)
-    scale = point_cloud.normalize(method="diameter", iterations=1000)
-    logger.info("[Embedding] Normalization scale: %s", scale)
-    point_cloud.save(split=split)
-    point_cloud.sample(target_size=universe.tda_config.subsample_size)
-    
-    return point_cloud.latent_space
+    point_cloud.normalize(method="diameter", iterations=1000)
+    return point_cloud
 
 
 def run_tda_for_universe(u: Universe, split="test", overwrite=False):
@@ -49,7 +42,11 @@ def run_tda_for_universe(u: Universe, split="test", overwrite=False):
 
     if intervals is None:
         logger.info(f"[TDA] Computing persistence for universe {u.id} (split={split})")
-        tda.points = prepare_point_cloud(u, split=split)
+        latent = u.io.load_embedding(split=split)
+        point_cloud = prepare_point_cloud(u, latent)
+        point_cloud.save(split=split)
+        point_cloud.sample(target_size=u.tda_config.subsample_size)
+        tda.points = point_cloud.latent_space
         intervals = tda.compute_intervals()
         u.io.save_persistence(split=split, per_dim=intervals)
 
@@ -65,3 +62,11 @@ def run_tda_for_universe(u: Universe, split="test", overwrite=False):
 
     return intervals, landscapes, metrics
 
+
+def compute_tda_for_test(universe: Universe, latent):
+    point_cloud = prepare_point_cloud(universe, latent)
+    point_cloud.sample(target_size=universe.tda_config.subsample_size)
+    tda = Persistence(universe=universe, points=point_cloud.latent_space)
+    tda.compute_intervals()
+    tda.compute_landscapes()
+    return tda.metrics()

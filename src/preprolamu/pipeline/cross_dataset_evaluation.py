@@ -25,7 +25,7 @@ def evaluate_on_universe(
     """Evaluate a trained autoencoder on a target universe."""
     df, config = load_split(data_universe, split)
 
-    label_col = config["label_col"]
+    label_col = config["label_column"]
     y = labels(df, label_col)
     X = feature_matrix(df, label_col)
 

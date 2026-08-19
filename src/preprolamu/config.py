@@ -123,6 +123,7 @@ def prepare_dataset(dataset_id: str = typer.Argument(..., help="Dataset id to pr
     config = load_dataset_config(dataset_id)
 
     df = load_raw(config["raw_path"])
+    df = df.drop(columns="Attack", errors="ignore") 
     df = encode_categoricals(df, config["categorical_columns"])
 
     dataset_profile = profile(df, config)

@@ -8,7 +8,7 @@ from sklearn.decomposition import PCA
 
 logger = logging.getLogger(__name__)
 
-
+# SHOULD I RELY ON UNIVERSE SEEDS HERE OR NAH
 class Embedding:
     def __init__(self, latent_space=None, universe=None):
         self.universe = universe

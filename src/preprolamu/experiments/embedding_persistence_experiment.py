@@ -63,7 +63,7 @@ def main():
         logger.info("All output files already exist. Exiting.")
         return
 
-    latent = u.io.load_embedding(split="test", force_recompute=False)
+    latent = u.io.load_embedding(split="test")
     latent_N, latent_dim = latent.shape
     logger.info("Loaded embedding with shape %s.", latent.shape)
 

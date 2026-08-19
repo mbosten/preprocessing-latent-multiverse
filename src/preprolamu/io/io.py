@@ -87,9 +87,9 @@ class UniverseIO:
         logger.info("[IO] Saving projected point cloud (%s) to %s", split, path)
         np.save(path, arr)
 
-    def load_embedding(self, split: Split, force_recompute: bool = False) -> np.ndarray:
+    def load_embedding(self, split: Split) -> np.ndarray:
         path = self.u.paths.embedding(split)
-        if path.exists() and not force_recompute:
+        if path.exists():
             logger.info(
                 "[Embedding] Loading cached latent (%s) from %s for %s",
                 split,

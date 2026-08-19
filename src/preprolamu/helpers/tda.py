@@ -7,6 +7,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+# REDUNDANT: Integrated into Persistence class
 def mask_infinities(array: np.ndarray) -> np.ndarray:
     """
     Masks infinities from persistence intervals as returned by simplex_tree.persistence_intervals_in_dimension.

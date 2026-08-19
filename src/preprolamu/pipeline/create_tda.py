@@ -16,7 +16,7 @@ def _load_if_exists(path, loader, overwrite):
 def prepare_point_cloud(universe: Universe, split: str = "test"):
     logger.info("[Embedding] Loading embedding (%s, %s).", universe.id, split)
 
-    latent = universe.io.load_embedding(split=split, force_recompute=False)
+    latent = universe.io.load_embedding(split=split)
     point_cloud = Embedding(latent_space=latent, universe=universe)
     point_cloud.project_PCA(n_components=universe.pca_dim)
     scale = point_cloud.normalize(method="diameter", iterations=1000)

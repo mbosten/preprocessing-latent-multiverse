@@ -61,12 +61,3 @@ def run_tda_for_universe(u: Universe, split="test", overwrite=False):
         u.io.save_metrics(split=split, metrics=metrics)
 
     return intervals, landscapes, metrics
-
-
-def compute_tda_for_test(universe: Universe, latent):
-    point_cloud = prepare_point_cloud(universe, latent)
-    point_cloud.sample(target_size=universe.tda_config.subsample_size)
-    tda = Persistence(universe=universe, points=point_cloud.latent_space)
-    tda.compute_intervals()
-    tda.compute_landscapes()
-    return tda.metrics()

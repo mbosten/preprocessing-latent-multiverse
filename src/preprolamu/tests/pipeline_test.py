@@ -5,8 +5,9 @@ import numpy as np
 
 from preprolamu.helpers import feature_matrix, labels
 from preprolamu.pipeline.autoencoder import encode, fit_autoencoder
-from preprolamu.pipeline.create_tda import compute_tda_for_test
+from preprolamu.pipeline.create_tda import prepare_point_cloud
 from preprolamu.pipeline.evaluation import evaluate_model
+from preprolamu.pipeline.persistence import Persistence
 from preprolamu.pipeline.preprocessing import Preprocessor
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
 
@@ -45,9 +46,16 @@ def test_pipeline(
 
     benign = y_test == config["benign_label"]
 
-    logger.info("Computing TDA metrics for test set")
+    logger.info("Encoding test set to latent space")
     latent = encode(model, X_test[benign])
-    tda_metrics = compute_tda_for_test(universe, latent)
+
+    logger.info("Computing TDA metrics for test set")
+    point_cloud = prepare_point_cloud(universe, latent)
+    point_cloud.sample(target_size=universe.tda_config.subsample_size)
+    tda = Persistence(universe=universe, points=point_cloud.latent_space)
+    tda.compute_intervals()
+    tda.compute_landscapes()
+    tda_metrics = tda.metrics()
 
     return {
             "universe": universe.id,

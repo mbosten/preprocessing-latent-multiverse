@@ -4,13 +4,18 @@ from preprolamu.helpers.results import (
     filter_output_by_norm_threshold,
 )
 from preprolamu.helpers.statistics import spearmanr_permutation
-from preprolamu.helpers.tabular import feature_matrix_from_df, labels_from_df
+from preprolamu.helpers.tabular import (
+    load_split,
+    feature_matrix,
+    labels,
+)
 from preprolamu.helpers.tda import mask_infinities
 
 __all__ = [
     "plot_numeric_distributions",
-    "labels_from_df",
-    "feature_matrix_from_df",
+    "load_split",
+    "feature_matrix",
+    "labels",
     "mask_infinities",
     "filter_output_by_norm_threshold",
     "exclude_zero_norms_from_output",

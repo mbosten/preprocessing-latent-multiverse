@@ -13,8 +13,13 @@ from IsoScore import IsoScore
 
 logger = logging.getLogger(__name__)
 
+EMBEDDING_METRIC_SAMPLE_SIZE = 400_000
+EMBEDDING_METRIC_SEED = 42
+
 # More intuitive version of the original function that computes all metrics at once.
-def embedding_metrics(X: np.ndarray) -> dict[str, float]:
+def embedding_metrics(X: np.ndarray, *, sample_size: int = EMBEDDING_METRIC_SAMPLE_SIZE) -> dict[str, float]:
+    X = sample_embedding(X, size=sample_size)
+    
     """Compute unsupervised embedding-quality metrics for a given embedding matrix."""
     u, s, _ = np.linalg.svd(X, compute_uv=True, full_matrices=False)
 
@@ -74,8 +79,23 @@ def report_all_metrics(tensor):
     return dict((fn.__name__, fn(tensor, u=u, s=s)) for fn in fns)
 
 
+def sample_embedding(
+    X: np.ndarray, 
+    *, 
+    size: int = EMBEDDING_METRIC_SAMPLE_SIZE, 
+    seed: int = EMBEDDING_METRIC_SEED
+):
+    if len(X) < size:
+        raise ValueError(f"Cannot sample {size} points from embedding of size {len(X)}")
+
+    rng = np.random.default_rng(seed)
+    indices = rng.choice(len(X), size=size, replace=False)
+    return X[indices]
+
+
 def pseudo_condition_number(tensor, s=None, epsilon=1e-12, **_):
     """Implementation of the pseudo-condition number metric.
+    Interpretation: Smallest vs largest singular value
 
     Args:
       tensor (dense matrix): Input embeddings.
@@ -144,6 +164,7 @@ def self_clustering(tensor, epsilon=1e-12, **_):
 
 def rankme(tensor, s=None, epsilon=1e-12, **_):
     """Implementation of the RankMe metric.
+    Interpretation: effective dimensionality from entropy of singular values.
 
     This metric is defined in "RankMe: Assessing the Downstream Performance of
     Pretrained Self-Supervised Representations by Their Rank". Garrido et al.
@@ -222,6 +243,7 @@ def alpha_req(tensor, s=None, epsilon=1e-12, **_):
 
 def isoscore(points, **_):
     """Implementation wrapper for the IsoScore metric.
+    Interpretation: Uniformity of variance across dimensions
 
     This metric is defined in "IsoScore: Measuring the Uniformity
     of Embedding Space Utilization". Rudman et al., ACL 2022.

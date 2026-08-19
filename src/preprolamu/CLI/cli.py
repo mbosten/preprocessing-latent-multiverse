@@ -8,9 +8,9 @@ import typer
 from project_utils import setup_logging
 from typing_extensions import Annotated
 
-from preprolamu.pipeline.create_embeddings import get_or_compute_latent
+from preprolamu.pipeline.autoencoder import create_embedding
 from preprolamu.pipeline.create_tda import run_tda_for_universe
-from preprolamu.pipeline.evaluation import evalae
+from preprolamu.pipeline.evaluation import save_evaluation
 from preprolamu.pipeline.preprocessing import Preprocessor
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
 
@@ -51,27 +51,19 @@ def prepare_preprocessing(
 def prepare_embeddings(
     universe_index: Annotated[int | None, typer.Option()] = None,
     split: Annotated[Literal["train", "val", "test"], typer.Option()] = "test",
-    retrain_regardless: Annotated[bool, typer.Option()] = False,
-    force_recompute: Annotated[bool, typer.Option()] = False,
+    retrain: Annotated[bool, typer.Option()] = False,
+    overwrite: Annotated[bool, typer.Option()] = False,
 ):
     if universe_index is None:
-        universes = generate_multiverse()
+        raise typer.BadParameter("Universe parameter can not currently be None!")
 
-        for u in universes:
-            get_or_compute_latent(
-                u,
-                split=split,
-                retrain_regardless=retrain_regardless,
-                force_recompute=force_recompute,
-            )
-    else:
-        u = get_universe(universe_index)
-        get_or_compute_latent(
-            u,
-            split=split,
-            retrain_regardless=retrain_regardless,
-            force_recompute=force_recompute,
-        )
+    u = get_universe(universe_index)
+    create_embedding(
+        universe=u,
+        split=split,
+        retrain=retrain,
+        overwrite=overwrite,
+    )
 
 
 # compute persistent homology and related metrics from embeddings.
@@ -84,45 +76,24 @@ def prepare_tda(
     Compute PH metrics for a single universe.
     This function should be parallelized externally to iterate over the multiverse.
     """
-    if universe_index is not None:
-        try:
-            u = get_universe(universe_index)
-        except Exception:
-            raise typer.BadParameter("Not a valid universe index.")
-        run_tda_for_universe(u, overwrite=overwrite)
-    else:
+    if universe_index is None:
         raise typer.BadParameter("Universe parameter can not currently be None!")
+    
+    u = get_universe(universe_index)
+    run_tda_for_universe(u, overwrite=overwrite)
 
 
 # Evaluate each model's performance on test set
 @app.command("prepare-evaluation")
 def prepare_eval(
     universe_index: Annotated[int | None, typer.Option()] = None,
-    batch_size: int = typer.Option(2048, help="Batch size for reconstruction eval"),
     overwrite: Annotated[bool, typer.Option()] = False,
-    include_stratified: bool = typer.Option(
-        True, help="Also compute Benign vs Attack summaries (no thresholding)"
-    ),
 ):
     if universe_index is None:
-        universes = generate_multiverse()
+        raise typer.BadParameter("Universe parameter can not currently be None!")
 
-        for u in universes:
-            evalae(
-                universe=u,
-                batch_size=batch_size,
-                overwrite=overwrite,
-                include_stratified=include_stratified,
-            )
-    else:
-        u = get_universe(universe_index)
-        evalae(
-            universe=u,
-            batch_size=batch_size,
-            overwrite=overwrite,
-            include_stratified=include_stratified,
-        )
-    return None
+    u = get_universe(universe_index)
+    save_evaluation(u, overwrite=overwrite)
 
 
 # list all universes that can be simulated.

@@ -276,7 +276,6 @@ def create_embedding(
     X = feature_matrix(df, config["label_column"])
     latent = encode(load_autoencoder(universe), X)
 
-    path.parent.mkdir(parents=True, exist_ok=True)
     np.save(path, latent)
 
     logger.info("Saved embedding to %s", path)

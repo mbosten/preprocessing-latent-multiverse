@@ -11,6 +11,7 @@ from typing_extensions import Annotated
 from preprolamu.pipeline.autoencoder import create_embedding
 from preprolamu.pipeline.create_tda import run_tda_for_universe
 from preprolamu.pipeline.cross_dataset_evaluation import save_generalization
+from preprolamu.pipeline.embedding_metrics import save_embedding_metrics
 from preprolamu.pipeline.evaluation import save_evaluation
 from preprolamu.pipeline.preprocessing import Preprocessor
 from preprolamu.pipeline.universes import generate_multiverse, get_universe
@@ -67,6 +68,11 @@ def prepare_embeddings(
         overwrite=overwrite,
     )
 
+    save_embedding_metrics(
+        universe=u,
+        split=split,
+        overwrite=overwrite,
+    )
 
 # compute persistent homology and related metrics from embeddings.
 @app.command("prepare-tda")

@@ -1,27 +1,55 @@
-# Unsupervised metrics computation from repository
-# https://github.com/google-research/google-research/tree/master/graph_embedding/metrics
+"""
+Unsupervised embedding-quality metrics.
 
-# coding=utf-8
-# Copyright 2025 The Google Research Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+Adapted from:
+https://github.com/google-research/google-research/tree/master/graph_embedding/metrics
+"""
+from __future__ import annotations
 
-"""A library for computing unsupervised embedding quality metrics."""
-
+import json
+import logging
 import numpy as np
 from IsoScore import IsoScore
 
+logger = logging.getLogger(__name__)
 
+# More intuitive version of the original function that computes all metrics at once.
+def embedding_metrics(X: np.ndarray) -> dict[str, float]:
+    """Compute unsupervised embedding-quality metrics for a given embedding matrix."""
+    u, s, _ = np.linalg.svd(X, compute_uv=True, full_matrices=False)
+
+    return {
+        "rankme": rankme(X, s=s),
+        "rankme_modified": rankme_modified(X, s=s),
+        "coherence": coherence(X, u=u),
+        "pseudo_condition_number": pseudo_condition_number(X, s=s),
+        "alpha_req": alpha_req(X, s=s),
+        "stable_rank": stable_rank(X, s=s),
+        "ne_sum": ne_sum(X),
+        # "self_clustering": self_clustering(X),  # Disabled due to difficulty with large arrays.
+        "isoscore": isoscore(X),
+    }
+
+
+def save_embedding_metrics(
+    universe,
+    *,
+    split: str = "test",
+    overwrite: bool = False,
+):
+    path = universe.paths.embedding_metrics(split=split)
+
+    if path.exists() and not overwrite:
+        logger.info(f"Embedding metrics already exist at {path}. Skipping.")
+        return
+
+    latent = universe.io.load_embedding(split=split)
+    metrics = embedding_metrics(latent)
+
+    path.write_text(json.dumps(metrics, indent=4), encoding="utf-8")
+
+
+# Original aggregating function that is deprecated in favor of the above function.
 def report_all_metrics(tensor):
     """Computes all metric values given a tensor and its SVD.
 
@@ -131,7 +159,21 @@ def rankme(tensor, s=None, epsilon=1e-12, **_):
     """
     if s is None:
         s = np.linalg.svd(tensor, compute_uv=False)
+
+    # Thought: Shouldn't this be: p_ks = s / np.sum(s) + epsilon? See modified version below
     p_ks = s / np.sum(s + epsilon) + epsilon
+    return np.exp(-np.sum(p_ks * np.log(p_ks)))
+
+
+def rankme_modified(tensor, s=None, epsilon=1e-12, **_):
+    """Modified implementation of the RankMe metric.
+    The google source seems to add epsilon twice while the arxiv paper seems to add it only once. This version adds it only once.
+    """
+    if s is None:
+        s = np.linalg.svd(tensor, compute_uv=False)
+
+    # Modified here.
+    p_ks = s / np.sum(s) + epsilon
     return np.exp(-np.sum(p_ks * np.log(p_ks)))
 
 

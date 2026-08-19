@@ -2,68 +2,62 @@
 
 This repository implements a multiverse analysis pipeline for studying how preprocessing variations influence the latent representation of a dataset, using:
 - automatic data cleaning (one-time per dataset),
-- flexible preprocessing via `Universe`,
-- optional autoencoder embeddings,
-- PCA projection + subsampling,
-- alpha complex persistent homology and landscapes,
-- parallel execution (local + SLURM-ready).
+- Preprocessing specification in Universe class,
+- Autoencoder training and embedding,
+- Flexible PCA projection,normalization and sampling of the embedding space. 
+- Modular Alpha complex persistence.
+- \[IN PROGRESS\] Extensive comparison with other embedding quality metrics
+- \[IN PROGRESS\] Cross-dataset generalization evaluation
 
 The pipeline is fully modular and allows systematic exploration of combinations of:
-- scaling choices
-- categorical encodings
-- feature subsets
-- random seeds
-- embedding dimensionality
-- TDA hyperparameters
+- \[BEING UPDATED\]
 
 … producing a complete multiverse of latent-space topologies.
 
 ## Directory Structure
 ```yaml
-project/
-│
-├── config
-│   └── datasets
-│       ├── Merged35.yml
-│       └── NF-ToN-IoT-v3.yml
-├── data
-│   ├── experiments
-│   │   ├── latent
-│   │   ├── pca
-│   │   ├── simple_pd
-│   │   ├── simple_pd_grid
-│   │   └── subsampling
-│   ├── interim
-│   │   ├── autoencoder
-│   │   ├── embeddings
-│   │   ├── landscapes
-│   │   └── persistence
-│   ├── processed
-│   │   └── metrics
-│   └── raw
-├── logs
-├── src
-│   └── preprolamu
-│       ├── experiments
-│       │   └── parameter_sensitivity.py
-│       ├── io
-│       │   └── storage.py
-│       ├── pipeline
-│       │   ├── autoencoder.py
-│       │   ├── create_embeddings.py
-│       │   ├── create_tda.py
-│       │   ├── embeddings.py
-│       │   ├── landscapes.py
-│       │   ├── metrics.py
-│       │   ├── parallel.py
-│       │   ├── persistence.py
-│       │   ├── preprocessing.py
-│       │   ├── tda.py
-│       │   └── universes.py
-│       ├── __init__.py
-│       ├── cli.py
-│       ├── config.py
-│       ├── make_readme_tree.py
-│       └── visualization.py
-└── README.md
+preprolamu
+├── CLI
+│   ├── analyses.py
+│   ├── cli.py
+│   └── plots.py
+├── experiments
+│   ├── PCA_components
+│   │   ├── merge_pca_experiment_csvs.py
+│   │   └── pca_dim_experiment.py
+│   ├── Sample_size
+│   │   ├── merge_sample_experiment_csvs.py
+│   │   └── sample_size_experiment.py
+│   ├── complex_benchmark.py
+│   ├── embedding_persistence_experiment.py
+│   ├── experiment.py
+│   └── single_u_multi_seed_sample_size_experiment.py
+├── helpers
+│   ├── __init__.py
+│   ├── dataset.py
+│   ├── results.py
+│   ├── statistics.py
+│   ├── tabular.py
+│   └── tda.py
+├── io
+│   ├── io.py
+│   └── paths.py
+├── notebooks
+├── pipeline
+│   ├── autoencoder.py
+│   ├── create_tda.py
+│   ├── cross_dataset_evaluation.py
+│   ├── embedding_quality_metrics.py
+│   ├── embeddings.py
+│   ├── evaluation.py
+│   ├── metrics.py
+│   ├── persistence.py
+│   ├── preprocessing.py
+│   └── universes.py
+├── tests
+│   ├── ae_anomaly_check.py
+│   └── aggregate_ae_anomaly_checks.py
+├── __init__.py
+├── config.py
+└── example_plots.py
 ```

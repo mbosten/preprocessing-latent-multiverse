@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Literal
 
 import typer
-import numpy as np
 from project_utils import setup_logging
 from typing_extensions import Annotated
 

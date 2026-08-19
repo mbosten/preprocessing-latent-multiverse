@@ -2,158 +2,61 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
 import numpy as np
-import pandas as pd
-import torch
 from sklearn.metrics import roc_auc_score
-from torch.utils.data import DataLoader, TensorDataset
 
-from preprolamu.config import load_dataset_config
-from preprolamu.helpers import feature_matrix_from_df, labels_from_df
-from preprolamu.pipeline.autoencoder import _get_device, load_autoencoder_for_universe
+from preprolamu.helpers import feature_matrix, labels, load_split
+from preprolamu.pipeline.autoencoder import (
+    load_autoencoder,
+    reconstruction_error,
+)
 from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
 
-def _recon_error_per_sample(
-    model,
-    X: np.ndarray,
-    *,
-    batch_size: int = 2048,
-) -> np.ndarray:
-    device = _get_device()
-    model = model.to(device)
-    model.eval()
-
-    ds = TensorDataset(torch.from_numpy(X))
-    dl = DataLoader(ds, batch_size=batch_size, shuffle=False, drop_last=False)
-
-    errs: list[np.ndarray] = []
-
-    with torch.no_grad():
-        for (bx,) in dl:
-            bx = bx.to(device)
-            xhat = model(bx)
-
-            # per-sample MSE across features (batch,)
-            e = torch.mean((xhat - bx) ** 2, dim=1).detach().cpu().numpy()
-            errs.append(e)
-
-    return np.concatenate(errs, axis=0) if errs else np.array([], dtype=float)
-
-
-def _summarize_errors(err: np.ndarray) -> dict[str, Any]:
-    err = np.asarray(err, dtype=float)
-    err = err[np.isfinite(err)]
-
-    if err.size == 0:
-        return {
-            "n": 0,
-            "mse_mean": np.nan,
-            "mse_median": np.nan,
-            "mse_std": np.nan,
-            "mse_min": np.nan,
-            "mse_max": np.nan,
-            "mse_p90": np.nan,
-            "mse_p95": np.nan,
-            "mse_p99": np.nan,
-        }
+def summarize_errors(errors: np.ndarray) -> dict:
+    errors = errors[np.isfinite(errors)]
 
     return {
-        "n": int(err.size),
-        "mse_mean": float(np.mean(err)),
-        "mse_median": float(np.median(err)),
-        "mse_std": float(np.std(err)),
-        "mse_min": float(np.min(err)),
-        "mse_max": float(np.max(err)),
-        "mse_p90": float(np.quantile(err, 0.90)),
-        "mse_p95": float(np.quantile(err, 0.95)),
-        "mse_p99": float(np.quantile(err, 0.99)),
+        "n": len(errors),
+        "mean": float(np.mean(errors)),
+        "median": float(np.median(errors)),
+        "std": float(np.std(errors)),
+        "p95": float(np.quantile(errors, 0.95)),
     }
 
 
-def evaluate_autoencoder_reconstruction(
-    universe: Universe,
-    *,
-    split: str = "test",
-    batch_size: int = 2048,
-    include_stratified: bool = True,
-) -> dict[str, Any]:
-    ds_cfg = load_dataset_config(universe.dataset_id)
-    label_col = ds_cfg["label_column"]
+def evaluate_autoencoder(universe: Universe, split: str = "test") -> dict:
+    df, config = load_split(universe, split)
 
-    path = universe.paths.preprocessed(split=split)
-    df = pd.read_parquet(path)
+    y = labels(df, config["label_column"])
+    X = feature_matrix(df, config["label_column"])
 
-    y = labels_from_df(df, label_col=label_col)
-    X = feature_matrix_from_df(df, label_col=label_col)
+    errors = reconstruction_error(load_autoencoder(universe), X)
 
-    # Load trained AE
-    model = load_autoencoder_for_universe(universe, ds_cfg)
+    benign = y == config["benign_label"]
+    attack = ~benign
 
-    # Compute per-sample recon MSE
-    err = _recon_error_per_sample(model, X, batch_size=batch_size)
-
-    out: dict[str, Any] = {
+    return {
         "universe_id": universe.id,
         "dataset_id": universe.dataset_id,
         "split": split,
-        "label_column": label_col,
-        "recon": _summarize_errors(err),
+        "reconstruction": summarize_errors(errors),
+        "roc_auc": float(roc_auc_score(attack.astype(int), errors)),
+        "benign": summarize_errors(errors[benign]),
+        "attack": summarize_errors(errors[attack]),
     }
 
-    if y is not None:
-        y_true = (y != "Benign").astype(int)
-        out["roc_auc"] = float(roc_auc_score(y_true, err))
 
-    if include_stratified and (y is not None) and (len(y) == len(err)):
-        benign_mask = y == "Benign"
-        attack_mask = ~benign_mask
+def save_evaluation(universe: Universe, overwrite: bool = False):
+    path = universe.paths.eval_metrics(split="test")
 
-        out["recon_benign"] = _summarize_errors(err[benign_mask])
-        out["recon_attack"] = _summarize_errors(err[attack_mask])
-
-        out["n_benign"] = int(benign_mask.sum())
-        out["n_attack"] = int(attack_mask.sum())
-
-    return out
-
-
-# CLI wrapper which includes saving
-def evalae(
-    universe: Universe,
-    batch_size: int = 2048,
-    overwrite: bool = False,
-    include_stratified: bool = True,
-):
-    out_path = universe.paths.eval_metrics(split="test")
-    model_path = universe.paths.ae_model()
-
-    if out_path.exists() and not overwrite:
-        logger.info("[AE-EVAL] Skipping existing eval for universe %s", universe.id)
-        return
-    if not model_path.exists():
-        logger.info("[AE-EVAL] Missing model for universe %s", universe.id)
+    if path.exists() and not overwrite:
         return
 
-    try:
-        result = evaluate_autoencoder_reconstruction(
-            universe=universe,
-            split="test",
-            batch_size=batch_size,
-            include_stratified=include_stratified,
-        )
-
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2)
-
-    except FileNotFoundError as e:
-        logger.warning("[AE-EVAL] Missing file for %s: %s", universe.id, e)
-
-    except Exception as e:
-        logger.exception("[AE-EVAL] Failed for %s: %s", universe.id, e)
-
-    logger.info(f"[AE-EVAL] Evaluation for {universe.id} complete.")
+    path.write_text(
+        json.dumps(evaluate_autoencoder(universe), indent=4),
+        encoding="utf-8",
+    )

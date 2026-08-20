@@ -4,10 +4,10 @@ import logging
 from pathlib import Path
 
 import numpy as np
-from project_utils import setup_logging
 
-from preprolamu.pipeline.embeddings import Embedding
 from preprolamu.experiments.experiment import Experiment
+from preprolamu.helpers import setup_logging
+from preprolamu.pipeline.embeddings import Embedding
 from preprolamu.pipeline.persistence import Persistence
 from preprolamu.pipeline.universes import get_universe
 

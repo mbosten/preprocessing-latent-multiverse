@@ -8,12 +8,12 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 import typer
-from project_utils import setup_logging
 from typing_extensions import Annotated
 
 from preprolamu.helpers import (
     exclude_zero_norms_from_output,
     filter_output_by_norm_threshold,
+    setup_logging,
 )
 from preprolamu.pipeline.metrics import (
     build_metrics_table,

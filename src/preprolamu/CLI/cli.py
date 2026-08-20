@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Literal
 
 import typer
-from project_utils import setup_logging
 from typing_extensions import Annotated
 
+from preprolamu.helpers import setup_logging
 from preprolamu.pipeline.autoencoder import create_embedding
 from preprolamu.pipeline.create_tda import run_tda_for_universe
 from preprolamu.pipeline.cross_dataset_evaluation import save_generalization

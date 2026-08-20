@@ -8,12 +8,12 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import typer
-from project_utils import setup_logging
 
 from preprolamu.helpers import (
     exclude_zero_norms_from_output,
     filter_output_by_norm_threshold,
     spearmanr_permutation,
+    setup_logging,
 )
 from preprolamu.pipeline.metrics import (
     build_metrics_table,

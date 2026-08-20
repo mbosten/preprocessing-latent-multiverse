@@ -10,7 +10,7 @@ import polars as pl
 import typer
 import yaml
 import json
-from project_utils import setup_logging
+from preprolamu.helpers import setup_logging
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
@@ -118,8 +118,8 @@ def update_profiles(dataset_id, profile: dict[str, dict[str, bool]]):
     PROFILE_PATH.write_text(json.dumps(profiles, indent=4), encoding="utf-8")
 
 
-@app.command()
-def prepare_dataset(dataset_id: str = typer.Argument(..., help="Dataset id to prepare, e.g. NF-CICIDS2018-v3")):
+@app.command("prepare-dataset")
+def prepare_dataset(dataset_id: str = typer.Argument(..., help="Dataset id to prepare, e.g. NF-CICIDS2018-v3, NF-UNSW-NB15-v3 or NF-ToN-IoT-v3")):
     config = load_dataset_config(dataset_id)
 
     df = load_raw(config["raw_path"])

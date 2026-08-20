@@ -27,7 +27,6 @@ dependencies = [
     "ipympl",
     "plotly>=6.5.2",
     "nbformat>=5.10.4",
-    "project_utils",
     "isoscore>=2.0.1",
     "scipy>=1.15.3",
     "faiss-cpu>=1.14.3",
@@ -55,7 +54,6 @@ torch = [
     { index = "pytorch-cpu", marker = "sys_platform != 'linux'" },
     { index = "pytorch-cu126", marker = "sys_platform == 'linux'" }
 ]
-project-utils = { git = "https://github.com/mbosten/project_utils", branch = "main" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

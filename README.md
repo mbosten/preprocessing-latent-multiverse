@@ -35,6 +35,8 @@ preprolamu
 ├── helpers
 │   ├── __init__.py
 │   ├── dataset.py
+│   ├── logging.py
+│   ├── repo.py
 │   ├── results.py
 │   ├── statistics.py
 │   ├── tabular.py
@@ -47,7 +49,7 @@ preprolamu
 │   ├── autoencoder.py
 │   ├── create_tda.py
 │   ├── cross_dataset_evaluation.py
-│   ├── embedding_quality_metrics.py
+│   ├── embedding_metrics.py
 │   ├── embeddings.py
 │   ├── evaluation.py
 │   ├── metrics.py
@@ -56,7 +58,8 @@ preprolamu
 │   └── universes.py
 ├── tests
 │   ├── ae_anomaly_check.py
-│   └── aggregate_ae_anomaly_checks.py
+│   ├── aggregate_ae_anomaly_checks.py
+│   └── pipeline_test.py
 ├── __init__.py
 ├── config.py
 └── example_plots.py

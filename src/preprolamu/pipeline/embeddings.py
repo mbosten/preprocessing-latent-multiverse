@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 
+import matplotlib.pyplot as plt
 import numpy as np
+import plotly.graph_objects as go
 from scipy.spatial.distance import cdist
 from sklearn.decomposition import PCA
 
@@ -206,3 +208,56 @@ class Embedding:
             normalized=True if self.operations["normalized"] is not None else False,
             arr=self.latent_space.astype(np.float32, copy=False),
         )
+
+    # ──────────────────────────────────────────────────────────
+    # Plotting                                                 
+    # ──────────────────────────────────────────────────────────
+    def plot(self, seed=None, interactive=False, subsample=None):
+        if self.latent_space.shape[1] < 3:
+            raise ValueError("Plotting requires at least 3 dimensions.")
+
+        if self.latent_space.shape[1] > 3:
+            logger.warning(
+                "[Embedding] Latent space has %d dimensions. Plotting only the first 3.",
+                self.latent_space.shape[1],
+            )
+
+        X = self.latent_space[:, :3]
+
+        if subsample is not None and subsample < len(X):
+            rng = np.random.default_rng(self._get_seed(seed))
+            X = X[rng.choice(len(X), subsample, replace=False)]
+
+        if interactive:
+            fig = go.Figure(go.Scatter3d(
+                x=X[:, 0], y=X[:, 1], z=X[:, 2],
+                mode='markers',
+                marker=dict(size=1, color='royalblue'),
+                opacity=0.6,
+            ))
+            fig.update_layout(
+                width=1000,
+                height=1000,
+                title=f"Interative 3D point cloud visualization (n={X.shape[0]})",
+                scene=dict(
+                    xaxis_title='X axis',
+                    yaxis_title='Y axis',
+                    zaxis_title='Z axis',
+                    aspectmode='cube'
+                ),
+            )
+            return fig
+
+        fig = plt.figure(figsize=(12, 12))
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(X[:, 0], X[:, 1], X[:, 2], color='royalblue', alpha=0.6, s=1)
+        ax.set(
+            title=f'3D point cloud visualization (n={X.shape[0]})',
+            xlabel='X axis',
+            ylabel='Y axis',
+            zlabel='Z axis'
+        )
+        ax.set_box_aspect([1, 1, 1]) 
+        plt.close(fig)
+        
+        return fig, ax

@@ -19,9 +19,22 @@ def ensure_parent_dir(path: Path) -> Path:
 class UniversePaths:
     u: Universe
 
+    def ae_model(self) -> Path:
+        return ensure_parent_dir(
+            self.u.base_data_dir / "interim" / "autoencoder" / f"{self.u.id}_ae.pt"
+        )
+    
     def clean_data(self) -> Path:
         return ensure_parent_dir(
             self.u.base_data_dir / "raw" / f"{self.u.dataset_id}_clean.parquet"
+        )
+
+    def cross_eval_metrics(self, split: Split = "test") -> Path:
+        return ensure_parent_dir(
+            self.u.base_data_dir
+            / "processed"
+            / "cross_eval_metrics"
+            / f"{self.u.id}_cross_eval_{split}.json"
         )
 
     def embedding(self, split: Split = "test") -> Path:
@@ -32,22 +45,24 @@ class UniversePaths:
             / f"{self.u.id}_latent_{split}.npy"
         )
 
-    def projected(self, split: Split = "test", normalized: bool = False) -> Path:
-        tag = "" if normalized else "_raw"
+    def embedding_metrics(self, split: Split = "test") -> Path:
         return ensure_parent_dir(
             self.u.base_data_dir
-            / "interim"
-            / "projections"
-            / f"{self.u.id}_projected_{split}{tag}.npy"
+            / "processed"
+            / "embedding_metrics"
+            / f"{self.u.id}_embedding_metrics_{split}.json"
         )
 
-    def persistence(self, split: Split = "test") -> Path:
+    def eval_metrics(self, split: Split = "test") -> Path:
         return ensure_parent_dir(
             self.u.base_data_dir
-            / "interim"
-            / "persistence"
-            / f"{self.u.id}_persistence_{split}.npz"
+            / "processed"
+            / "eval_metrics"
+            / f"{self.u.id}_eval_{split}.json"
         )
+
+    def figures(self, filename) -> Path:
+        return ensure_parent_dir(self.u.base_data_dir / "figures" / f"{filename}.png")
 
     def landscapes(self, split: Split = "test") -> Path:
         return ensure_parent_dir(
@@ -65,33 +80,12 @@ class UniversePaths:
             / f"{self.u.id}_metrics_{split}.json"
         )
 
-    def ae_model(self) -> Path:
-        return ensure_parent_dir(
-            self.u.base_data_dir / "interim" / "autoencoder" / f"{self.u.id}_ae.pt"
-        )
-
-    def eval_metrics(self, split: Split = "test") -> Path:
+    def persistence(self, split: Split = "test") -> Path:
         return ensure_parent_dir(
             self.u.base_data_dir
-            / "processed"
-            / "eval_metrics"
-            / f"{self.u.id}_eval_{split}.json"
-        )
-
-    def embedding_metrics(self, split: Split = "test") -> Path:
-        return ensure_parent_dir(
-            self.u.base_data_dir
-            / "processed"
-            / "embedding_metrics"
-            / f"{self.u.id}_embedding_metrics_{split}.json"
-        )
-
-    def cross_eval_metrics(self, split: Split = "test") -> Path:
-        return ensure_parent_dir(
-            self.u.base_data_dir
-            / "processed"
-            / "cross_eval_metrics"
-            / f"{self.u.id}_cross_eval_{split}.json"
+            / "interim"
+            / "persistence"
+            / f"{self.u.id}_persistence_{split}.npz"
         )
 
     def preprocessed(self, split: Split) -> Path:
@@ -109,6 +103,12 @@ class UniversePaths:
             / "preprocessing_status"
             / f"{self.u.id}.status"
         )
-
-    def figures(self, filename) -> Path:
-        return ensure_parent_dir(self.u.base_data_dir / "figures" / f"{filename}.png")
+    
+    def projected(self, split: Split = "test", normalized: bool = False) -> Path:
+        tag = "" if normalized else "_raw"
+        return ensure_parent_dir(
+            self.u.base_data_dir
+            / "interim"
+            / "projections"
+            / f"{self.u.id}_projected_{split}{tag}.npy"
+        )

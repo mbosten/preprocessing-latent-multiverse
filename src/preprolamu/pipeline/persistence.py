@@ -16,8 +16,8 @@ class Persistence:
     def __init__(self, universe=None, points=None, intervals=None, landscapes=None):
         self.universe = universe
         self.points = points
-        self.intervals = intervals
-        self.landscapes = landscapes
+        self.intervals: dict[int, np.ndarray] | None = intervals
+        self.landscapes: dict[int, np.ndarray] | None = landscapes
         self.num_landscapes = None
         self.resolution = None
         self.summed_persistence = None

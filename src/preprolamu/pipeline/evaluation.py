@@ -6,6 +6,7 @@ import logging
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
+from preprolamu.config import load_dataset_config
 from preprolamu.helpers import feature_matrix, labels, load_split
 from preprolamu.pipeline.autoencoder import (
     load_autoencoder,
@@ -48,7 +49,9 @@ def evaluate_model(
 
 
 def evaluate_autoencoder(universe: Universe, split: str = "test") -> dict:
-    df, config = load_split(universe, split)
+    config = load_dataset_config(universe.dataset_id)
+    
+    df = load_split(universe, config, split)
 
     y = labels(df, config["label_column"])
     X = feature_matrix(df, config["label_column"])

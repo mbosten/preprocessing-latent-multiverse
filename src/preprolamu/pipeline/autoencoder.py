@@ -194,8 +194,8 @@ def train_autoencoder(universe: Universe, overwrite: bool = False) -> Path:
     config = load_dataset_config(universe.dataset_id)
     ae = config["autoencoder"]
 
-    train_df, _ = load_split(universe, "train")
-    val_df, _ = load_split(universe, "val")
+    train_df = load_split(universe, config, "train")
+    val_df = load_split(universe, config, "val")
 
     X_train = feature_matrix(train_df, config["label_column"])
     X_val = feature_matrix(val_df, config["label_column"])
@@ -271,7 +271,9 @@ def create_embedding(
 
     train_autoencoder(universe, overwrite=retrain)
 
-    df, config = load_split(universe, split=split, benign_only=(split == "test"))
+    config = load_dataset_config(universe.dataset_id)
+    
+    df = load_split(universe, config, split=split, benign_only=(split == "test"))
 
     X = feature_matrix(df, config["label_column"])
     latent = encode(load_autoencoder(universe), X)

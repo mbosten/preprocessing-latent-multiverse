@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from preprolamu.helpers.dataset import plot_numeric_distributions, dfskimmer
 from preprolamu.helpers.logging import setup_logging
 from preprolamu.helpers.repo import tree

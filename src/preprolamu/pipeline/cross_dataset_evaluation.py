@@ -6,6 +6,7 @@ from typing import Any
 
 from sklearn.metrics import roc_auc_score
 
+from preprolamu.config import load_dataset_config
 from preprolamu.helpers import feature_matrix, labels, load_split
 from preprolamu.pipeline.autoencoder import load_autoencoder, reconstruction_error
 from preprolamu.pipeline.evaluation import summarize_errors
@@ -23,7 +24,9 @@ def evaluate_on_universe(
         split: str = "test",
 ) -> dict[str, Any]:
     """Evaluate a trained autoencoder on a target universe."""
-    df, config = load_split(data_universe, split)
+    config = load_dataset_config(data_universe.dataset_id)
+    
+    df = load_split(data_universe, config, split)
 
     label_col = config["label_column"]
     y = labels(df, label_col)

@@ -6,6 +6,7 @@ import numpy as np
 from preprolamu.helpers import feature_matrix, labels
 from preprolamu.pipeline.autoencoder import encode, fit_autoencoder
 from preprolamu.pipeline.create_tda import prepare_point_cloud
+from preprolamu.pipeline.embedding_metrics import embedding_metrics
 from preprolamu.pipeline.evaluation import evaluate_model
 from preprolamu.pipeline.persistence import Persistence
 from preprolamu.pipeline.preprocessing import Preprocessor
@@ -27,6 +28,7 @@ def test_pipeline(
 
     logger.info("Testing pipeline for universe %s", universe.id)
 
+    # Preprocessing
     preprocessor = Preprocessor(universe)
     train, val, test = preprocessor.process()
 
@@ -38,17 +40,24 @@ def test_pipeline(
     X_test = feature_matrix(test, label_col)
     y_test = labels(test, label_col)
 
+    # AE training
     logger.info("Training autoencoder for %d epochs", epochs)
     model = fit_autoencoder(universe, X_train, X_val, epochs=epochs)
 
+    # AE evaluation
     logger.info("Evaluating model on test set")
     evaluation = evaluate_model(model, X_test, y_test, config["benign_label"])
 
     benign = y_test == config["benign_label"]
 
+    # Get latent space
     logger.info("Encoding test set to latent space")
     latent = encode(model, X_test[benign])
 
+    # Embedding quality metrics
+    quality = embedding_metrics(latent)
+
+    # Compute TDA metrics
     logger.info("Computing TDA metrics for test set")
     point_cloud = prepare_point_cloud(universe, latent)
     point_cloud.sample(target_size=universe.tda_config.subsample_size)
@@ -65,4 +74,5 @@ def test_pipeline(
             "embedding_shape": latent.shape,
             "roc_auc": evaluation["roc_auc"],
             "tda_metrics": tda_metrics,
+            "embedding_metrics": quality,
         }

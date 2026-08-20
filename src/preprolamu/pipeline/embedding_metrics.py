@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 EMBEDDING_METRIC_SAMPLE_SIZE = 400_000
 EMBEDDING_METRIC_SEED = 42
 
+# NOTE: RankMe is predictive of OOD performance for Joint-Embedding self-supervised learning tasks.
+# Perhaps it is therefore also informative for cross-dataset generalization in the current study.
+
 # More intuitive version of the original function that computes all metrics at once.
 def embedding_metrics(X: np.ndarray, *, sample_size: int = EMBEDDING_METRIC_SAMPLE_SIZE) -> dict[str, float]:
     X = sample_embedding(X, size=sample_size)

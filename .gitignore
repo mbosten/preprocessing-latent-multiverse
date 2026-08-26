@@ -32,6 +32,8 @@ Thumbs.db
 RIPSTEST
 *.lower_distance_matrix
 *.out
+notes.md
+notes_files/
 
 # Temporary, unfinished, or deprecated files
 *complex_benchmark.py

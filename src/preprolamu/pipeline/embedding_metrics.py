@@ -21,6 +21,8 @@ EMBEDDING_METRIC_SEED = 42
 
 # More intuitive version of the original function that computes all metrics at once.
 def embedding_metrics(X: np.ndarray, *, sample_size: int = EMBEDDING_METRIC_SAMPLE_SIZE) -> dict[str, float]:
+
+    logger.info("Sampling embedding at size %d for metric computation.", sample_size)
     X = sample_embedding(X, size=sample_size)
     
     """Compute unsupervised embedding-quality metrics for a given embedding matrix."""
@@ -30,11 +32,12 @@ def embedding_metrics(X: np.ndarray, *, sample_size: int = EMBEDDING_METRIC_SAMP
         "rankme": rankme(X, s=s),
         "rankme_modified": rankme_modified(X, s=s),
         "coherence": coherence(X, u=u),
+        "coherence_modified": coherence_modified(X),
         "pseudo_condition_number": pseudo_condition_number(X, s=s),
         "alpha_req": alpha_req(X, s=s),
         "stable_rank": stable_rank(X, s=s),
         "ne_sum": ne_sum(X),
-        # "self_clustering": self_clustering(X),  # Disabled due to difficulty with large arrays.
+        # "self_clustering": self_clustering(X),  # Disabled due to memory issues with large arrays.
         "isoscore": isoscore(X),
     }
 
@@ -129,6 +132,30 @@ def coherence(tensor, u=None, **_):
     return maxu * u.shape[0] / u.shape[1]
 
 
+def coherence_modified(tensor, **_):
+    """Modified implementation of the COMPLETE coherence metric as defined in the paper.
+
+    It is unclear to me why only the above function has been implemented since it seems that we need both the U and V parts.
+    """
+    # compute SVD
+    u, s, vh = np.linalg.svd(tensor, compute_uv=True, full_matrices=False)
+
+    # find the rank of the matrix 
+    r = np.linalg.matrix_rank(tensor)
+
+    if r == 0:
+        raise ValueError("mu_0 incoherence is undefined for the zero matrix.")
+
+    # Compact SVD
+    u = u[:, :r]
+    v = vh[:r, :].T
+
+    mu_u = u.shape[0] / r * np.linalg.norm(u, axis=1).max() ** 2
+    mu_v = v.shape[0] / r * np.linalg.norm(v, axis=1).max() ** 2
+
+    return max(mu_u, mu_v)
+
+
 def stable_rank(tensor, s=None, epsilon=1e-12, **_):
     """Implementation of the stable rank metric.
 
@@ -142,6 +169,7 @@ def stable_rank(tensor, s=None, epsilon=1e-12, **_):
     """
     if s is None:
         s = np.linalg.svd(tensor, compute_uv=False)
+
     trace = np.square(tensor).sum()
     denominator = s[0] * s[0] + epsilon
     return trace / denominator

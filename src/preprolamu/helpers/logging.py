@@ -95,12 +95,21 @@ def setup_logging(
     console_handler.setFormatter(logging.Formatter("%(message)s"))
 
     # --- File handler (full debug info) ---------------------------------------
-
+    class DebugFormatter(logging.Formatter):
+        def format(self, record: logging.LogRecord) -> str:
+            record.source = (
+                f"[{record.lineno}|{record.filename}|{record.funcName}]"
+            )
+            return super().format(record)
+        
     file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(
-        logging.Formatter(
-            "%(levelname)s\t%(asctime)s [%(filename)s:%(funcName)s:%(lineno)s] %(message)s"
+        DebugFormatter(
+            "%(levelname)s\t"
+            "%(asctime)s "
+            "%(source)-65s "
+            "%(message)s"
         )
     )
 

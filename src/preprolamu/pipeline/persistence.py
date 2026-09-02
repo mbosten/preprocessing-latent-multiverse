@@ -97,14 +97,18 @@ class Persistence:
         deaths = self._require_intervals()[0][:, 1]
         return float(2 * np.sum(np.sqrt(deaths)))
 
-
-    def mst_length(self):
+    def mst(self) -> np.ndarray:
         result = mlpack.emst(
             input_=self._require_points(),
             leaf_size=1,
             naive=False,
         )
         edges = result["output"]
+        # Returns a 3D matrix where each row is an edge: [point1_index, point2_index, edge_length]
+        return edges
+
+    def mst_length(self) -> float:
+        edges = self.mst()
         return float(np.sum(edges[:, 2]))
 
 

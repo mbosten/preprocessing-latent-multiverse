@@ -19,7 +19,7 @@ Scaling = Literal["zscore", "minmax", "quantile"]
 LogTransform = Literal["none", "log1p"]
 FeatureSubset = Literal["all", "without_confounders"]
 DuplicateHandling = Literal["drop", "keep"]
-Missingness = Literal["drop_rows", "impute_median"]
+Missingness = Literal["drop_rows", "imp_med"]
 
 DATASET_IDS = (
     "NF-ToN-IoT-v3",
@@ -32,7 +32,7 @@ MULTIVERSE_GRID = {
     "log_transform": ("none", "log1p"),
     "feature_subset": ("all", "without_confounders"),
     "duplicate_handling": ("keep", "drop"),
-    "missingness": ("drop_rows", "impute_median"),
+    "missingness": ("drop_rows", "imp_med"),
     "seed": (42, 420, 4200, 42000),
 }
 

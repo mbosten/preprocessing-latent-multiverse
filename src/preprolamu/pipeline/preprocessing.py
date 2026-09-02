@@ -156,7 +156,7 @@ class Preprocessor:
             return
 
 
-        if self.universe.missingness == "impute_median":
+        if self.universe.missingness == "imp_med":
             medians = self._require_train()[cols].median()
 
             def impute(df: pd.DataFrame):

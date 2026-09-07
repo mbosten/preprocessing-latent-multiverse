@@ -115,6 +115,7 @@ def profile(df: pd.DataFrame, config: DatasetConfig) -> dict[str, dict[str, bool
                 frame,
                 config["label_column"],
             ),
+            "feature_columns": get_feature_columns(frame, config["label_column"]),
         }
         for name, frame in variants.items()
     }
@@ -124,6 +125,21 @@ def has_missing_numeric(df: pd.DataFrame, label_col: str):
     numeric = df.select_dtypes(include="number").drop(columns=label_col, errors="ignore")
     numeric = numeric.replace([np.inf, -np.inf], np.nan)
     return bool(numeric.isna().any().any())
+
+
+def get_feature_columns(df: pd.DataFrame, label_col: str):
+    return [col for col in df.columns if col != label_col]
+
+
+def order_columns(df: pd.DataFrame, label_col: str | None):
+    feature_columns = sorted(col for col in df.columns if col != label_col)
+
+    if label_col is not None and label_col in df.columns:
+        columns = [*feature_columns, label_col]
+    else:
+        columns = feature_columns
+
+    return df.loc[:, columns]
 
 
 def update_profiles(dataset_id, profile: dict[str, dict[str, bool]]):
@@ -147,6 +163,7 @@ def prepare_dataset(dataset_id: str = typer.Argument(..., help="Dataset id to pr
     df = df.drop(columns="Attack", errors="ignore") 
     df = encode_categoricals(df, config["categorical_columns"])
     df = drop_zero_variance(df, config["label_column"])
+    df = order_columns(df, config["label_column"])
 
     dataset_profile = profile(df, config)
 

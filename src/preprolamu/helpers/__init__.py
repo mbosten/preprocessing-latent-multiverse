@@ -14,6 +14,7 @@ from preprolamu.helpers.samplers import (
     hypercube_surface,
     d_gaussian,
     d_gaussian_correlated,
+    helix
 )
 from preprolamu.helpers.statistics import spearmanr_permutation
 from preprolamu.helpers.tabular import (
@@ -41,4 +42,5 @@ __all__ = [
     "hypercube_surface",
     "d_gaussian",
     "d_gaussian_correlated",
+    "helix",
 ]

@@ -57,3 +57,19 @@ def d_gaussian_correlated(n, d, seed=None):
     
     A = rng.normal(size=(d, d))
     return rng.multivariate_normal(np.zeros(d), A @ A.T, n)
+
+
+def helix(n_samples: int = 200):
+    """Sample evenly spaced points from a 1D helix in R^3."""
+    if n_samples < 2:
+        raise ValueError("n_samples must be at least 2")
+
+    t = np.linspace(-1.0, 1.0, n_samples)
+
+    return np.column_stack(
+        (
+            np.sin(2.0 * np.pi * t),
+            np.cos(2.0 * np.pi * t),
+            t,
+        )
+    )

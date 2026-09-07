@@ -78,6 +78,27 @@ def encode_categoricals(df: pd.DataFrame, columns: list[str]):
     return df
 
 
+def drop_zero_variance(df: pd.DataFrame, label_col: str):
+    df = df.copy()
+    feature_df = df.drop(columns=label_col, errors="ignore")
+
+    zero_variance_cols = [
+        col
+        for col in feature_df.columns
+        if feature_df[col].nunique(dropna=False) <= 1
+    ]
+
+    if zero_variance_cols:
+        logger.warning(
+            "[Dataset] Dropping %d zero-variance columns: %s",
+            len(zero_variance_cols),
+            zero_variance_cols,
+        )
+        df = df.drop(columns=zero_variance_cols)
+
+    return df
+
+
 def profile(df: pd.DataFrame, config: DatasetConfig) -> dict[str, dict[str, bool]]:
     variants = {
         "all": df,
@@ -125,6 +146,7 @@ def prepare_dataset(dataset_id: str = typer.Argument(..., help="Dataset id to pr
     df = load_raw(config["raw_path"])
     df = df.drop(columns="Attack", errors="ignore") 
     df = encode_categoricals(df, config["categorical_columns"])
+    df = drop_zero_variance(df, config["label_column"])
 
     dataset_profile = profile(df, config)
 

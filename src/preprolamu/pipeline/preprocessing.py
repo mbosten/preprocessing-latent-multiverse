@@ -171,6 +171,7 @@ class Preprocessor:
 
 
     def log_transform(self):
+        """"Signed log transform."""
         if self.universe.log_transform == "none":
             return
 

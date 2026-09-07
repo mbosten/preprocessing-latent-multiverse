@@ -7,6 +7,14 @@ from preprolamu.helpers.results import (
     exclude_zero_norms_from_output,
     filter_output_by_norm_threshold,
 )
+from preprolamu.helpers.samplers import (
+    torus_surface,
+    d_torus,
+    swiss_roll,
+    hypercube_surface,
+    d_gaussian,
+    d_gaussian_correlated,
+)
 from preprolamu.helpers.statistics import spearmanr_permutation
 from preprolamu.helpers.tabular import (
     load_split,
@@ -27,4 +35,10 @@ __all__ = [
     "setup_logging",
     "spearmanr_permutation",
     "tree",
+    "torus_surface",
+    "d_torus",
+    "swiss_roll",
+    "hypercube_surface",
+    "d_gaussian",
+    "d_gaussian_correlated",
 ]

@@ -140,7 +140,7 @@ def generate_full_multiverse() -> list[Universe]:
 
 def prune_multiverse(
     universes: list[Universe],
-    profiles: dict[str, dict[str, dict[str, bool]]],
+    profiles,
 ) -> list[Universe]:
 
     def redundant(universe: Universe) -> bool:

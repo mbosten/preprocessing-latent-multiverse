@@ -34,8 +34,9 @@ def evaluate_on_universe(
 
     # Check that the model's input dimension matches the data's feature dimension
     expected_dim = model.encoder[0].in_features
-    if expected_dim != X.shape[1]:
-        raise ValueError(f"Model input dimension ({expected_dim}) does not match data feature dimension ({X.shape[1]}).")
+    actual_dim = X.shape[1]
+    if expected_dim != actual_dim:
+        raise ValueError(f"Model input dimension ({expected_dim}) does not match data feature dimension ({actual_dim}).")
     
     errors = reconstruction_error(model, X, batch_size=BATCH_SIZE)
 
@@ -46,6 +47,7 @@ def evaluate_on_universe(
         "data_universe_id": data_universe.id,
         "data_dataset_id": data_universe.dataset_id,
         "n_samples": len(y),
+        "n_features": actual_dim,
         "roc_auc": float(roc_auc_score(attack.astype(y), errors)),
         "reconstruction": summarize_errors(errors),
         "benign": summarize_errors(errors[benign]),
@@ -63,9 +65,10 @@ def evaluate_generalization(
     model = load_autoencoder(model_universe)
 
     targets = [
-        u for u in universes
+        u
+        for u in universes
         if u.feature_subset == model_universe.feature_subset
-        and u.id != model_universe.id 
+        and u.id != model_universe.id
     ]
 
     results = []
@@ -80,12 +83,17 @@ def evaluate_generalization(
                 )
             )
         except ValueError as exc:
-            logger.warning("Skipping target %s: %s", target.id, exc)
+            logger.warning(
+                "Skipping target %s: %s",
+                target.id,
+                exc,
+            )
 
     return {
         "model_universe_id": model_universe.id,
         "model_dataset_id": model_universe.dataset_id,
         "feature_subset": model_universe.feature_subset,
+        "n_features": model.encoder[0].in_features,
         "split": split,
         "n_universes": len(results),
         "results": results,

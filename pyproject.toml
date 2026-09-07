@@ -36,7 +36,7 @@ dependencies = [
 # Allows cli commands to be run as: uv run acb [cli function] [parameters]
 [project.scripts]
 acb = "preprolamu.CLI.cli:app"
-setup = "preprolamu.config:app"
+setup = "preprolamu.tests.config:app"
 plot = "preprolamu.CLI.plots:app"
 analyze = "preprolamu.CLI.analyses:app"
 

@@ -126,12 +126,14 @@ class Embedding:
             scale = 1.0       
 
         self.scale = scale
-        
-        if inplace:
-            self._latent_space /= self.scale
-            self.operations["normalized"] = params
+        X /= self.scale
 
-        return self.scale.copy()
+        if inplace:
+            self._latent_space = X
+            self.operations["normalized"] = params
+            return self.scale.copy()
+
+        return X, self.scale.copy()
         
 
     def project_PCA(self, n_components=3, seed=None, inplace=True):
@@ -189,7 +191,10 @@ class Embedding:
         if target_size < len(self.latent_space):
             rng = np.random.default_rng(seed)
             indices = rng.choice(len(self.latent_space), size=target_size, replace=False)
-            sampled = self.latent_space[indices]
+            if hasattr(self.latent_space, "iloc"):
+                sampled = self.latent_space.iloc[indices]
+            else:
+                sampled = self.latent_space[indices]
         else:
             logger.info("[Embedding] Target size is greater than or equal to the latent space size.")
             sampled = self.latent_space

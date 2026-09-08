@@ -156,11 +156,11 @@ def fit_autoencoder(
         val_loss = _run_epoch(model, val_loader)
     
         logger.info(
-            "AE %s | epoch %d | train %.6f | val %.6f",
-            universe.id,
+            "[AE] epoch %d | train %.6f | val %.6f | universe %s",
             epoch,
             train_loss,
             val_loss,
+            universe.id,
         )
     
         if val_loss < best_loss - min_delta:

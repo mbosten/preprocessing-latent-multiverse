@@ -162,8 +162,8 @@ class Embedding:
         if inplace:
             self._latent_space = projected
             self.operations["pca"] = params
-            logger.info(f"[EMB] PCA projection shape: {self._latent_space.shape}")
 
+        logger.debug("[Embedding] PCA projection shape: %s", projected.shape)
         return projected.copy()
 
 

@@ -14,6 +14,7 @@ def _load_if_exists(path, loader, overwrite):
 
 
 def prepare_point_cloud(universe: Universe, latent) -> Embedding:
+    logger.debug("Point cloud shape prior to operations: %s", latent.shape)
     point_cloud = Embedding(latent_space=latent, universe=universe)
     point_cloud.project_PCA(n_components=universe.pca_dim)
     point_cloud.normalize(method="diameter", iterations=1000)

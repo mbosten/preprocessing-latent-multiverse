@@ -135,10 +135,7 @@ def test_pipeline_cli(
 
     result = test_pipeline(universe_index=universe_index, epochs=epochs)
 
-    typer.echo(f"Pipeline test successful: {result['universe']}")
-    typer.echo(f"Embedding shape: {result['embedding_shape']}")
-    typer.echo(f"ROC-AUC: {result['roc_auc']:.3f}")
-    typer.echo(f"TDA metrics: {result['tda_metrics']}")
+    typer.echo(f"Pipeline test successful:\n{result}")
     
 
 # list all universes that can be simulated.

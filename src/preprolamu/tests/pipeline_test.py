@@ -53,14 +53,16 @@ def test_pipeline(
     # Get latent space
     logger.info("Encoding test set to latent space")
     latent = encode(model, X_test[benign])
-
+    logger.debug("Latent space shape: %s", latent.shape)
     # Embedding quality metrics
     quality = embedding_metrics(latent)
 
     # Compute TDA metrics
-    logger.info("Computing TDA metrics for test set")
+    logger.info("Computing TDA metrics for test set. Latent shape: %s", latent.shape)
     point_cloud = prepare_point_cloud(universe, latent)
+    logger.debug("Point cloud shape: %s", point_cloud.shape)
     point_cloud.sample(target_size=universe.tda_config.subsample_size)
+    logger.debug("Sampled point cloud shape: %s", point_cloud.latent_space.shape)
     tda = Persistence(universe=universe, points=point_cloud.latent_space)
     tda.compute_intervals()
     tda.compute_landscapes()

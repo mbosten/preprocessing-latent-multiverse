@@ -15,8 +15,9 @@ from preprolamu.io.paths import UniversePaths
 logger = logging.getLogger(__name__)
 
 
-Scaling = Literal["zscore", "minmax", "quantile"]
-LogTransform = Literal["none", "log1p"]
+
+Scaling = Literal["robust_iqr", "robust_mad", "quantile_uniform", "quantile_normal"]
+Transform = Literal["none", "log1p", "asinh", "yeo_johnson"]
 FeatureSubset = Literal["all", "without_confounders"]
 DuplicateHandling = Literal["drop", "keep"]
 Missingness = Literal["drop_rows", "imp_med"]
@@ -28,12 +29,12 @@ DATASET_IDS = (
 )
 
 MULTIVERSE_GRID = {
-    "scaling": ("zscore", "minmax", "quantile"),
-    "log_transform": ("none", "log1p"),
+    "scaling": ("robust_iqr", "robust_mad", "quantile_uniform", "quantile_normal"),
+    "transform": ("none", "log1p", "asinh", "yeo_johnson"),
     "feature_subset": ("all", "without_confounders"),
     "duplicate_handling": ("keep", "drop"),
     "missingness": ("drop_rows", "imp_med"),
-    "seed": (42, 420, 4200, 42000),
+    "seed": (42, 420, 4200, 42000, 420000),
 }
 
 PROFILE_PATH = Path("data/interim/metadata/profiles.json")
@@ -51,7 +52,7 @@ class TdaConfig:
 class Universe:
     dataset_id: str
     scaling: Scaling
-    log_transform: LogTransform
+    transform: Transform
     feature_subset: FeatureSubset
     duplicate_handling: DuplicateHandling
     missingness: Missingness
@@ -88,7 +89,7 @@ class Universe:
                 f"{prefix}"
                 f"ds-{self.dataset_id}"
                 f"_sc-{self.scaling}"
-                f"_log-{self.log_transform}"
+                f"_tf-{self.transform}"
                 f"_fs-{self.feature_subset}"
                 f"_dup-{self.duplicate_handling}"
                 f"_miss-{self.missingness}"
@@ -108,7 +109,7 @@ class Universe:
         return {
             "dataset_id": self.dataset_id,
             "scaling": self.scaling,
-            "log_transform": self.log_transform,
+            "transform": self.transform,
             "feature_subset": self.feature_subset,
             "duplicate_handling": self.duplicate_handling,
             "missingness": self.missingness,

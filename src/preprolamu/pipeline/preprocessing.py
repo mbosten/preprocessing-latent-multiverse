@@ -8,19 +8,17 @@ import numpy as np
 import pandas as pd
 from sklearn.base import TransformerMixin
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler, QuantileTransformer, StandardScaler
+from sklearn.preprocessing import (
+    PowerTransformer,
+    QuantileTransformer,
+    RobustScaler,
+    )
 
 from preprolamu.config import load_dataset_config
 from preprolamu.pipeline.universes import Universe
 
 logger = logging.getLogger(__name__)
 
-
-SCALERS = {
-    "zscore": StandardScaler,
-    "minmax": MinMaxScaler,
-    "quantile": QuantileTransformer,
-}
 
 class Preprocessor:
     """Preprocess dataset according to a universe configuration."""
@@ -34,6 +32,7 @@ class Preprocessor:
         self.val:   pd.DataFrame | None = None
         self.test:  pd.DataFrame | None = None
 
+        self.transformer: TransformerMixin | None = None
         self.scaler: TransformerMixin | None = None
 
     def process(self):
@@ -42,7 +41,7 @@ class Preprocessor:
         self.duplicates()
         self.split()
         self.missingness()
-        self.log_transform()
+        self.transform()
         self.scale()
 
         return self._require_splits()
@@ -170,72 +169,83 @@ class Preprocessor:
         raise ValueError(f"Unknown missingness strategy: {self.universe.missingness!r}")
 
 
-    def log_transform(self):
-        """"Signed log transform."""
-        if self.universe.log_transform == "none":
+    def transform(self):
+        method = self.universe.transform
+
+        if method == "none":
             return
 
-        # THIS IS LIKELY REDUNDANT BECAUSE THESE VALUES ARE CONSTRUCTED IN THE UNIVERSE CLASS
-        if self.universe.log_transform != "log1p":
-            raise ValueError(f"Unknown log transform: {self.universe.log_transform!r}")
-
         cols = self.feature_cols
-
         if not cols:
             return
 
-        train = self._require_train()
-        nonnegative = [
-            col for col in cols
-            if (train[col].astype(float) >= 0).all()
-        ]
-        signed = [col for col in cols if col not in nonnegative]
+        if method == "log1p":
+            func = lambda x: np.sign(x) * np.log1p(np.abs(x))
 
-        def transform(df: pd.DataFrame):
+        elif method == "asinh":
+            func = np.arcsinh
+
+        elif method == "yeo_johnson":
+            self.transformer = PowerTransformer(
+                method="yeo-johnson", 
+                standardize=False,
+            ).fit(self._require_train()[cols])
+            
+            func = self.transformer.transform
+
+        else:
+            raise ValueError(f"Unknown transformation: {method!r}")
+
+        def transform_df(df):
             df = df.copy()
-
-            if nonnegative:
-                values = df[nonnegative].astype(float).clip(lower=0)
-                df[nonnegative] = np.log1p(values)
-
-            if signed:
-                values = df[signed].astype(float)
-                df[signed] = np.sign(values) * np.log1p(np.abs(values))
-
+            df[cols] = func(df[cols].astype(float))
             return df
 
-        self._map_splits(transform)
+        self._map_splits(transform_df)
+        logger.info("Applied %s transformation.", method)
 
 
     def scale(self):
-        cols = self.feature_cols
+        method = self.universe.scaling
 
+        if method == "none":
+            return
+        
+        cols = self.feature_cols
         if not cols:
             return
 
-        try:
-            scaler_cls = SCALERS[self.universe.scaling]
-        except KeyError as exc:
-            raise ValueError(f"Unknown Scaling method: {self.universe.scaling!r}") from exc
+        train = self._require_train()[cols]
 
-        kwargs = (
-            {
-                "output_distribution": "normal",
-                "random_state": self.universe.seed,
-            }
-            if self.universe.scaling == "quantile"
-            else {}
-        )
-        scaler = scaler_cls(**kwargs)
-        scaler.fit(self._require_train()[cols])
-        self.scaler = scaler
+        if method == "robust_mad":
+            median = train.median()
+            mad = (train - median).abs().median().replace(0, 1.0)
+            func = lambda x: (x - median) / mad
 
-        def transform(df: pd.DataFrame):
+        elif method == "robust_iqr":
+            scaler = RobustScaler(
+                quantile_range=(25, 75),
+            ).fit(train)
+            self.scaler = scaler
+            func = scaler.transform
+
+        elif method in {"quantile_uniform", "quantile_normal"}:
+            scaler = QuantileTransformer(
+                output_distribution=method.removeprefix("quantile_"),
+                random_state=self.universe.seed,
+            ).fit(train)
+            self.scaler = scaler
+            func = scaler.transform
+
+        else:  
+            raise ValueError(f"Unknown Scaling method: {self.universe.scaling!r}")
+
+        def transform_df(df: pd.DataFrame):
             df = df.copy()
-            df[cols] = scaler.transform(df[cols])
+            df[cols] = func(df[cols])
             return df
 
-        self._map_splits(transform)
+        self._map_splits(transform_df)
 
         logger.info(
             "Applied %s scaling to %d features.",

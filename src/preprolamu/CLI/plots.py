@@ -61,7 +61,7 @@ def _absdev_sum_for_dataset(gdf: pd.DataFrame, *, dims: list[int]) -> pd.DataFra
 # individual violin plot helper
 PARAMS = [
     "scaling",
-    "log_transform",
+    "transform",
     "feature_subset",
     "duplicate_handling",
     "missingness",

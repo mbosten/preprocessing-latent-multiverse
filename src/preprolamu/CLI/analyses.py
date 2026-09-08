@@ -43,7 +43,7 @@ def main():
 # Used in variance, global, local and stability functions
 _PRESTO_PARAMS: list[str] = [
     "scaling",
-    "log_transform",
+    "transform",
     "feature_subset",
     "duplicate_handling",
     "missingness",
@@ -57,7 +57,7 @@ SplitKey = Literal[
     "dataset_id",
     "scaling",
     "feature_subset",
-    "log_transform",
+    "transform",
     "duplicate_handling",
     "missingness",
 ]
@@ -435,7 +435,7 @@ def presto_local_sensitivity(
     split: str = typer.Option("test"),
     param: str = typer.Option(
         "all",
-        help="One of: scaling, log_transform, feature_subset, duplicate_handling, missingness, seed, or 'all'.",
+        help="One of: scaling, transform, feature_subset, duplicate_handling, missingness, seed, or 'all'.",
     ),
     norm_threshold: float | None = typer.Option(
         None,
@@ -548,7 +548,7 @@ def presto_stability_regions(
     split: str = typer.Option("test"),
     param: str = typer.Option(
         "all",
-        help="One of: scaling, log_transform, feature_subset, duplicate_handling, missingness, seed, or 'all'.",
+        help="One of: scaling, transform, feature_subset, duplicate_handling, missingness, seed, or 'all'.",
     ),
     q_low: float = typer.Option(
         0.2, help="Lower quantile for 'stable' equivalence classes."

@@ -33,6 +33,7 @@ def test_pipeline(
     # Preprocessing
     preprocessor = Preprocessor(universe)
     train, val, test = preprocessor.process()
+    logger.debug("Post-preprocess train/val/test shapes: %s/%s/%s", len(train), len(val), len(test))
     logger.debug("[TIME] Preprocessing took %.2f seconds", time.perf_counter() - start1)
     config = preprocessor.config
     label_col = config["label_column"]
@@ -45,12 +46,13 @@ def test_pipeline(
     # AE training
     logger.info("Training autoencoder for %d epochs", epochs)
     start2 = time.perf_counter()
+    logger.debug("pre-train data shapes: X_train=%s, X_val=%s, X_test=%s", X_train.shape, X_val.shape, X_test.shape)
     model = fit_autoencoder(universe, X_train, X_val, epochs=epochs)
 
     # AE evaluation
     logger.info("Evaluating model on test set")
     evaluation = evaluate_model(model, X_test, y_test, config["benign_label"])
-
+    logger.debug("Post-evaluation test shapes: X_test=%s, y_test=%s", X_test.shape, y_test.shape)
     benign = y_test == config["benign_label"]
     logger.debug("[TIME] Training and evaluation took %.2f seconds", time.perf_counter() - start2)
     # Get latent space

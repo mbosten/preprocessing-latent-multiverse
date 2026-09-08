@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 SEED = 42  # Default seed for reproducibility
+COLLAPSE_STD_THRESHOLD = 1e-5
 
 # Autoencoder architecture class
 class Autoencoder(nn.Module):
@@ -265,9 +266,14 @@ def create_embedding(
         overwrite: bool = False,
 ) -> np.ndarray:
     path = universe.paths.embedding(split=split)
+    collapsed_path = path.with_name(f"{path.stem}_collapsed{path.suffix}")
 
-    if path.exists() and not overwrite:
-        return np.load(path)
+    if not overwrite:
+        if path.exists():
+            return np.load(path)
+        if collapsed_path.exists():
+            logger.info("Skipping previously collapsed embedding at %s", collapsed_path)
+            return None
 
     train_autoencoder(universe, overwrite=retrain)
 
@@ -278,7 +284,27 @@ def create_embedding(
     X = feature_matrix(df, config["label_column"])
     latent = encode(load_autoencoder(universe), X)
 
+    # Singularity check
+    std = np.std(latent, axis=0, dtype=np.float64)
+    max_std = float(np.max(std))
+
+    if max_std < COLLAPSE_STD_THRESHOLD:
+        np.save(collapsed_path, latent)
+        path.unlink(missing_ok=True)
+        logger.warning(
+            "Collapsed embedding detected for universe %s (split=%s). "
+            "Max std: %.6e < threshold %.6e. "
+            "Saved collapsed embedding to %s",
+            universe.id,
+            split,
+            max_std,
+            COLLAPSE_STD_THRESHOLD,
+            collapsed_path,
+        )
+        return None
+
     np.save(path, latent)
+    collapsed_path.unlink(missing_ok=True)
 
     logger.info("Saved embedding to %s", path)
     return latent

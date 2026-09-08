@@ -66,7 +66,7 @@ def test_pipeline(
     logger.info("Computing TDA metrics for test set. Latent shape: %s", latent.shape)
     start4 = time.perf_counter()
     point_cloud = prepare_point_cloud(universe, latent)
-    logger.debug("Point cloud shape: %s", point_cloud.shape)
+    logger.debug("Point cloud shape: %s", point_cloud.latent_space.shape)
     point_cloud.sample(target_size=universe.tda_config.subsample_size)
     logger.debug("[TIME] Point cloud prep took %.2f seconds", time.perf_counter() - start4)
     logger.debug("Sampled point cloud shape: %s", point_cloud.latent_space.shape)

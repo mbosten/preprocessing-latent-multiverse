@@ -235,9 +235,13 @@ def encode(model: Autoencoder, X: np.ndarray, batch_size: int = 4096):
     loader = _loader(X, batch_size)
     latent = []
 
+    # ensure model is on the same device as the data
+    model_device = next(model.parameters()).device
+
     with torch.no_grad():
         for (batch,) in loader:
-            latent.append(model.encoder(batch.to(device())).cpu().numpy())
+            batch = batch.to(model_device)
+            latent.append(model.encoder(batch).cpu().numpy())
 
     return np.concatenate(latent, axis=0)
 
@@ -246,9 +250,13 @@ def reconstruction_error(model: Autoencoder, X: np.ndarray, batch_size: int = 40
     loader = _loader(X, batch_size)
     errors = []
 
+    # ensure model is on the same device as the data
+    model_device = next(model.parameters()).device
+
     with torch.no_grad():
         for (batch,) in loader:
-            recon = model(batch.to(device()))
+            batch = batch.to(model_device)
+            recon = model(batch)
             errors.append(
                 torch.mean((recon - batch) ** 2, dim=1)
                 .cpu()

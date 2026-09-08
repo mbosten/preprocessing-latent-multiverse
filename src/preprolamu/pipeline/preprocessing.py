@@ -152,7 +152,6 @@ class Preprocessor:
             self._map_splits(
                 lambda df: df.dropna(subset=cols).reset_index(drop=True)
             )
-            logger.debug("Post-missingness train/val/test shapes: %s/%s/%s", len(self.train), len(self.val), len(self.test))
             return
 
 
@@ -165,7 +164,6 @@ class Preprocessor:
                 return df
 
             self._map_splits(impute)
-            logger.debug("Post-missingness train/val/test shapes: %s/%s/%s", len(self.train), len(self.val), len(self.test))
             return
 
         raise ValueError(f"Unknown missingness strategy: {self.universe.missingness!r}")
@@ -205,7 +203,6 @@ class Preprocessor:
 
         self._map_splits(transform_df)
         logger.info("Applied %s transformation.", method)
-        logger.debug("Post-transformation train/val/test shapes: %s/%s/%s", len(self.train), len(self.val), len(self.test))
 
 
     def scale(self):
@@ -255,7 +252,6 @@ class Preprocessor:
             self.universe.scaling,
             len(cols),
         )
-        logger.debug("Post-scaling train/val/test shapes: %s/%s/%s", len(self.train), len(self.val), len(self.test))
 
     # ──────────────────────────────────────────────────────────
     # IO                                                 

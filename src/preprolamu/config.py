@@ -141,6 +141,7 @@ def update_profiles(dataset_id, profile: dict[str, dict[str, bool]]):
 
 @app.command("prepare-dataset")
 def prepare_dataset(dataset_id: str = typer.Argument(..., help="Dataset id to prepare, e.g. NF-CICIDS2018-v3, NF-UNSW-NB15-v3 or NF-ToN-IoT-v3")):
+    typer.echo("Preparing dataset: %s" % dataset_id)
     config = load_dataset_config(dataset_id)
 
     df = load_raw(config["raw_path"])

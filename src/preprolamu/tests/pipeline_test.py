@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import numpy as np
+import time
 
 from preprolamu.helpers import feature_matrix, labels
 from preprolamu.pipeline.autoencoder import encode, fit_autoencoder
@@ -28,10 +29,11 @@ def test_pipeline(
 
     logger.info("Testing pipeline for universe %s", universe.id)
 
+    start1 = time.perf_counter()
     # Preprocessing
     preprocessor = Preprocessor(universe)
     train, val, test = preprocessor.process()
-
+    logger.debug("[TIME] Preprocessing took %.2f seconds", time.perf_counter() - start1)
     config = preprocessor.config
     label_col = config["label_column"]
 
@@ -42,6 +44,7 @@ def test_pipeline(
 
     # AE training
     logger.info("Training autoencoder for %d epochs", epochs)
+    start2 = time.perf_counter()
     model = fit_autoencoder(universe, X_train, X_val, epochs=epochs)
 
     # AE evaluation
@@ -49,25 +52,30 @@ def test_pipeline(
     evaluation = evaluate_model(model, X_test, y_test, config["benign_label"])
 
     benign = y_test == config["benign_label"]
-
+    logger.debug("[TIME] Training and evaluation took %.2f seconds", time.perf_counter() - start2)
     # Get latent space
     logger.info("Encoding test set to latent space")
     latent = encode(model, X_test[benign])
     logger.debug("Latent space shape: %s", latent.shape)
     # Embedding quality metrics
+    start3 = time.perf_counter()
     quality = embedding_metrics(latent)
 
+    logger.debug("[TIME] Embedding quality metrics took %.2f seconds", time.perf_counter() - start3)
     # Compute TDA metrics
     logger.info("Computing TDA metrics for test set. Latent shape: %s", latent.shape)
+    start4 = time.perf_counter()
     point_cloud = prepare_point_cloud(universe, latent)
     logger.debug("Point cloud shape: %s", point_cloud.shape)
     point_cloud.sample(target_size=universe.tda_config.subsample_size)
+    logger.debug("[TIME] Point cloud prep took %.2f seconds", time.perf_counter() - start4)
     logger.debug("Sampled point cloud shape: %s", point_cloud.latent_space.shape)
+    start5 = time.perf_counter()
     tda = Persistence(universe=universe, points=point_cloud.latent_space)
     tda.compute_intervals()
     tda.compute_landscapes()
     tda_metrics = tda.metrics()
-
+    logger.debug("[TIME] TDA metrics took %.2f seconds", time.perf_counter() - start5)
     return {
             "universe": universe.id,
             "train_shape": X_train.shape,

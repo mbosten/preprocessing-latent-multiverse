@@ -165,7 +165,7 @@ def coherence(tensor, u=None, **_):
     if u is None:
         u, _, _ = np.linalg.svd(tensor, compute_uv=True, full_matrices=False)
     maxu = np.linalg.norm(u, axis=1).max() ** 2
-    return maxu * u.shape[0] / u.shape[1]
+    return float(maxu * u.shape[0] / u.shape[1])
 
 
 
@@ -192,7 +192,7 @@ def coherence_modified(tensor, u=None, v=None, **_):
     mu_u = u.shape[0] / r * np.linalg.norm(u, axis=1).max() ** 2
     mu_v = v.shape[0] / r * np.linalg.norm(v, axis=1).max() ** 2
 
-    return max(mu_u, mu_v)
+    return float(max(mu_u, mu_v))
 
 
 def stable_rank(tensor, s=None, epsilon=1e-12, **_):
@@ -211,7 +211,7 @@ def stable_rank(tensor, s=None, epsilon=1e-12, **_):
 
     trace = np.square(tensor).sum()
     denominator = s[0] * s[0] + epsilon
-    return trace / denominator
+    return float(trace / denominator)
 
 
 def self_clustering(tensor, epsilon=1e-12, **_):
@@ -229,7 +229,7 @@ def self_clustering(tensor, epsilon=1e-12, **_):
     n, d = tensor.shape
     expected = n + n * (n - 1) / d
     actual = np.sum(np.square(tensor @ tensor.T))
-    return (actual - expected) / (n * n - expected)
+    return float((actual - expected) / (n * n - expected))
 
 
 def rankme(tensor, s=None, epsilon=1e-12, **_):
@@ -253,7 +253,7 @@ def rankme(tensor, s=None, epsilon=1e-12, **_):
 
     # Thought: Shouldn't this be: p_ks = s / np.sum(s) + epsilon? See modified version below
     p_ks = s / np.sum(s + epsilon) + epsilon
-    return np.exp(-np.sum(p_ks * np.log(p_ks)))
+    return float(np.exp(-np.sum(p_ks * np.log(p_ks))))
 
 
 def rankme_modified(tensor, s=None, epsilon=1e-12, **_):
@@ -265,7 +265,7 @@ def rankme_modified(tensor, s=None, epsilon=1e-12, **_):
 
     # Modified here.
     p_ks = s / np.sum(s) + epsilon
-    return np.exp(-np.sum(p_ks * np.log(p_ks)))
+    return float(np.exp(-np.sum(p_ks * np.log(p_ks))))
 
 
 def ne_sum(tensor, epsilon=1e-12, **_):
@@ -284,7 +284,7 @@ def ne_sum(tensor, epsilon=1e-12, **_):
     """
     cov_t = np.cov(tensor.T)
     ei_t = np.linalg.eigvalsh(cov_t) + epsilon
-    return (ei_t / ei_t[-1]).sum()
+    return float((ei_t / ei_t[-1]).sum())
 
 
 def alpha_req(tensor, s=None, epsilon=1e-12, **_):
@@ -308,7 +308,7 @@ def alpha_req(tensor, s=None, epsilon=1e-12, **_):
     s = s + epsilon
     features = np.vstack([np.linspace(1, 0, n), np.ones(n)]).T
     a, _, _, _ = np.linalg.lstsq(features, np.log(s), rcond=None)
-    return a[0]
+    return float(a[0])
 
 
 def isoscore(points, **_):
@@ -325,7 +325,7 @@ def isoscore(points, **_):
     Returns:
       float: IsoScore metric value.
     """
-    return IsoScore.IsoScore(points)
+    return float(IsoScore.IsoScore(points))
 
 
 def idest(X, edges, min_sample_size, steps, seed=EMBEDDING_METRIC_SEED, **_):

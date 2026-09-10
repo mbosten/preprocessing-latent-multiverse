@@ -28,7 +28,7 @@ def embedding_metrics(
         X: np.ndarray, 
         *, 
         sample_size: int = EMBEDDING_METRIC_SAMPLE_SIZE,
-        mst_dimension_alpha: float = 2.0,
+        mst_dimension_alpha: float = 1.0,
         mst_local_dimension_hops: tuple[int, ...] | None = (1, 2, 4, 8, 16, 32),
         mst_local_dimension_sample_size: int = 1024,
         return_local_details: bool = False,
@@ -64,6 +64,7 @@ def embedding_metrics(
         "ne_sum": ne_sum(X),
         # "self_clustering": self_clustering(X),  # Disabled due to memory issues with large arrays.
         "isoscore": isoscore(X),
+        "IdEst": idest(X, edges, min_sample_size=len(X) // 16, steps=10),
         "MST_length": mst_length(edges),
         "MST_dimension_utilization": mst_dimension_utilization(X, edges, alpha=mst_dimension_alpha),
         "MST_local_dimension_utilization": None if mst_local_dimension_hops is None else local_mst,
@@ -83,7 +84,14 @@ def save_embedding_metrics(
         return
 
     latent = universe.io.load_embedding(split=split)
-    metrics = embedding_metrics(latent)
+    metrics = embedding_metrics(
+        X=latent,
+        sample_size=EMBEDDING_METRIC_SAMPLE_SIZE,
+        mst_dimension_alpha=1.0,
+        mst_local_dimension_hops=tuple(range(1, 101, 1)),
+        mst_local_dimension_sample_size=1024,
+        return_local_details=False,
+        )
 
     path.write_text(json.dumps(metrics, indent=4), encoding="utf-8")
 
@@ -318,6 +326,26 @@ def isoscore(points, **_):
       float: IsoScore metric value.
     """
     return IsoScore.IsoScore(points)
+
+
+def idest(X, edges, min_sample_size, steps, seed=EMBEDDING_METRIC_SEED, **_):
+    """Estimate intrinsic dimension from MST-length scaling. 
+    Metric is defined in https://openreview.net/forum?id=A9r5l1qKCK
+    "IdEst: Assessing Self-Supervised Learning Representations via Intrinsic Dimension"
+    """
+
+    # geomspace to equally space on log scale rather than linear scale.
+    sizes = np.geomspace(min_sample_size, len(X), steps).astype(int)
+    rng = np.random.default_rng(seed)
+
+    lengths = [
+        mst_length(edges) if n == len(X) and edges is not None
+        else mst_length(mst(X[rng.choice(len(X), size=n, replace=False)]))
+        for n in sizes
+    ]
+
+    slope = np.polyfit(np.log(sizes), np.log(lengths), 1)[0]
+    return float(1 / (1 - slope))
 
 
 def mst(X: np.ndarray) -> np.ndarray:

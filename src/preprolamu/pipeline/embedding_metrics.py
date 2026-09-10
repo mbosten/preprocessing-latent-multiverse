@@ -149,7 +149,7 @@ def pseudo_condition_number(tensor, s=None, epsilon=1e-12, **_):
     """
     if s is None:
         s = np.linalg.svd(tensor, compute_uv=False)
-    return s[-1] / (s[0] + epsilon)
+    return float(s[-1] / (s[0] + epsilon))
 
 
 def coherence(tensor, u=None, **_):

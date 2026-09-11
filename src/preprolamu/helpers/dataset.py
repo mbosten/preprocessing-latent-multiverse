@@ -25,7 +25,7 @@ def plot_numeric_distributions(
     """
 
     numeric_cols = (
-        df.select_dtypes(include="integer")
+        df.select_dtypes(include="number")
         .columns
         .drop(target, errors="ignore")
     )

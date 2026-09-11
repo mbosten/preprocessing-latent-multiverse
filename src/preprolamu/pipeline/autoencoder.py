@@ -246,19 +246,27 @@ def encode(model: Autoencoder, X: np.ndarray, batch_size: int = 4096):
     return np.concatenate(latent, axis=0)
 
 
-def reconstruction_error(model: Autoencoder, X: np.ndarray, batch_size: int = 4096):
+def reconstruction_error(model: Autoencoder, X: np.ndarray, feature_var: np.ndarray | None = None, batch_size: int = 4096):
     loader = _loader(X, batch_size)
     errors = []
 
     # ensure model is on the same device as the data
     model_device = next(model.parameters()).device
 
+    if feature_var is not None:
+        feature_var = torch.from_numpy(feature_var).to(model_device)
+    
     with torch.no_grad():
         for (batch,) in loader:
             batch = batch.to(model_device)
             recon = model(batch)
+            squared_error = (recon - batch) ** 2
+
+            if feature_var is not None:
+                squared_error  = squared_error / feature_var
+
             errors.append(
-                torch.mean((recon - batch) ** 2, dim=1)
+                torch.mean(squared_error, dim=1)
                 .cpu()
                 .numpy()
             )

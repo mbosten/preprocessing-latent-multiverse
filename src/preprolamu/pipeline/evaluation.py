@@ -33,9 +33,10 @@ def evaluate_model(
         model,
         X: np.ndarray,
         y: np.ndarray,
+        feature_var: np.ndarray | None,
         benign_label: str,
 ) -> dict:
-    errors = reconstruction_error(model, X)
+    errors = reconstruction_error(model, X, feature_var=feature_var)
 
     benign = y == benign_label
     attack = ~benign
@@ -56,6 +57,12 @@ def evaluate_autoencoder(universe: Universe, split: str = "test") -> dict:
     y = labels(df, config["label_column"])
     X = feature_matrix(df, config["label_column"])
 
+    # Required for normalization of the reconstruction error
+    train_df = load_split(universe, config, split="train")
+    X_train = feature_matrix(train_df, config["label_column"])
+    feature_var = np.var(X_train, axis=0)
+    feature_var = np.maximum(feature_var, 1e-6)
+
     return {
         "universe_id": universe.id,
         "dataset_id": universe.dataset_id,
@@ -64,6 +71,7 @@ def evaluate_autoencoder(universe: Universe, split: str = "test") -> dict:
             load_autoencoder(universe),
             X,
             y,
+            feature_var,
             config["benign_label"],
         )
     }

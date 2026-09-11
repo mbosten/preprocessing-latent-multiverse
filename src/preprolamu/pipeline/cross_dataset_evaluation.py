@@ -4,6 +4,8 @@ import json
 import logging
 from typing import Any
 
+import numpy as np
+
 from sklearn.metrics import roc_auc_score
 
 from preprolamu.config import load_dataset_config
@@ -22,6 +24,7 @@ def evaluate_on_universe(
         data_universe,
         *,
         split: str = "test",
+        feature_var: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Evaluate a trained autoencoder on a target universe."""
     config = load_dataset_config(data_universe.dataset_id)
@@ -38,7 +41,7 @@ def evaluate_on_universe(
     if expected_dim != actual_dim:
         raise ValueError(f"Model input dimension ({expected_dim}) does not match data feature dimension ({actual_dim}).")
     
-    errors = reconstruction_error(model, X, batch_size=BATCH_SIZE)
+    errors = reconstruction_error(model, X, batch_size=BATCH_SIZE, feature_var=feature_var)
 
     benign = y == config["benign_label"]
     attack = ~benign
@@ -71,6 +74,13 @@ def evaluate_generalization(
         and u.id != model_universe.id
     ]
 
+    # Required for normalization of the reconstruction error
+    config = load_dataset_config(model_universe.dataset_id)
+    train_df = load_split(model_universe, config, split="train")
+    X_train = feature_matrix(train_df, config["label_column"])
+    feature_var = np.var(X_train, axis=0)
+    feature_var = np.maximum(feature_var, 1e-6)
+
     results = []
 
     for target in targets:
@@ -80,6 +90,7 @@ def evaluate_generalization(
                     model,
                     target,
                     split=split,
+                    feature_var=feature_var,
                 )
             )
         except ValueError as exc:

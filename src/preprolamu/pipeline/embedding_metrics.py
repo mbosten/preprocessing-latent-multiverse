@@ -83,6 +83,14 @@ def save_embedding_metrics(
         logger.info(f"Embedding metrics already exist at {path}. Skipping.")
         return
 
+    if universe.collapsed(split=split):
+        logger.info(
+            "Skipping embedding metrics for collapsed embedding: %s (split=%s)",
+            universe.id,
+            split,
+        )
+        return
+    
     latent = universe.io.load_embedding(split=split)
     metrics = embedding_metrics(
         X=latent,

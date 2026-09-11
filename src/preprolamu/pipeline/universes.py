@@ -105,6 +105,9 @@ class Universe:
     def io(self) -> UniverseIO:
         return UniverseIO(self)
 
+    def collapsed(self, split="test") -> bool:
+        return self.paths.collapsed_embedding(split=split).exists()
+
     def to_param_dict(self) -> dict[str, Any]:
         return {
             "dataset_id": self.dataset_id,

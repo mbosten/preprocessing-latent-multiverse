@@ -274,7 +274,7 @@ def create_embedding(
         overwrite: bool = False,
 ) -> np.ndarray:
     path = universe.paths.embedding(split=split)
-    collapsed_path = path.with_name(f"{path.stem}_collapsed{path.suffix}")
+    collapsed_path = universe.paths.collapsed_embedding(split=split)
 
     if not overwrite:
         if path.exists():

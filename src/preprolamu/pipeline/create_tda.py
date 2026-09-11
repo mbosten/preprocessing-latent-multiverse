@@ -20,9 +20,15 @@ def prepare_point_cloud(universe: Universe, latent) -> Embedding:
     point_cloud.normalize(method="diameter", iterations=1000)
     return point_cloud
 
-
+# NOTE: This split parameter depends on the parameter setting during the AE step. 
 def run_tda_for_universe(u: Universe, split="test", overwrite=False):
-    # NOTE: This split parameter depends on the parameter setting during the AE step. 
+    
+    if u.collapsed(split=split):
+        logger.info(
+            "Skipping TDA for collapsed embedding: %s (split=%s)", u.id, split
+        )
+        return None, None, None
+    
     intervals = _load_if_exists(
         u.paths.persistence(split=split),
         lambda: u.io.load_persistence(split=split),

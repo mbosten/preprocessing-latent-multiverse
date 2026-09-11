@@ -29,6 +29,14 @@ class UniversePaths:
             self.u.base_data_dir / "raw" / f"{self.u.dataset_id}_clean.parquet"
         )
 
+    def collapsed_embedding(self, split: Split = "test") -> Path:
+        return (
+            self.u.base_data_dir
+            / "interim"
+            / "embeddings"
+            / f"{self.u.id}_latent_{split}_collapsed.npy"
+        )
+
     def cross_eval_metrics(self, split: Split = "test") -> Path:
         return ensure_parent_dir(
             self.u.base_data_dir

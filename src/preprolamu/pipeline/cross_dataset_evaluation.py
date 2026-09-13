@@ -51,7 +51,7 @@ def evaluate_on_universe(
         "data_dataset_id": data_universe.dataset_id,
         "n_samples": len(y),
         "n_features": actual_dim,
-        "roc_auc": float(roc_auc_score(attack.astype(y), errors)),
+        "roc_auc": float(roc_auc_score(attack.astype(int), errors)),
         "reconstruction": summarize_errors(errors),
         "benign": summarize_errors(errors[benign]),
         "attack": summarize_errors(errors[attack]),

@@ -74,6 +74,11 @@ def evaluate_generalization(
         and u.id != model_universe.id
     ]
 
+    logger.info("Evaluating generalization of model from universe %s on %d target universes.",
+            model_universe.id,
+            len(targets) - 1,
+        )
+
     # Required for normalization of the reconstruction error
     config = load_dataset_config(model_universe.dataset_id)
     train_df = load_split(model_universe, config, split="train")
@@ -83,7 +88,8 @@ def evaluate_generalization(
 
     results = []
 
-    for target in targets:
+    for i, target in enumerate(targets, start=1):
+        logger.info("[CROSSEVAL] u-%04d [%d/%d] -> u-%04d", model_universe.universe_index, i, len(targets), target.universe_index)
         try:
             results.append(
                 evaluate_on_universe(
@@ -95,8 +101,9 @@ def evaluate_generalization(
             )
         except ValueError as exc:
             logger.warning(
-                "Skipping target %s: %s",
-                target.id,
+                "[CROSSEVAL] Skipping u-%04d -> u-%04d: %s",
+                model_universe.universe_index,
+                target.universe_index,
                 exc,
             )
 

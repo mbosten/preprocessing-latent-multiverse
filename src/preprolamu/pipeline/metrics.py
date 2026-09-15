@@ -90,13 +90,17 @@ def build_metrics_table(
             continue
 
         row = u.to_param_dict()
+
+        # LIKELY REDUNDANT: This data is already covered by the line above.
         row["universe_id"] = u.id
         row["split"] = split
+
+        # Why do we need the metrics path here again?
         row["metrics_path"] = str(path)
 
         # Retrieve metrics stored as json dicts
-        l2_raw = payload.get("landscape_l2_per_dim", {}) or {}
-        tp_raw = payload.get("total_persistence_per_dim", {}) or {}
+        l2_raw = payload.get("landscape_norms", {}) or {}
+        tp_raw = payload.get("total_persistence", {}) or {}
 
         l2 = {int(k): float(v) for k, v in l2_raw.items()}
         tp = {int(k): float(v) for k, v in tp_raw.items()}
@@ -109,8 +113,12 @@ def build_metrics_table(
             row[f"tp_dim{d}"] = float(tp.get(d, 0.0))
             l2_vals.append(v)
 
+        # Sum and mean across dimensions.
         row["l2_aggregate"] = float(sum(l2_vals))
         row["l2_average"] = float(sum(l2_vals) / max(len(l2_vals), 1))
+
+        row["h0_total_persistence_euclidean"] = float(payload.get("h0_total_persistence_euclidean", 0.0))
+        row["mst_length"] = float(payload.get("mst_length", 0.0))
 
         # Load evaluation metrics if available
         eval_path = u.paths.eval_metrics(split=split)
@@ -119,26 +127,34 @@ def build_metrics_table(
                 with eval_path.open("r", encoding="utf-8") as f:
                     eval_payload = json.load(f) or {}
 
-                recon = eval_payload.get("recon", {}) or {}
+                assert eval_payload.get("split") == split, "Split mismatch in eval metrics file."
+                
+                row["rocauc"] = eval_payload.get("roc_auc")
 
+                # Combined reconstruction error
+                recon = eval_payload.get("reconstruction", {}) or {}
                 row["recon_n"] = recon.get("n")
-                row["recon_mse_mean"] = recon.get("mse_mean")
-                row["recon_mse_median"] = recon.get("mse_median")
-                row["recon_mse_std"] = recon.get("mse_std")
-                row["recon_mse_p95"] = recon.get("mse_p95")
-                row["recon_mse_p99"] = recon.get("mse_p99")
-                row["recon_mse_max"] = recon.get("mse_max")
+                row["recon_mse_mean"] = recon.get("mean")
+                row["recon_mse_median"] = recon.get("median")
+                row["recon_mse_std"] = recon.get("std")
+                row["recon_mse_p95"] = recon.get("p95")
+                
+                # Benign reconstruction error
+                benign = eval_payload.get("benign")
+                row["benign_n"] = benign.get("n")
+                row["benign_mse_mean"] = benign.get("mean") 
+                row["benign_mse_median"] = benign.get("median")
+                row["benign_mse_std"] = benign.get("std")
+                row["benign_mse_p95"] = benign.get("p95")
 
-                row["recon_n_benign"] = eval_payload.get("n_benign")
-                row["recon_n_attack"] = eval_payload.get("n_attack")
+                # attack reconstruction error
+                attack = eval_payload.get("attack")
+                row["attack_n"] = attack.get("n")
+                row["attack_mse_mean"] = attack.get("mean")
+                row["attack_mse_median"] = attack.get("median")
+                row["attack_mse_std"] = attack.get("std")
+                row["attack_mse_p95"] = attack.get("p95")
 
-                rb = eval_payload.get("recon_benign", {}) or {}
-                ra = eval_payload.get("recon_attack", {}) or {}
-
-                row["recon_benign_mse_mean"] = rb.get("mse_mean")
-                row["recon_benign_mse_median"] = rb.get("mse_median")
-                row["recon_attack_mse_mean"] = ra.get("mse_mean")
-                row["recon_attack_mse_median"] = ra.get("mse_median")
 
             except Exception as e:
                 logger.warning(

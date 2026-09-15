@@ -102,8 +102,8 @@ def build_metrics_table(
         l2_raw = payload.get("landscape_norms", {}) or {}
         tp_raw = payload.get("total_persistence", {}) or {}
 
-        l2 = {int(k): float(v) for k, v in l2_raw.items()}
-        tp = {int(k): float(v) for k, v in tp_raw.items()}
+        l2 = {int(k): float(v or 0.0) for k, v in l2_raw.items()}
+        tp = {int(k): float(v or 0.0) for k, v in tp_raw.items()}
 
         l2_vals: list[float] = []
 
@@ -127,8 +127,12 @@ def build_metrics_table(
                 with eval_path.open("r", encoding="utf-8") as f:
                     eval_payload = json.load(f) or {}
 
-                assert eval_payload.get("split") == split, "Split mismatch in eval metrics file."
-                
+                if eval_payload.get("split") != split:
+                    raise ValueError(
+                        f"Split mismatch in eval metrics for {u.id}: "
+                        f"expected {split!r}, got {eval_payload.get('split')!r}"
+                    )
+                                
                 row["rocauc"] = eval_payload.get("roc_auc")
 
                 # Combined reconstruction error

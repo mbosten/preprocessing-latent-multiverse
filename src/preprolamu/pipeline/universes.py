@@ -110,6 +110,7 @@ class Universe:
 
     def to_param_dict(self) -> dict[str, Any]:
         return {
+            "universe_index": self.universe_index,
             "dataset_id": self.dataset_id,
             "scaling": self.scaling,
             "transform": self.transform,

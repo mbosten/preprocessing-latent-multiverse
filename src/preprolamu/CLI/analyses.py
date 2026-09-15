@@ -51,18 +51,6 @@ _PRESTO_PARAMS: list[str] = [
 ]
 
 
-# Keys for splitting the dataset in the l2 norm variance function
-# Combine with PRESOT PARAMS and drop the dataset id in the latter implementations
-SplitKey = Literal[
-    "dataset_id",
-    "scaling",
-    "feature_subset",
-    "transform",
-    "duplicate_handling",
-    "missingness",
-]
-
-
 # local sensitivity helper
 def _presto_local_sensitivity_from_metrics_table(
     df_ds: pd.DataFrame,
@@ -346,12 +334,12 @@ def dataset_summary(
 def presto_variance(
     split: str = typer.Option("test"),
     split_by: Annotated[
-        list[SplitKey],
+        list[str],
         typer.Option(
             "--split-by",
             help="Grouping key. Can be used up to twice.",
         ),
-    ] = ["dataset"],
+    ] = ["dataset_id"],
     norm_threshold: Annotated[
         float | None,
         typer.Option(

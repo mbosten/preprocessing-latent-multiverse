@@ -292,7 +292,7 @@ def presto_individual_violin(
 
     # modify duplicates tick text to ensure readability
     x_ticks = ax.get_xticks()
-    if "UNSW" in dataset:
+    if dataset in ("NF-UNSW-NB15-v3", "all"):
         x_labels = [
             "Scaling",
             "Log transform",
@@ -342,7 +342,7 @@ def presto_individual_violin(
 def performance_summary_plot(
     split: str = typer.Option("test"),
     out_dir: Path = typer.Option(Path("data/figures")),
-    perf_col: str = typer.Option("recon_mse_mean"),
+    perf_col: str = typer.Option("recon_mse_median"),
     norm_threshold: float | None = typer.Option(
         None,
         help="Exclude universes where any l2_dim* exceeds this threshold (optional).",
@@ -406,7 +406,7 @@ def topology_vs_performance_plot(
     split: str = typer.Option("test"),
     out_dir: Path = typer.Option(Path("data/figures")),
     topo_col: str = typer.Option("l2_average"),
-    perf_col: str = typer.Option("recon_mse_median"),
+    perf_col: str = typer.Option("rocauc"),
     log_topology: bool = typer.Option(
         False, help="If set, plot log10(topo_col) for readability."
     ),
@@ -447,8 +447,8 @@ def topology_vs_performance_plot(
 
     else:
         df["_topo_x"] = df[topo_col].to_numpy(dtype=float)
-        if topo_col == "l2_average":
-            xlab = r"Average $L^2$"
+
+    xlab = r"Average $L^2$" if topo_col == "l2_average" else topo_col
 
     datasets = sorted(df["dataset_id"].dropna().unique().tolist())
     n = len(datasets)
@@ -496,7 +496,7 @@ def topology_vs_performance_plot(
         ax.tick_params(axis="both", which="major", labelsize=12)
         ax.set_title(ds, fontsize=16)
         ax.set_xlabel(xlab if ax is axes[-1] else "", fontsize=14)
-        ax.set_ylabel("Median MSE", fontsize=14)
+        ax.set_ylabel(str(perf_col), fontsize=14)
 
     out_path = (
         out_dir

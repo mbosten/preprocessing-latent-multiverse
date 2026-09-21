@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
+# To implement
+# Remove 'FTP_COMMAND_RET_CODE' from all datasets due to zero variance in CICIDS. 
+
+
 # set up logging.
 @app.callback()
 def main():
@@ -77,7 +81,7 @@ def encode_categoricals(df: pd.DataFrame, columns: list[str]):
 
     return df
 
-
+# REDUNDANT: this makes the dataset sizes different and thus creates problems with cross-dataset generalization evaluation
 def drop_zero_variance(df: pd.DataFrame, label_col: str):
     df = df.copy()
     feature_df = df.drop(columns=label_col, errors="ignore")
@@ -145,9 +149,9 @@ def prepare_dataset(dataset_id: str = typer.Argument(..., help="Dataset id to pr
     config = load_dataset_config(dataset_id)
 
     df = load_raw(config["raw_path"])
-    df = df.drop(columns="Attack", errors="ignore") 
+    df = df.drop(columns=["Attack", "FTP_COMMAND_RET_CODE"], errors="ignore") 
     df = encode_categoricals(df, config["categorical_columns"])
-    df = drop_zero_variance(df, config["label_column"])
+    # df = drop_zero_variance(df, config["label_column"])
 
     dataset_profile = profile(df, config)
 

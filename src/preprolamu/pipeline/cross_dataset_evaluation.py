@@ -16,7 +16,7 @@ from preprolamu.pipeline.evaluation import summarize_errors
 logger = logging.getLogger(__name__)
 
 
-BATCH_SIZE = 4096
+BATCH_SIZE = 8192
 
 
 def evaluate_on_universe(

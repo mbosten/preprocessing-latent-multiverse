@@ -7,6 +7,9 @@ confounders:
 - IPV4_DST_ADDR
 - L4_SRC_PORT
 - L4_DST_PORT
+- MIN_TTL
+- MAX_TTL
+- DNS_TTL_ANSWER
 label_column: Label
 benign_label: 0
 

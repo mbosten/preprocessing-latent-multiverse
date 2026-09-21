@@ -25,7 +25,7 @@ def evaluate_on_universe(
         *,
         split: str = "test",
         feature_var: np.ndarray | None = None,
-) -> dict[str, Any]:
+):
     """Evaluate a trained autoencoder on a target universe."""
     config = load_dataset_config(data_universe.dataset_id)
     
@@ -44,18 +44,20 @@ def evaluate_on_universe(
     errors = reconstruction_error(model, X, batch_size=BATCH_SIZE, feature_var=feature_var)
 
     benign = y == config["benign_label"]
-    attack = ~benign
+    y_true = (~benign).astype(np.uint8)
 
-    return {
+    result = {
         "data_universe_id": data_universe.id,
         "data_dataset_id": data_universe.dataset_id,
         "n_samples": len(y),
         "n_features": actual_dim,
-        "roc_auc": float(roc_auc_score(attack.astype(int), errors)),
+        "roc_auc": float(roc_auc_score(y_true, errors)) if np.unique(y_true).size > 1 else None,
         "reconstruction": summarize_errors(errors),
         "benign": summarize_errors(errors[benign]),
-        "attack": summarize_errors(errors[attack]),
+        "attack": summarize_errors(errors[~benign]),
     }
+
+    return result, y_true, errors
 
 
 def evaluate_generalization(
@@ -63,7 +65,7 @@ def evaluate_generalization(
         universes,
         *,
         split: str = "test",
-) -> dict[str, Any]:
+):
     """Evaluate one AE on all universes with the same feature subset."""
     model = load_autoencoder(model_universe)
 
@@ -76,29 +78,28 @@ def evaluate_generalization(
 
     logger.info("Evaluating generalization of model from universe %s on %d target universes.",
             model_universe.id,
-            len(targets) - 1,
+            len(targets),
         )
 
     # Required for normalization of the reconstruction error
     config = load_dataset_config(model_universe.dataset_id)
     train_df = load_split(model_universe, config, split="train")
     X_train = feature_matrix(train_df, config["label_column"])
-    feature_var = np.var(X_train, axis=0)
-    feature_var = np.maximum(feature_var, 1e-6)
+    feature_var = np.maximum(np.var(X_train, axis=0), 1e-6)
 
     results = []
+    raw_evaluations = {}
 
     for i, target in enumerate(targets, start=1):
         logger.info("[CROSSEVAL] u-%04d [%d/%d] -> u-%04d", model_universe.universe_index, i, len(targets), target.universe_index)
         try:
-            results.append(
-                evaluate_on_universe(
+            result, y_true, scores = evaluate_on_universe(
                     model,
                     target,
                     split=split,
                     feature_var=feature_var,
                 )
-            )
+            
         except ValueError as exc:
             logger.warning(
                 "[CROSSEVAL] Skipping u-%04d -> u-%04d: %s",
@@ -106,8 +107,15 @@ def evaluate_generalization(
                 target.universe_index,
                 exc,
             )
+            continue
 
-    return {
+        prefix = str(target.id)
+
+        raw_evaluations[f"{prefix}__y_true"] = y_true
+        raw_evaluations[f"{prefix}__scores"] = scores
+        results.append(result)
+
+    metrics = {
         "model_universe_id": model_universe.id,
         "model_dataset_id": model_universe.dataset_id,
         "feature_subset": model_universe.feature_subset,
@@ -117,6 +125,8 @@ def evaluate_generalization(
         "results": results,
     }
 
+    return metrics, raw_evaluations
+
 
 def save_generalization(
         universe,
@@ -125,21 +135,24 @@ def save_generalization(
         split: str = "test",
         overwrite: bool = False,
 ) -> None:
-    path = universe.paths.cross_eval_metrics(split=split)
+    metrics_path = universe.paths.cross_eval_metrics(split=split)
+    scores_path = universe.paths.cross_eval_scores(split=split)
 
-    if path.exists() and not overwrite:
-        logger.info("Cross-dataset evaluation already exists at %s. Skipping.", path)
+    if metrics_path.exists() and scores_path.exists() and not overwrite:
+        logger.info("Cross-dataset evaluation already exists at %s. Skipping.", metrics_path)
         return
 
     if not universe.paths.ae_model().exists():
         logger.warning("No autoencoder model found for universe %s. Skipping.", universe.id)
         return
 
-    result = evaluate_generalization(
+    result, raw_evaluations = evaluate_generalization(
         universe,
         universes,
         split=split,
     )
 
-    path.write_text(json.dumps(result, indent=4), encoding="utf-8")
-    logger.info("Saved cross-dataset evaluation for %s to %s", universe.id, path)
+    metrics_path.write_text(json.dumps(result, indent=4), encoding="utf-8")
+    np.savez_compressed(scores_path, **raw_evaluations)
+
+    logger.info("Saved cross-dataset evaluation for %s to %s", universe.id, metrics_path)

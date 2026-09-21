@@ -45,6 +45,14 @@ class UniversePaths:
             / f"{self.u.id}_cross_eval_{split}.json"
         )
 
+    def cross_eval_scores(self, split: Split = "test") -> Path:
+        return ensure_parent_dir(
+            self.u.base_data_dir
+            / "processed"
+            / "cross_eval_scores"
+            / f"{self.u.id}_cross_eval_scores_{split}.npz"
+        )
+
     def embedding(self, split: Split = "test") -> Path:
         return ensure_parent_dir(
             self.u.base_data_dir

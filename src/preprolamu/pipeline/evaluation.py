@@ -39,14 +39,20 @@ def evaluate_model(
     errors = reconstruction_error(model, X, feature_var=feature_var)
 
     benign = y == benign_label
-    attack = ~benign
+    y_true = (~benign).astype(np.uint8)
 
-    return {
+    result = {
         "reconstruction": summarize_errors(errors),
-        "roc_auc": float(roc_auc_score(attack.astype(int), errors)),
+        "roc_auc": float(roc_auc_score(y_true, errors)) if np.unique(y_true).size > 1 else None,
         "benign": summarize_errors(errors[benign]),
-        "attack": summarize_errors(errors[attack]),
+        "attack": summarize_errors(errors[~benign]),
+        "evaluation": {
+            "y_true": y_true.tolist(),
+            "errors": errors.tolist(),
+        },
     }
+
+    return result
 
 
 def evaluate_autoencoder(universe: Universe, split: str = "test") -> dict:
@@ -60,8 +66,7 @@ def evaluate_autoencoder(universe: Universe, split: str = "test") -> dict:
     # Required for normalization of the reconstruction error
     train_df = load_split(universe, config, split="train")
     X_train = feature_matrix(train_df, config["label_column"])
-    feature_var = np.var(X_train, axis=0)
-    feature_var = np.maximum(feature_var, 1e-6)
+    feature_var = np.maximum(np.var(X_train, axis=0), 1e-6)
 
     return {
         "universe_id": universe.id,

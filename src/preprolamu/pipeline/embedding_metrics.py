@@ -146,7 +146,9 @@ def sample_embedding(
 def pseudo_condition_number(tensor, s=None, epsilon=1e-12, **_):
     """Implementation of the pseudo-condition number metric.
     Interpretation: Smallest vs largest singular value
-
+    NOTE: This metric differs from the paper since the paper uses the largest to smallest ratio, while here we do the opposite. 
+    NOTE: Hence, the metric is now bounded between 0 and 1, where 1 means all singular values are equal, and 0 means the largest singular value is much larger than the smallest.
+    NOTE: High values tell something about the distribution of singular values (spread evenly) but low values only tell us something about the largest and smallest singular values.
     Args:
       tensor (dense matrix): Input embeddings.
       s (optional, dense vector): Singular values of `tensor`.
@@ -162,6 +164,7 @@ def pseudo_condition_number(tensor, s=None, epsilon=1e-12, **_):
 
 def coherence(tensor, u=None, **_):
     """Implementation of the coherence metric.
+    NOTE: large values indicate that some observations contribute disproportionally to the singular vectors, after factoring out the singular values.
 
     Args:
       tensor (dense matrix): Input embeddings.

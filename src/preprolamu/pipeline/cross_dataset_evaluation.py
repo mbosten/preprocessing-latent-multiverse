@@ -87,6 +87,8 @@ def evaluate_generalization(
     X_train = feature_matrix(train_df, config["label_column"])
     feature_var = np.maximum(np.var(X_train, axis=0), 1e-6)
 
+    del train_df, X_train
+    
     results = []
     raw_evaluations = {}
 
@@ -153,6 +155,6 @@ def save_generalization(
     )
 
     metrics_path.write_text(json.dumps(result, indent=4), encoding="utf-8")
-    np.savez_compressed(scores_path, **raw_evaluations)
+    np.savez(scores_path, **raw_evaluations)
 
     logger.info("Saved cross-dataset evaluation for %s to %s", universe.id, metrics_path)

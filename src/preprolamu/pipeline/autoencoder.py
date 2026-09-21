@@ -256,7 +256,7 @@ def reconstruction_error(model: Autoencoder, X: np.ndarray, feature_var: np.ndar
     if feature_var is not None:
         feature_var = torch.from_numpy(feature_var).to(model_device)
     
-    with torch.no_grad():
+    with torch.inference_mode():
         for (batch,) in loader:
             batch = batch.to(model_device)
             recon = model(batch)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import csv
 import gzip
 import logging
@@ -165,8 +164,4 @@ def summarize_folder() -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("folder", type=Path)
-    args = parser.parse_args()
-
-    summarize_folder(args.folder)
+    summarize_folder()

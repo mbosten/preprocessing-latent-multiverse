@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import gzip
 import logging
+import os
 from pathlib import Path
 
 import numpy as np

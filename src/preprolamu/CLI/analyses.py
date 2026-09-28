@@ -302,8 +302,13 @@ def dataset_summary(
         help="Exclude universes where all l2_dim* norms are exactly zero.",
     ),
 ):
-    universes = generate_multiverse()
-    df = build_metrics_table(universes, split=split)
+
+    metrics_table_path = Path("data/processed/analysis/metrics_table.csv")
+    if metrics_table_path.exists():
+        df = pd.read_csv(metrics_table_path)
+    else:
+        universes = generate_multiverse()
+        df = build_metrics_table(universes, split=split)
 
     if norm_threshold is not None:
         df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
@@ -362,8 +367,13 @@ def presto_variance(
 
     keys = list(split_by)
 
-    universes = generate_multiverse()
-    df = build_metrics_table(universes, split=split, require_exists=True)
+    
+    metrics_table_path = Path("data/processed/analysis/metrics_table.csv")
+    if metrics_table_path.exists():
+        df = pd.read_csv(metrics_table_path)
+    else:
+        universes = generate_multiverse()
+        df = build_metrics_table(universes, split=split)
 
     if norm_threshold is not None:
         df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
@@ -439,8 +449,12 @@ def presto_local_sensitivity(
     if param not in allowed:
         raise typer.BadParameter(f"--param must be one of {sorted(allowed)}")
 
-    universes = generate_multiverse()
-    df = build_metrics_table(universes, split=split, require_exists=True)
+    metrics_table_path = Path("data/processed/analysis/metrics_table.csv")
+    if metrics_table_path.exists():
+        df = pd.read_csv(metrics_table_path)
+    else:
+        universes = generate_multiverse()
+        df = build_metrics_table(universes, split=split)
 
     if norm_threshold is not None:
         df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
@@ -498,8 +512,12 @@ def presto_global_sensitivity(
     ),
 ):
 
-    universes = generate_multiverse()
-    df = build_metrics_table(universes, split=split, require_exists=True)
+    metrics_table_path = Path("data/processed/analysis/metrics_table.csv")
+    if metrics_table_path.exists():
+        df = pd.read_csv(metrics_table_path)
+    else:
+        universes = generate_multiverse()
+        df = build_metrics_table(universes, split=split)
 
     if norm_threshold is not None:
         df = filter_output_by_norm_threshold(df, threshold=norm_threshold)
@@ -563,8 +581,12 @@ def presto_stability_regions(
     if not (0.0 < q_low < q_high < 1.0):
         raise typer.BadParameter("Require 0 < q_low < q_high < 1.")
 
-    universes = generate_multiverse()
-    df = build_metrics_table(universes, split=split, require_exists=True)
+    metrics_table_path = Path("data/processed/analysis/metrics_table.csv")
+    if metrics_table_path.exists():
+        df = pd.read_csv(metrics_table_path)
+    else:
+        universes = generate_multiverse()
+        df = build_metrics_table(universes, split=split, require_exists=True)
 
     if norm_threshold is not None:
         df = filter_output_by_norm_threshold(df, threshold=norm_threshold)

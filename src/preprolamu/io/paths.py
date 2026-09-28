@@ -77,6 +77,14 @@ class UniversePaths:
             / f"{self.u.id}_eval_{split}.json"
         )
 
+    def eval_scores(self, split: Split = "test") -> Path:
+        return ensure_parent_dir(
+            self.u.base_data_dir
+            / "processed"
+            / "eval_scores"
+            / f"{self.u.id}_eval_scores_{split}.npz"
+        )
+
     def figures(self, filename) -> Path:
         return ensure_parent_dir(self.u.base_data_dir / "figures" / f"{filename}.png")
 

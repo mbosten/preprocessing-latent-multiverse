@@ -89,6 +89,7 @@ def build_metrics_table(
             logger.warning("[METRICS] Skipping %s: metrics JSON is empty", u.id)
             continue
 
+        logger.debug("[METRICS-TABLE] Loaded metrics for %s", u.id)
         row = u.to_param_dict()
 
         # LIKELY REDUNDANT: This data is already covered by the line above.

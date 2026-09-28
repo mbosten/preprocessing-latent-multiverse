@@ -9,6 +9,8 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+INPUT_DIR = Path("data/processed/cross_eval_scores")
+OUTPUT_DIR = Path("data/processed/cross_eval_score_agg")
 N_THRESHOLDS = 101
 
 
@@ -22,13 +24,14 @@ def threshold_summary(y_true: np.ndarray, scores: np.ndarray):
 
     # Remove non-finite data
     valid = np.isfinite(scores)
+    n_total = scores.size
     n_invalid = np.count_nonzero(~valid)
 
     y_true = y_true[valid]
     scores = scores[valid]
 
     if scores.size == 0:
-        return [], n_invalid
+        return [], n_total, n_invalid
 
     # Label-independent threshold grid.
     thresholds = np.unique(
@@ -66,7 +69,7 @@ def threshold_summary(y_true: np.ndarray, scores: np.ndarray):
     f1 = divide(2 * tp, 2 * tp + fp + fn)
     specificity = divide(tn, tn + fp)
 
-    return zip(
+    rows =  zip(
         thresholds,
         tp,
         fp,
@@ -77,91 +80,84 @@ def threshold_summary(y_true: np.ndarray, scores: np.ndarray):
         recall,
         f1,
         specificity,
-    ), n_invalid
+    )
+
+    return rows, n_total, n_invalid
 
 
-def summarize_folder() -> None:
-    """Summarize all cross-evaluation NPZ files"""
-    output_path = Path("data/processed/analysis") / "cross_eval_summary.csv.gz"
+def summarize_file(path: Path) -> None:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = OUTPUT_DIR / f"{path.stem}.csv"
 
-    folder = Path("data/processed/cross_eval_scores")
-    npz_files = sorted(folder.rglob("*.npz"))
-
-    fieldnames = [
-        "source_file",
-        "target_id",
-        "threshold",
-        "tp",
-        "fp",
-        "fn",
-        "tn",
-        "accuracy",
-        "precision",
-        "recall",
-        "f1",
-        "specificity",
-        "n_invalid",
-    ]
-
-    with gzip.open(output_path, "wt", encoding="utf-8", newline="") as f:
+    with np.load(path, allow_pickle=False) as data, output_path.open(
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as f:
         writer = csv.writer(f)
-        writer.writerow(fieldnames)
 
-        for file_index, path in enumerate(npz_files, start=1):
-            logger.info(f"[{file_index}/{len(npz_files)}] {path}")
+        writer.writerow(
+            [
+                "target_id",
+                "threshold",
+                "tp",
+                "fp",
+                "fn",
+                "tn",
+                "accuracy",
+                "precision",
+                "recall",
+                "f1",
+                "specificity",
+                "n_total",
+                "n_invalid",
+            ]
+        )
 
-            with np.load(path, allow_pickle=False) as data:
-                y_true_keys = [
-                    key for key in data.files if key.endswith("__y_true")
+        for y_true_key in data.files:
+            if not y_true_key.endswith("__y_true"):
+                continue
+
+            target_id = y_true_key.removesuffix("__y_true")
+            scores_key = f"{target_id}__scores"
+
+            rows, n_total, n_invalid = threshold_summary(
+                data[y_true_key],
+                data[scores_key],
+            )
+
+            writer.writerows(
+                [
+                    target_id,
+                    float(threshold),
+                    int(tp),
+                    int(fp),
+                    int(fn),
+                    int(tn),
+                    float(accuracy),
+                    float(precision),
+                    float(recall),
+                    float(f1),
+                    float(specificity),
+                    n_total,
+                    n_invalid,
                 ]
-
-                for y_true_key in y_true_keys:
-                    target_id = y_true_key.removesuffix("__y_true")
-                    scores_key = f"{target_id}__scores"
-
-                    if scores_key not in data:
-                        raise KeyError(
-                            f"Missing {scores_key!r} in {path}"
-                        )
-
-                    y_true = data[y_true_key]
-                    scores = data[scores_key]
-
-                    for row in threshold_summary(y_true, scores):
-                        (
-                            threshold,
-                            tp,
-                            fp,
-                            fn,
-                            tn,
-                            accuracy,
-                            precision,
-                            recall,
-                            f1,
-                            specificity,
-                            n_invalid
-                        ) = row
-
-                        writer.writerow(
-                            [
-                                path.relative_to(folder),
-                                target_id,
-                                float(threshold),
-                                int(tp),
-                                int(fp),
-                                int(fn),
-                                int(tn),
-                                float(accuracy),
-                                float(precision),
-                                float(recall),
-                                float(f1),
-                                float(specificity),
-                                int(n_invalid),
-                            ]
-                        )
-
-    logger.info(f"Saved summary to {output_path}")
+                for (
+                    threshold,
+                    tp,
+                    fp,
+                    fn,
+                    tn,
+                    accuracy,
+                    precision,
+                    recall,
+                    f1,
+                    specificity,
+                ) in rows
+            )
 
 
 if __name__ == "__main__":
-    summarize_folder()
+    files = sorted(INPUT_DIR.glob("*.npz"))
+    index = int(os.environ["SLURM_ARRAY_TASK_ID"])
+    summarize_file(files[index])

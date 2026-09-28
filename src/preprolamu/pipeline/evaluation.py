@@ -46,13 +46,9 @@ def evaluate_model(
         "roc_auc": float(roc_auc_score(y_true, errors)) if np.unique(y_true).size > 1 else None,
         "benign": summarize_errors(errors[benign]),
         "attack": summarize_errors(errors[~benign]),
-        "evaluation": {
-            "y_true": y_true.tolist(),
-            "errors": errors.tolist(),
-        },
     }
 
-    return result
+    return result, y_true, errors
 
 
 def evaluate_autoencoder(universe: Universe, split: str = "test") -> dict:
@@ -68,27 +64,36 @@ def evaluate_autoencoder(universe: Universe, split: str = "test") -> dict:
     X_train = feature_matrix(train_df, config["label_column"])
     feature_var = np.maximum(np.var(X_train, axis=0), 1e-6)
 
-    return {
+    result, y_true, errors = evaluate_model(
+        load_autoencoder(universe),
+        X,
+        y,
+        feature_var,
+        config["benign_label"],
+    )
+
+    metrics = {
         "universe_id": universe.id,
         "dataset_id": universe.dataset_id,
         "split": split,
-        **evaluate_model(
-            load_autoencoder(universe),
-            X,
-            y,
-            feature_var,
-            config["benign_label"],
-        )
+        **result,
     }
+    
+    return metrics, y_true, errors
 
 
 def save_evaluation(universe: Universe, overwrite: bool = False):
-    path = universe.paths.eval_metrics(split="test")
+    metrics_path = universe.paths.eval_metrics(split="test")
+    scores_path = universe.paths.eval_scores(split="test")
 
-    if path.exists() and not overwrite:
+    if metrics_path.exists() and scores_path.exists() and not overwrite:
         return
 
-    path.write_text(
-        json.dumps(evaluate_autoencoder(universe), indent=4),
+    metrics, y_true, errors = evaluate_autoencoder(universe, split="test")
+
+    metrics_path.write_text(
+        json.dumps(metrics, indent=4),
         encoding="utf-8",
     )
+
+    np.savez(scores_path, y_true=y_true, errors=errors)

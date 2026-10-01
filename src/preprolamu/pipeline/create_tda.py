@@ -20,8 +20,8 @@ def prepare_point_cloud(universe: Universe, latent) -> Embedding:
     point_cloud.normalize(method="diameter", iterations=1000)
     return point_cloud
 
-# NOTE: This split parameter depends on the parameter setting during the AE step. 
-def run_tda_for_universe(u: Universe, split="test", overwrite=False):
+
+def run_tda_for_universe(u: Universe, split="train", overwrite=False):
     
     if u.collapsed(split=split):
         logger.info(
@@ -47,6 +47,7 @@ def run_tda_for_universe(u: Universe, split="test", overwrite=False):
 
     tda = Persistence(universe=u, intervals=intervals, landscapes=landscapes)
 
+# REDUNDANCY: I believe workings of these if statements is already handled in the backend of the Persistence class when it can't find the necessary data. Not sure though. Should check later.
     if intervals is None:
         logger.info(f"[TDA] Computing persistence for universe {u.id} (split={split})")
         latent = u.io.load_embedding(split=split)

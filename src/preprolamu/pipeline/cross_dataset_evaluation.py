@@ -6,7 +6,14 @@ from typing import Any
 
 import numpy as np
 
-from sklearn.metrics import roc_auc_score
+from matplotlib.figure import Figure
+from sklearn.metrics import (
+    auc,
+    average_precision_score,
+    precision_recall_curve,
+    roc_auc_score,
+    roc_curve,
+)
 
 from preprolamu.config import load_dataset_config
 from preprolamu.helpers import feature_matrix, labels, load_split
@@ -52,6 +59,7 @@ def evaluate_on_universe(
         "n_samples": len(y),
         "n_features": actual_dim,
         "roc_auc": float(roc_auc_score(y_true, errors)) if np.unique(y_true).size > 1 else None,
+        "auprc": float(average_precision_score(y_true, errors)) if np.unique(y_true).size > 1 else None,
         "reconstruction": summarize_errors(errors),
         "benign": summarize_errors(errors[benign]),
         "attack": summarize_errors(errors[~benign]),
@@ -130,6 +138,41 @@ def evaluate_generalization(
     return metrics, raw_evaluations
 
 
+def save_curve_figures(universe, raw_evaluations: dict, *, split: str = "test") -> None:
+    """Save ROC and precision-recall figures"""
+    target_ids = sorted({key.split("__")[0] for key in raw_evaluations})
+
+    roc_fig, pr_fig = Figure(figsize=(7, 6)), Figure(figsize=(7, 6))
+    roc_ax, pr_ax = roc_fig.subplots(), pr_fig.subplots()
+
+    for target_id in target_ids:
+        y_true = raw_evaluations[f"{target_id}__y_true"]
+        scores = raw_evaluations[f"{target_id}__scores"]
+        if np.unique(y_true).size < 2:
+            continue
+
+        fpr, tpr, _ = roc_curve(y_true, scores)
+        roc_ax.plot(fpr, tpr, lw=1, label=f"{target_id} (AUROC={auc(fpr, tpr):.3f})")
+
+        precision, recall, _ = precision_recall_curve(y_true, scores)
+        ap = average_precision_score(y_true, scores)
+        pr_ax.plot(recall, precision, lw=1, label=f"{target_id} (AUPRC={ap:.3f})")
+
+    roc_ax.plot([0, 1], [0, 1], "k--", lw=0.8)
+    roc_ax.set(xlabel="False positive rate", ylabel="True positive rate",
+               title=f"Cross-dataset ROC: model {universe.id} ({split})")
+    pr_ax.set(xlabel="Recall", ylabel="Precision", ylim=(0, 1.02),
+              title=f"Cross-dataset PR: model {universe.id} ({split})")
+
+    for fig, ax, kind in ((roc_fig, roc_ax, "roc"), (pr_fig, pr_ax, "prc")):
+        ax.legend(fontsize=6, loc="best")
+        fig.tight_layout()
+        fig.savefig(
+            universe.paths.figures(f"cross_eval_{kind}/{universe.id}_cross_eval_{kind}_{split}"),
+            dpi=150,
+        )
+
+
 def save_generalization(
         universe,
         universes,
@@ -140,8 +183,19 @@ def save_generalization(
     metrics_path = universe.paths.cross_eval_metrics(split=split)
     scores_path = universe.paths.cross_eval_scores(split=split)
 
+    figure_paths = [
+        universe.paths.figures(f"cross_eval_{kind}/{universe.id}_cross_eval_{kind}_{split}")
+        for kind in ("roc", "prc")
+    ]
+
     if metrics_path.exists() and scores_path.exists() and not overwrite:
-        logger.info("Cross-dataset evaluation already exists at %s. Skipping.", metrics_path)
+        if all(p.exists() for p in figure_paths):
+            logger.info("Cross-dataset evaluation already exists at %s. Skipping.", metrics_path)
+        else:
+            # Backfill figures from the stored raw scores without re-evaluating.
+            with np.load(scores_path) as data:
+                save_curve_figures(universe, dict(data), split=split)
+            logger.info("Saved missing cross-dataset curve figures for %s.", universe.id)
         return
 
     if not universe.paths.ae_model().exists():
@@ -156,5 +210,6 @@ def save_generalization(
 
     metrics_path.write_text(json.dumps(result, indent=4), encoding="utf-8")
     np.savez(scores_path, **raw_evaluations)
+    save_curve_figures(universe, raw_evaluations, split=split)
 
     logger.info("Saved cross-dataset evaluation for %s to %s", universe.id, metrics_path)

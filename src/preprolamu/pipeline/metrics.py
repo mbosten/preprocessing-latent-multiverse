@@ -122,16 +122,15 @@ def build_metrics_table(
         row["mst_length"] = float(payload.get("mst_length", 0.0))
 
         # Load evaluation metrics if available
-        eval_path = u.paths.eval_metrics(split=split)
+        eval_path = u.paths.eval_metrics(split="test")
         if eval_path.exists():
             try:
                 with eval_path.open("r", encoding="utf-8") as f:
                     eval_payload = json.load(f) or {}
 
-                if eval_payload.get("split") != split:
+                if eval_payload.get("split") != "test":
                     raise ValueError(
-                        f"Split mismatch in eval metrics for {u.id}: "
-                        f"expected {split!r}, got {eval_payload.get('split')!r}"
+                        f"Evaluation was not run on the test split for universe {u.id}. Terminating."
                     )
                                 
                 row["rocauc"] = eval_payload.get("roc_auc")

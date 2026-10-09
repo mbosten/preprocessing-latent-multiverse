@@ -89,11 +89,14 @@ def save_evaluation(universe: Universe, overwrite: bool = False):
     if metrics_path.exists() and scores_path.exists() and not overwrite:
         return
 
+    logger.info("Evaluating autoencoder for universe (%s): %s", universe.universe_index, universe.id)
     metrics, y_true, errors = evaluate_autoencoder(universe, split="test")
 
+    logger.info("Writing metrics for universe (%s)", universe.universe_index)
     metrics_path.write_text(
         json.dumps(metrics, indent=4),
         encoding="utf-8",
     )
 
+    logger.info("Writing scores for universe (%s)", universe.universe_index)
     np.savez(scores_path, y_true=y_true, errors=errors)

@@ -10,7 +10,7 @@ from sklearn.decomposition import PCA
 
 logger = logging.getLogger(__name__)
 
-# SHOULD I RELY ON UNIVERSE SEEDS HERE OR NAH
+
 class Embedding:
     def __init__(self, latent_space=None, universe=None):
         self.universe = universe
@@ -29,8 +29,8 @@ class Embedding:
     def _get_seed(self, seed=None):
         if seed is not None:
             return seed
-        if self.universe is not None and hasattr(self.universe, "seed"):
-            return self.universe.seed
+        # if self.universe is not None and hasattr(self.universe, "seed"):
+        #     return self.universe.seed
         return 42
 
     @property

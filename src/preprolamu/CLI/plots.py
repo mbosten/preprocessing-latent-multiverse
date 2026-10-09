@@ -422,8 +422,12 @@ def topology_vs_performance_plot(
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    universes = generate_multiverse()
-    df = build_metrics_table(universes, split=split, require_exists=True)
+    metrics_table_path = Path("data/processed/analysis/metrics_table.csv")
+    if metrics_table_path.exists():
+        df = pd.read_csv(metrics_table_path)
+    else:
+        universes = generate_multiverse()
+        df = build_metrics_table(universes, split=split, require_exists=True)
 
     if norm_threshold is not None:
         df = filter_output_by_norm_threshold(df, threshold=norm_threshold)

@@ -31,6 +31,7 @@ dependencies = [
     "scipy>=1.15.3",
     "faiss-cpu>=1.14.3",
     "mlpack>=4.8.0",
+    "ijson>=3.5.1",
 ]
 
 # Allows cli commands to be run as: uv run acb [cli function] [parameters]

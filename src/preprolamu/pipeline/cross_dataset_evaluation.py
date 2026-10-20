@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
@@ -19,6 +20,8 @@ from preprolamu.config import load_dataset_config
 from preprolamu.helpers import feature_matrix, labels, load_split
 from preprolamu.pipeline.autoencoder import load_autoencoder, reconstruction_error
 from preprolamu.pipeline.evaluation import summarize_errors
+from preprolamu.pipeline.preprocessing import Preprocessor
+from preprolamu.pipeline.universes import DATASET_IDS
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +35,13 @@ def evaluate_on_universe(
         *,
         split: str = "test",
         feature_var: np.ndarray | None = None,
+        df=None,
 ):
     """Evaluate a trained autoencoder on a target universe."""
     config = load_dataset_config(data_universe.dataset_id)
-    
-    df = load_split(data_universe, config, split)
+
+    if df is None:
+        df = load_split(data_universe, config, split)
 
     label_col = config["label_column"]
     y = labels(df, label_col)
@@ -74,55 +79,45 @@ def evaluate_generalization(
         *,
         split: str = "test",
 ):
-    """Evaluate one AE on all universes with the same feature subset."""
+    """Evaluate an AE on the remaining original datasets using source-fitted preprocessing."""
     model = load_autoencoder(model_universe)
 
-    targets = [
-        u
-        for u in universes
-        if u.feature_subset == model_universe.feature_subset
-        and u.id != model_universe.id
-    ]
+    # Redo the preprocessing for the model universe to retrieve the parameters needed to apply these to the target universes.
+    source = Preprocessor(model_universe)
+    source.process()
 
-    logger.info("Evaluating generalization of model from universe %s on %d target universes.",
-            model_universe.id,
-            len(targets),
-        )
 
     # Required for normalization of the reconstruction error
     config = load_dataset_config(model_universe.dataset_id)
-    train_df = load_split(model_universe, config, split="train")
-    X_train = feature_matrix(train_df, config["label_column"])
+    X_train = feature_matrix(source.train, config["label_column"])
     feature_var = np.maximum(np.var(X_train, axis=0), 1e-6)
 
-    del train_df, X_train
-    
+    del X_train
+
     results = []
     raw_evaluations = {}
 
-    for i, target in enumerate(targets, start=1):
-        logger.info("[CROSSEVAL] u-%04d [%d/%d] -> u-%04d", model_universe.universe_index, i, len(targets), target.universe_index)
-        try:
-            result, y_true, scores = evaluate_on_universe(
-                    model,
-                    target,
-                    split=split,
-                    feature_var=feature_var,
-                )
-            
-        except ValueError as exc:
-            logger.warning(
-                "[CROSSEVAL] Skipping u-%04d -> u-%04d: %s",
-                model_universe.universe_index,
-                target.universe_index,
-                exc,
-            )
+    for dataset_id in DATASET_IDS:
+        if dataset_id == model_universe.dataset_id:
             continue
 
-        prefix = str(target.id)
+        logger.info("[CROSSEVAL] %s -> %s", model_universe.id, dataset_id)
+        target_universe = replace(
+            model_universe, dataset_id=dataset_id, universe_index=None,
+        )
+        target = Preprocessor(target_universe, source=source)
+        train, val, test = target.process()
+        df = {"train": train, "val": val, "test": test}[split]
 
-        raw_evaluations[f"{prefix}__y_true"] = y_true
-        raw_evaluations[f"{prefix}__scores"] = scores
+        result, y_true, scores = evaluate_on_universe(
+            model, target_universe, split=split,
+            feature_var=feature_var, df=df,
+        )
+        if result["roc_auc"] is None:
+            raise ValueError(f"AUROC undefined for target dataset {dataset_id}")
+
+        raw_evaluations[f"{dataset_id}__y_true"] = y_true
+        raw_evaluations[f"{dataset_id}__scores"] = scores
         results.append(result)
 
     metrics = {
@@ -133,8 +128,8 @@ def evaluate_generalization(
         "split": split,
         "n_universes": len(results),
         "results": results,
+        "mean_roc_auc": float(np.mean([r["roc_auc"] for r in results])),
     }
-
     return metrics, raw_evaluations
 
 

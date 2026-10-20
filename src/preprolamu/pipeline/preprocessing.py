@@ -23,8 +23,9 @@ logger = logging.getLogger(__name__)
 class Preprocessor:
     """Preprocess dataset according to a universe configuration."""
 
-    def __init__(self, universe: Universe):
+    def __init__(self, universe: Universe, source: Preprocessor | None = None):
         self.universe = universe
+        self.source = source
         self.config = load_dataset_config(universe.dataset_id)
 
         self.df:    pd.DataFrame | None = None
@@ -34,12 +35,23 @@ class Preprocessor:
 
         self.transformer: TransformerMixin | None = None
         self.scaler: TransformerMixin | None = None
+        self.medians: pd.Series | None = None
+        self.mad_params: tuple[pd.Series, pd.Series] | None = None
 
     def process(self):
         self.load()
         self.feature_subset()
         self.duplicates()
         self.split()
+        if self.source is not None:
+            expected = self.source.feature_cols
+            actual = self.feature_cols
+            if set(actual) != set(expected):
+                raise ValueError(
+                    f"Feature mismatch: missing={set(expected) - set(actual)}, extra={set(actual) - set(expected)}"
+                )
+            label_col = self.config["label_column"]
+            self._map_splits(lambda df: df[expected + [label_col]])
         self.missingness()
         self.transform()
         self.scale()
@@ -156,7 +168,11 @@ class Preprocessor:
 
 
         if self.universe.missingness == "imp_med":
-            medians = self._require_train()[cols].median()
+            self.medians = (
+                self._require_train()[cols].median()
+                if self.source is None else self.source.medians
+            )
+            medians = self.medians
 
             def impute(df: pd.DataFrame):
                 df = df.copy()
@@ -186,10 +202,12 @@ class Preprocessor:
             func = np.arcsinh
 
         elif method == "yeo_johnson":
-            self.transformer = PowerTransformer(
-                method="yeo-johnson", 
-                standardize=False,
-            ).fit(self._require_train()[cols])
+            self.transformer = (
+                PowerTransformer(method="yeo-johnson", standardize=False).fit(
+                    self._require_train()[cols]
+                )
+                if self.source is None else self.source.transformer
+            )
             
             func = self.transformer.transform
 
@@ -215,30 +233,36 @@ class Preprocessor:
         if not cols:
             return
 
-        train = self._require_train()[cols]
-
         if method == "robust_mad":
-            median = train.median()
-            mad = (train - median).abs().median().replace(0, 1.0)
+            if self.source is None:
+                train = self._require_train()[cols]
+                median = train.median()
+                mad = (train - median).abs().median().replace(0, 1.0)
+                self.mad_params = (median, mad)
+            else:
+                self.mad_params = self.source.mad_params
+            median, mad = self.mad_params
             func = lambda x: (x - median) / mad
 
         elif method == "robust_iqr":
-            scaler = RobustScaler(
-                quantile_range=(25, 75),
-            ).fit(train)
-            self.scaler = scaler
-            func = scaler.transform
+            self.scaler = (
+                RobustScaler(quantile_range=(25, 75)).fit(self._require_train()[cols])
+                if self.source is None else self.source.scaler
+            )
+            func = self.scaler.transform
 
         elif method in {"quantile_uniform", "quantile_normal"}:
-            scaler = QuantileTransformer(
-                output_distribution=method.removeprefix("quantile_"),
-                random_state=self.universe.seed,
-            ).fit(train)
-            self.scaler = scaler
-            func = scaler.transform
+            self.scaler = (
+                QuantileTransformer(
+                    output_distribution=method.removeprefix("quantile_"),
+                    random_state=self.universe.seed,
+                ).fit(self._require_train()[cols])
+                if self.source is None else self.source.scaler
+            )
+            func = self.scaler.transform
 
-        else:  
-            raise ValueError(f"Unknown Scaling method: {self.universe.scaling!r}")
+        else:
+            raise ValueError(f"Unknown scaling method: {method!r}")
 
         def transform_df(df: pd.DataFrame):
             df = df.copy()

@@ -120,6 +120,8 @@ def evaluate_generalization(
         raw_evaluations[f"{dataset_id}__scores"] = scores
         results.append(result)
 
+        del target, train, val, test, df, y_true, scores
+
     metrics = {
         "model_universe_id": model_universe.id,
         "model_dataset_id": model_universe.dataset_id,

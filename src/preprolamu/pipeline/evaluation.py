@@ -4,7 +4,7 @@ import json
 import logging
 
 import numpy as np
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, average_precision_score
 
 from preprolamu.config import load_dataset_config
 from preprolamu.helpers import feature_matrix, labels, load_split
@@ -44,6 +44,7 @@ def evaluate_model(
     result = {
         "reconstruction": summarize_errors(errors),
         "roc_auc": float(roc_auc_score(y_true, errors)) if np.unique(y_true).size > 1 else None,
+        "auprc": float(average_precision_score(y_true, errors)) if np.unique(y_true).size > 1 else None,
         "benign": summarize_errors(errors[benign]),
         "attack": summarize_errors(errors[~benign]),
     }
